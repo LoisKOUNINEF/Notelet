@@ -1,0 +1,13 @@
+.checklist-item {
+  padding: 2px 0;
+
+  .a11y-checkbox__label {
+    overflow-wrap: anywhere;
+  }
+}
+
+// Muted text keeps a 4.5:1 contrast in both themes; the strike says "done" without color.
+.checklist-item--done .a11y-checkbox__label {
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+}

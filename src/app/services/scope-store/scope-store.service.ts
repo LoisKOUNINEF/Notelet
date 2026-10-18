@@ -24,12 +24,20 @@ export class QuotaExceededError extends Error {
 const KINDS: ScopeContentKind[] = ['notes', 'todos'];
 const SCOPES: NoteScope[] = ['page', 'site'];
 
-// Notes: newest first. To-dos: a checklist, the open ones oldest first, then the done ones in
-// the order they were checked, so the one just checked is always last.
+// Notes: newest first. To-dos: a checklist, the open ones in the order the user arranged them
+// (oldest first until then, new ones last), then the done ones in the order they were checked,
+// so the one just checked is always last.
 const SORTERS: { [K in ScopeContentKind]: (a: IScopeItemKinds[K], b: IScopeItemKinds[K]) => number } = {
   notes: (a, b) => b.createdAt - a.createdAt,
-  todos: (a, b) => Number(a.done) - Number(b.done) || (a.done ? doneTime(a) - doneTime(b) : 0) || a.createdAt - b.createdAt,
+  todos: (a, b) => Number(a.done) - Number(b.done)
+    || (a.done ? doneTime(a) - doneTime(b) : position(a) - position(b))
+    || a.createdAt - b.createdAt,
 };
+
+// Not reordered yet: after the ones that were.
+function position(todo: ITodo): number {
+  return todo.position ?? Number.MAX_SAFE_INTEGER;
+}
 
 // To-dos checked before doneAt existed have none: their last update is the closest guess.
 function doneTime(todo: ITodo): Timestamp {
@@ -74,8 +82,8 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
     return { page: content('page'), site: content('site') };
   }
 
-  public addNote(scope: NoteScope, key: string, text: string): Promise<INote> {
-    return this.add('notes', this.newItem(scope, key, text));
+  public addNote(scope: NoteScope, key: string, text: string, items: IChecklistItem[] = []): Promise<INote> {
+    return this.add('notes', { ...this.newItem(scope, key, text), items });
   }
 
   public addTodo(scope: NoteScope, key: string, text: string): Promise<ITodo> {
@@ -88,6 +96,29 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
     if (kind === 'todos') stampDoneAt(item as ITodo, updated as ITodo, now);
     return this.enqueue(async () => {
       await this.write(kind, item.scope, item.key, (items) => items.map((i) => (i.id === item.id ? updated : i)));
+      return updated;
+    });
+  }
+
+  /**
+   * Like update(), but the changes are computed from the item as currently stored, inside the
+   * write queue: two quick changes to one item (e.g. checking two of a note's checklist items)
+   * both stick, where update() would have the second overwrite the first with a stale copy.
+   */
+  public updateWith<K extends ScopeContentKind>(
+    kind: K,
+    item: IScopeItemKinds[K],
+    change: (current: IScopeItemKinds[K]) => ScopeItemChanges<K>
+  ): Promise<IScopeItemKinds[K]> {
+    return this.enqueue(async () => {
+      let updated = item;
+      await this.write(kind, item.scope, item.key, (items) => items.map((current) => {
+        if (current.id !== item.id) return current;
+        const now = Date.now();
+        updated = { ...current, ...change(current), updatedAt: now } as IScopeItemKinds[K];
+        if (kind === 'todos') stampDoneAt(current as ITodo, updated as ITodo, now);
+        return updated;
+      }));
       return updated;
     });
   }
@@ -132,6 +163,24 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
       });
       return moved;
     });
+  }
+
+  /**
+   * Saves the order the user gave a list's open to-dos, in one write. Open to-dos missing from
+   * `openIds` (added in another window meanwhile) keep their place after them; done ones keep theirs.
+   */
+  public reorderTodos(scope: NoteScope, key: string, openIds: string[]): Promise<void> {
+    return this.enqueue(() => this.write('todos', scope, key, (todos) => {
+      const open = todos.filter((todo) => !todo.done);
+      const ordered = [
+        ...openIds.map((id) => open.find((todo) => todo.id === id)).filter((todo): todo is ITodo => !!todo),
+        ...open.filter((todo) => !openIds.includes(todo.id)),
+      ];
+      return [
+        ...ordered.map((todo, index) => ({ ...todo, position: index })),
+        ...todos.filter((todo) => todo.done),
+      ];
+    }));
   }
 
   /**

@@ -47,7 +47,8 @@ describe('TodoItemComponent', () => {
     expect(checkbox(todos[0]).checked).toBe(false);
 
     const checkId = el.querySelector('a11y-checkbox').id;
-    el.querySelectorAll('button').forEach((button) => expect(button.getAttribute('aria-describedby')).toBe(checkId));
+    // The reorder handle is described by the reorder help instead.
+    el.querySelectorAll('button:not(.todo-item__handle)').forEach((button) => expect(button.getAttribute('aria-describedby')).toBe(checkId));
   });
 
   it('with "Done" open, checks a to-do, moves it below the open ones and keeps focus on its checkbox', async () => {

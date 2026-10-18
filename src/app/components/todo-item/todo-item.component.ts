@@ -8,14 +8,20 @@ import { settingsService } from '../../services/settings/settings.service.js';
 // What the to-do list passes to each item, besides the to-do (see createCatalogComponents).
 export interface ITodoItemOptions {
   group: 'open' | 'done';
+  // Shows the grab handle (open to-dos, when there are at least two). The list runs the gestures.
+  reorderable: boolean;
+  // The to-do picked up with the keyboard, if any.
+  grabbedId: string | null;
 }
 
 interface ITodoItemView {
   todo: ITodo;
   editing: boolean;
+  reorderable: boolean;
+  grabbed: boolean;
 }
 
-const templateFn = ({ todo, editing }: ITodoItemView) => html`__TEMPLATE_PLACEHOLDER__`;
+const templateFn = ({ todo, editing, reorderable, grabbed }: ITodoItemView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 /**
  * One to-do: a checkbox labelled by its text, and its actions. Edit mode swaps them for a
@@ -33,7 +39,7 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
       templateFn,
       mountTarget,
       props: { className: todo.done ? 'todo-item todo-item--done' : 'todo-item' },
-      config: { todo, editing: false },
+      config: { todo, editing: false, reorderable: options.reorderable, grabbed: options.grabbedId === todo.id },
     });
     // Lets the list find this to-do's controls again after it re-renders (see requestFocus).
     this.element.dataset.todoId = todo.id;
@@ -130,7 +136,7 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
   }
 
   private setEditing(editing: boolean): void {
-    this.config = { todo: this._todo, editing };
+    this.config = { ...this.config, editing };
     this.render();
   }
 }

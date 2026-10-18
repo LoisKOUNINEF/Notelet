@@ -21,12 +21,24 @@ declare interface IScopeItem {
   updatedAt: Timestamp;
 }
 
-declare interface INote extends IScopeItem {}
+// One checkable line of a note's checklist (checked items stay in place).
+declare interface IChecklistItem {
+  id: string;
+  text: string;
+  done: boolean;
+}
+
+declare interface INote extends IScopeItem {
+  // Absent (notes saved before checklists) or empty: a plain note.
+  items?: IChecklistItem[];
+}
 
 declare interface ITodo extends IScopeItem {
   done: boolean;
   // When it was last checked (null while open): done to-dos are listed in the order they were done.
   doneAt: Timestamp | null;
+  // Where the user put it among the open ones; absent until they reorder the list.
+  position?: number;
 }
 
 // The item type of each kind.

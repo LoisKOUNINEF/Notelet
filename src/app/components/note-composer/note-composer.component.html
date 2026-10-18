@@ -4,6 +4,7 @@
     <textarea class="note-composer__input" name="text" rows="3" required placeholder="Write a note…" data-event="keydown:_onKeydown:@event">${draft}</textarea>
   </a11y-textarea>
   <div class="note-composer__actions">
+    <button class="button button--small note-composer__checklist" type="button" tabindex="0" aria-pressed="${checklist ? 'true' : 'false'}" data-event="click:_toggleChecklist">Checklist</button>
     <span class="note-composer__hint" aria-hidden="true">Ctrl+Enter to add</span>
     <button class="button button--primary" type="submit" tabindex="0">Add note</button>
   </div>

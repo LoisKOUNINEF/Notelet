@@ -55,7 +55,7 @@ describe('NoteItemComponent', () => {
   it('edits in place, with the caret at the end', () => {
     item(notes[0]).querySelector('.note-item__edit').click();
 
-    const input = item(notes[0]).querySelector('.note-item__input');
+    const input = item(notes[0]).querySelector('.note-editor__input');
     expect(input.value).toBe('First');
     expect(document.activeElement).toBe(input);
     expect(input.selectionStart).toBe(5);
@@ -63,7 +63,7 @@ describe('NoteItemComponent', () => {
 
   it('saves an edit, then shows it as edited with the focus back on Edit', async () => {
     item(notes[0]).querySelector('.note-item__edit').click();
-    item(notes[0]).querySelector('.note-item__input').value = 'First, revised';
+    item(notes[0]).querySelector('.note-editor__input').value = 'First, revised';
     item(notes[0]).querySelector('button[type="submit"]').click();
     await settle();
 
@@ -75,7 +75,7 @@ describe('NoteItemComponent', () => {
 
   it('saves with Ctrl+Enter', async () => {
     item(notes[0]).querySelector('.note-item__edit').click();
-    const input = item(notes[0]).querySelector('.note-item__input');
+    const input = item(notes[0]).querySelector('.note-editor__input');
     input.value = 'Quick';
     keydown(input, 'Enter', { ctrlKey: true });
     await settle();
@@ -84,8 +84,8 @@ describe('NoteItemComponent', () => {
 
   it('cancels with Escape or Cancel, without saving', async () => {
     item(notes[0]).querySelector('.note-item__edit').click();
-    item(notes[0]).querySelector('.note-item__input').value = 'Discarded';
-    keydown(item(notes[0]).querySelector('.note-item__input'), 'Escape');
+    item(notes[0]).querySelector('.note-editor__input').value = 'Discarded';
+    keydown(item(notes[0]).querySelector('.note-editor__input'), 'Escape');
     expect(item(notes[0]).querySelector('.note-item__text').textContent).toBe('First');
     expect(document.activeElement).toBe(item(notes[0]).querySelector('.note-item__edit'));
 
@@ -97,13 +97,13 @@ describe('NoteItemComponent', () => {
 
   it('keeps an edit in progress while another note is deleted', async () => {
     item(notes[0]).querySelector('.note-item__edit').click();
-    item(notes[0]).querySelector('.note-item__input').value = 'Still typing';
+    item(notes[0]).querySelector('.note-editor__input').value = 'Still typing';
 
     item(notes[2]).querySelector('.note-item__delete').click();
     await settle();
 
     expect(item(notes[2])).toBeFalsy();
-    expect(item(notes[0]).querySelector('.note-item__input').value).toBe('Still typing');
+    expect(item(notes[0]).querySelector('.note-editor__input').value).toBe('Still typing');
   });
 
   it('deletes a note, offers to undo it, and moves focus to the next one', async () => {
@@ -149,13 +149,13 @@ describe('NoteItemComponent', () => {
 
   it('reports a failed save and stays in edit mode', async () => {
     item(notes[0]).querySelector('.note-item__edit').click();
-    item(notes[0]).querySelector('.note-item__input').value = 'Too long for sync';
+    item(notes[0]).querySelector('.note-editor__input').value = 'Too long for sync';
     panel.fake.storage.local.failNextSet = new Error('Quota exceeded.');
     item(notes[0]).querySelector('button[type="submit"]').click();
     await settle();
 
     expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t save the note. Quota exceeded.', type: 'error', duration: 6000 });
-    expect(item(notes[0]).querySelector('.note-item__input').value).toBe('Too long for sync');
+    expect(item(notes[0]).querySelector('.note-editor__input').value).toBe('Too long for sync');
   });
 
   it('leaves edit mode without saving when the text is unchanged', async () => {
@@ -172,21 +172,21 @@ describe('NoteItemComponent', () => {
 
   it('refuses to save an empty note and stays in edit mode', async () => {
     item(notes[0]).querySelector('.note-item__edit').click();
-    item(notes[0]).querySelector('.note-item__input').value = '  \n ';
+    item(notes[0]).querySelector('.note-editor__input').value = '  \n ';
     item(notes[0]).querySelector('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
     await settle();
 
     expect((await stored()).page.notes.find((n) => n.id === notes[0].id).text).toBe('First');
-    expect(item(notes[0]).querySelector('.note-item__input')).toBeTruthy();
+    expect(item(notes[0]).querySelector('.note-editor__input')).toBeTruthy();
   });
 
   it('saves with Cmd+Enter, but plain Enter only adds a line', async () => {
     item(notes[0]).querySelector('.note-item__edit').click();
-    const input = item(notes[0]).querySelector('.note-item__input');
+    const input = item(notes[0]).querySelector('.note-editor__input');
     input.value = 'Two\nlines';
     keydown(input, 'Enter');
     await settle();
-    expect(item(notes[0]).querySelector('.note-item__input')).toBe(input);
+    expect(item(notes[0]).querySelector('.note-editor__input')).toBe(input);
 
     keydown(input, 'Enter', { metaKey: true });
     await settle();
@@ -198,7 +198,7 @@ describe('NoteItemComponent', () => {
     let reached = false;
     const onKeydown = () => { reached = true; };
     document.addEventListener('keydown', onKeydown);
-    keydown(item(notes[0]).querySelector('.note-item__input'), 'Escape');
+    keydown(item(notes[0]).querySelector('.note-editor__input'), 'Escape');
     document.removeEventListener('keydown', onKeydown);
     expect(reached).toBe(false);
   });
@@ -245,3 +245,140 @@ describe('NoteItemComponent', () => {
     expect(texts()).toEqual(['Third', 'First']);
   });
 });
+
+describe('NoteItemComponent - checklist', () => {
+  let panel;
+  let sidebar;
+
+  const item = (note) => $(`[data-note-id="${note.id}"]`);
+  const stored = async () => (await scopeStoreService.load(KEYS)).page.notes;
+  const mount = async () => {
+    sidebar = new SidebarComponent('#app');
+    sidebar.render();
+    await settle();
+  };
+  const submit = async (form) => {
+    form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+    await settle();
+  };
+
+  beforeEach(async () => {
+    panel = await startPanel();
+  });
+
+  afterEach(async () => {
+    sidebar.destroy();
+    await panel.stop();
+  });
+
+  it('shows the checklist and how much of it is done, without "Add checklist"', async () => {
+    const note = await scopeStoreService.addNote('page', KEYS.page, 'Trip', [
+      { id: 'a', text: 'Passport', done: true },
+      { id: 'b', text: 'Tickets', done: false },
+    ]);
+    await mount();
+
+    expect(item(note).querySelector('.note-item__checklist').getAttribute('aria-label')).toBe('Checklist');
+    expect(item(note).querySelector('.note-item__meta').textContent).toContain(' · 1 of 2 done');
+    expect(item(note).querySelector('.note-item__add-checklist')).toBeFalsy();
+    expect(item(note).querySelector('.note-item__add-item-input')).toBeTruthy();
+  });
+
+  it('hides the empty text of an items-only note', async () => {
+    const note = await scopeStoreService.addNote('page', KEYS.page, '', [{ id: 'a', text: 'Only', done: false }]);
+    await mount();
+    expect(item(note).querySelector('.note-item__text')).toBeFalsy();
+  });
+
+  it('shows notes saved before checklists as plain notes', async () => {
+    panel.fake.storage.local.data.set(`notes:page:${KEYS.page}`, [
+      { id: 'old', scope: 'page', key: KEYS.page, text: 'From before', createdAt: 1, updatedAt: 1 },
+    ]);
+    await mount();
+    const el = $('[data-note-id="old"]');
+    expect(el.querySelector('.note-item__checklist')).toBeFalsy();
+    expect(el.querySelector('.note-item__add-checklist')).toBeTruthy();
+    expect(el.querySelector('.note-item__meta').textContent).not.toContain('done');
+  });
+
+  it('starts a checklist with "Add checklist", focusing its first field', async () => {
+    const note = await scopeStoreService.addNote('page', KEYS.page, 'Plain');
+    await mount();
+
+    item(note).querySelector('.note-item__add-checklist').click();
+    expect(document.activeElement).toBe(item(note).querySelector('.note-item__add-item-input'));
+    expect(item(note).querySelector('.note-item__add-checklist')).toBeFalsy();
+  });
+
+  it('adds items from the view, keeping focus in the field', async () => {
+    const note = await scopeStoreService.addNote('page', KEYS.page, 'Plain');
+    await mount();
+    item(note).querySelector('.note-item__add-checklist').click();
+
+    item(note).querySelector('.note-item__add-item-input').value = '  First item ';
+    await submit(item(note).querySelector('.note-item__add-item'));
+    item(note).querySelector('.note-item__add-item-input').value = 'Second item';
+    await submit(item(note).querySelector('.note-item__add-item'));
+
+    expect((await stored())[0].items.map((i) => i.text)).toEqual(['First item', 'Second item']);
+    expect(document.activeElement).toBe(item(note).querySelector('.note-item__add-item-input'));
+    expect(item(note).querySelector('.note-item__add-item-input').value).toBe('');
+  });
+
+  it('ignores an empty item, and reports a failed one', async () => {
+    const note = await scopeStoreService.addNote('page', KEYS.page, 'List', [{ id: 'a', text: 'A', done: false }]);
+    await mount();
+    const set = spyOn(panel.fake.storage.local, 'set');
+    await submit(item(note).querySelector('.note-item__add-item'));
+    expect(set.callCount).toBe(0);
+    set.restore();
+
+    panel.fake.storage.local.failNextSet = new Error('Quota exceeded.');
+    item(note).querySelector('.note-item__add-item-input').value = 'Too much';
+    await submit(item(note).querySelector('.note-item__add-item'));
+    expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t add the item. Quota exceeded.', type: 'error', duration: 6000 });
+    expect(item(note).querySelector('.note-item__add-item-input').value).toBe('Too much');
+  });
+
+  it('leaves edit mode without saving when nothing changed, checklist included', async () => {
+    const note = await scopeStoreService.addNote('page', KEYS.page, 'List', [{ id: 'a', text: 'A', done: false }]);
+    await mount();
+    const set = spyOn(panel.fake.storage.local, 'set');
+    item(note).querySelector('.note-item__edit').click();
+    $('.note-editor button[type="submit"]').click();
+    await settle();
+    expect(set.callCount).toBe(0);
+    set.restore();
+    expect($('.note-editor')).toBeFalsy();
+  });
+
+  it('adds a first item to a note saved before checklists', async () => {
+    panel.fake.storage.local.data.set(`notes:page:${KEYS.page}`, [
+      { id: 'old', scope: 'page', key: KEYS.page, text: 'From before', createdAt: 1, updatedAt: 1 },
+      { id: 'other', scope: 'page', key: KEYS.page, text: 'Another note', createdAt: 2, updatedAt: 2 },
+    ]);
+    await mount();
+    $('[data-note-id="old"] .note-item__add-checklist').click();
+    $('[data-note-id="old"] .note-item__add-item-input').value = 'First';
+    await submit($('[data-note-id="old"] .note-item__add-item'));
+
+    const saved = await stored();
+    expect(saved.find((n) => n.id === 'old').items.map((i) => i.text)).toEqual(['First']);
+    expect(saved.find((n) => n.id === 'other').text).toBe('Another note');
+  });
+
+  it('edits a note saved before checklists, and leaves it unchanged when nothing changed', async () => {
+    panel.fake.storage.local.data.set(`notes:page:${KEYS.page}`, [
+      { id: 'old', scope: 'page', key: KEYS.page, text: 'From before', createdAt: 1, updatedAt: 1 },
+    ]);
+    await mount();
+    const set = spyOn(panel.fake.storage.local, 'set');
+    $('[data-note-id="old"] .note-item__edit').click();
+    expect($$('.checklist-field__input')).toEqual([]);
+    $('.note-editor button[type="submit"]').click();
+    await settle();
+    expect(set.callCount).toBe(0);
+    set.restore();
+  });
+});
+

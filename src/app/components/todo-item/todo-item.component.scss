@@ -14,10 +14,13 @@
   }
 }
 
-// <a11y-checkbox> wraps the checkbox in a <label> with the text in .a11y-checkbox__label.
+// <a11y-checkbox> is `display: contents`: its generated <label class="a11y-checkbox"> is the
+// row's flex item, so that's what takes the free space.
 .todo-item__check {
-  flex: 1;
-  min-width: 0;
+  > .a11y-checkbox {
+    flex: 1;
+    min-width: 0;
+  }
 
   .a11y-checkbox__label {
     overflow-wrap: anywhere;
@@ -32,6 +35,7 @@
 
 .todo-item__actions {
   display: flex;
+  margin-left: auto;
   gap: var(--space-1);
 }
 
@@ -45,4 +49,43 @@
 .todo-item__field {
   flex: 1;
   min-width: 0;
+}
+
+// Grab handle: drag it (mouse, pen, touch), or focus it and press Space (see TodoReorder).
+.todo-item__handle {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  min-height: 1.75rem;
+  margin: 0 calc(-1 * var(--space-1)) 0 calc(-1 * var(--space-1));
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-small);
+  background: none;
+  color: var(--color-text-muted);
+  cursor: grab;
+  // The pointer drags the to-do, not the panel.
+  touch-action: none;
+
+  &:hover {
+    color: var(--color-text);
+  }
+
+  &[aria-pressed='true'] {
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+    cursor: grabbing;
+  }
+}
+
+// Six dots: two columns of three.
+.todo-item__grip {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 5px 0 currentColor, 0 5px currentColor, 5px 5px currentColor, 0 -5px currentColor, 5px -5px currentColor;
+  transform: translateX(-2.5px);
 }

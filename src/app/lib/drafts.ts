@@ -10,3 +10,8 @@ export function setDraft(id: string, text: string): void {
   if (text) drafts.set(id, text);
   else drafts.delete(id);
 }
+
+// Forgets every draft (tests start each panel fresh).
+export function clearDrafts(): void {
+  drafts.clear();
+}

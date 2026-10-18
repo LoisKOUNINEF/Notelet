@@ -1,0 +1,14 @@
+<form class="note-editor" data-event="submit:_save">
+  <a11y-textarea class="note-editor__field">
+    <a11y-label><span class="a11y-visually-hidden">Edit note</span></a11y-label>
+    <textarea class="note-editor__input" name="text" rows="4" data-event="keydown:_onKeydown:@event">${text}</textarea>
+  </a11y-textarea>
+  ${hasItems ? html`<ul class="note-editor__items" data-catalog="fields" aria-label="Checklist items"></ul>` : ''}
+  <div class="note-editor__actions">
+    <button class="button button--small note-editor__add-item" type="button" tabindex="0" data-event="click:_addField">Add item</button>
+    <span class="note-editor__spacer"></span>
+    <button class="button button--primary" type="submit" tabindex="0">Save</button>
+    <button class="button" type="button" tabindex="0" data-event="click:_cancel">Cancel</button>
+  </div>
+  <span class="note-editor__hint" aria-hidden="true">Ctrl+Enter to save · Esc to cancel</span>
+</form>

@@ -56,3 +56,19 @@
     transform: rotate(45deg);
   }
 }
+
+// The others slide aside while a to-do is dragged (instantly under reduced motion: --transition).
+.todo-list__open > li {
+  position: relative;
+  transition: transform var(--transition);
+}
+
+.todo-list__open > .todo-list__item--dragging {
+  z-index: 1;
+  border-radius: var(--radius-small);
+  background: var(--color-surface);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.25);
+  // It follows the pointer exactly.
+  transition: none;
+  cursor: grabbing;
+}

@@ -6,6 +6,7 @@ import { scopeStoreService } from '../../services/scope-store/scope-store.servic
 import { settingsService } from '../../services/settings/settings.service.js';
 import { TodoComposerComponent } from '../todo-composer/todo-composer.component.js';
 import { TodoItemComponent, type ITodoItemOptions } from '../todo-item/todo-item.component.js';
+import { TodoReorder } from './todo-reorder.js';
 
 export interface ITodoListConfig {
   scope: NoteScope;
@@ -22,33 +23,53 @@ interface ITodoListView {
 
 const templateFn = ({ open, done, expanded, label }: ITodoListView) => html`__TEMPLATE_PLACEHOLDER__`;
 
-// One object per group for every render: items are only kept while their options are unchanged.
-const ITEM_OPTIONS: Record<ITodoItemOptions['group'], ITodoItemOptions> = {
-  open: { group: 'open' },
-  done: { group: 'done' },
-};
+// One object per combination, reused across renders: items are only kept while their options are
+// unchanged (picking a to-do up changes them, so the open ones are rebuilt with its new state).
+const itemOptionsCache = new Map<string, ITodoItemOptions>();
+function itemOptions(group: ITodoItemOptions['group'], reorderable: boolean, grabbedId: string | null): ITodoItemOptions {
+  const id = `${group}|${reorderable}|${grabbedId}`;
+  let options = itemOptionsCache.get(id);
+  if (!options) {
+    options = { group, reorderable, grabbedId };
+    itemOptionsCache.set(id, options);
+  }
+  return options;
+}
 
 /**
  * One scope's to-dos: the open ones, its quick add, then the done ones in a "Done (n)" group,
  * collapsed or not as last left (a setting shared by every page). Like the note list, the
  * sidebar keeps it across renders and hands it new to-dos through update(): unchanged items
- * and the quick add's text are kept.
+ * and the quick add's text are kept. Open to-dos are reordered by their handles (see TodoReorder).
  */
 export class TodoListComponent extends Component<HTMLElement, ITodoListView> {
   private _scope: NoteScope;
   private _key: string;
   private _todos: ITodo[];
+  // Handed over by update() while a reorder gesture runs, applied once it ends.
+  private _held: ITodo[] | null = null;
+  private readonly _reorder = new TodoReorder({
+    root: this.element,
+    openIds: () => this.config.open.map((todo) => todo.id),
+    // Only ever asked about the to-dos it shows.
+    textOf: (id) => this._todos.find((todo) => todo.id === id)!.text,
+    preview: () => this.refresh(),
+    commit: (order, movedId) => this.saveOrder(order, movedId),
+    settle: () => this.applyHeld(),
+  });
 
   constructor(mountTarget: HTMLElement, { scope, key, todos }: ITodoListConfig) {
-    super({ templateFn, mountTarget, config: TodoListComponent.view(scope, todos) });
+    super({ templateFn, mountTarget, config: TodoListComponent.view(scope, todos, null) });
     this._scope = scope;
     this._key = key;
     this._todos = todos;
   }
 
-  private static view(scope: NoteScope, todos: ITodo[]): ITodoListView {
+  private static view(scope: NoteScope, todos: ITodo[], order: string[] | null): ITodoListView {
+    const open = todos.filter((todo) => !todo.done);
     return {
-      open: todos.filter((todo) => !todo.done),
+      // While a to-do is picked up, the order it's being moved through.
+      open: order ? order.map((id) => open.find((todo) => todo.id === id)!) : open,
       done: todos.filter((todo) => todo.done),
       expanded: settingsService.doneExpanded,
       label: scope === 'page' ? 'To-dos for this page' : 'To-dos for this site',
@@ -57,25 +78,30 @@ export class TodoListComponent extends Component<HTMLElement, ITodoListView> {
 
   public override registerChildren(): Nutin.ComponentConfig[] {
     const { open, done } = this.config;
-    const catalog = (group: ITodoItemOptions['group'], items: ITodo[]) => this.createCatalogComponents({
+    const reorderable = open.length > 1;
+    const catalog = (group: ITodoItemOptions['group'], items: ITodo[], options: ITodoItemOptions) => this.createCatalogComponents({
       items,
       selector: `${group}-todos`,
       elementName: `${group}-todo`,
       elementTag: 'li',
       component: TodoItemComponent,
-      props: ITEM_OPTIONS[group],
+      props: options,
       // An unchanged to-do keeps its item (and an edit in progress); a changed one has a new updatedAt.
       keepBy: (todo: ITodo) => todo.id,
     });
 
     return [
-      ...catalog('open', open),
-      ...catalog('done', done),
+      ...catalog('open', open, itemOptions('open', reorderable, this._reorder.grabbedId)),
+      ...catalog('done', done, itemOptions('done', false, null)),
       { selector: 'todo-composer', factory: (el) => new TodoComposerComponent(el, { scope: this._scope, key: this._key }), keep: 'composer' },
     ];
   }
 
   public update(todos: ITodo[]): void {
+    if (this._reorder.active) {
+      this._held = todos;
+      return;
+    }
     if (todos === this._todos) return;
     this._todos = todos;
     this.refresh();
@@ -83,7 +109,36 @@ export class TodoListComponent extends Component<HTMLElement, ITodoListView> {
 
   protected override onAfterRender(): void {
     super.onAfterRender();
+    // Delegated from the handles (inside the items): Nutin unbinds them with its own on re-render.
+    for (const [type, listener] of this._reorder.listeners()) {
+      this.element.addEventListener(type, listener);
+      this.eventListeners.push([this.element, type, listener]);
+    }
     applyRequestedFocus(this.element);
+  }
+
+  private async saveOrder(order: string[], movedId: string): Promise<void> {
+    // Shown right away in the new order; the stored list then comes back the same.
+    const previous = this._todos;
+    this._todos = [
+      ...order.map((id, position) => ({ ...previous.find((todo) => todo.id === id)!, position })),
+      ...previous.filter((todo) => todo.done),
+    ];
+    requestFocus(`[data-todo-id="${movedId}"] .todo-item__handle`);
+    this.refresh();
+    try {
+      await scopeStoreService.reorderTodos(this._scope, this._key, order);
+    } catch (error) {
+      this._todos = previous;
+      this.refresh();
+      notifierService.error(`Couldn't reorder the to-dos. ${errorMessage(error)}`);
+    }
+  }
+
+  private applyHeld(): void {
+    const held = this._held;
+    this._held = null;
+    if (held) this.update(held);
   }
 
   private async _toggleDone(): Promise<void> {
@@ -110,7 +165,7 @@ export class TodoListComponent extends Component<HTMLElement, ITodoListView> {
   }
 
   private refresh(): void {
-    this.config = TodoListComponent.view(this._scope, this._todos);
+    this.config = TodoListComponent.view(this._scope, this._todos, this._reorder.previewOrder);
     this.render();
   }
 }

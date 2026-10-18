@@ -1,0 +1,10 @@
+.checklist-field {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-1);
+}
+
+.checklist-field__field {
+  flex: 1;
+  min-width: 0;
+}

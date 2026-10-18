@@ -3,6 +3,7 @@
 import { registerPipes } from '#root/dist/src/core/index.js';
 import { registerAppPipes } from '#root/dist/src/app/lib/pipes.js';
 import { clearRequestedFocus } from '#root/dist/src/app/lib/focus.js';
+import { clearDrafts } from '#root/dist/src/app/lib/drafts.js';
 import { activeTabService } from '#root/dist/src/app/services/active-tab/active-tab.service.js';
 import { scopeStoreService } from '#root/dist/src/app/services/scope-store/scope-store.service.js';
 import { notifierService } from '#root/dist/src/app/services/notifier/notifier.service.js';
@@ -40,6 +41,7 @@ export async function startPanel({ url = 'https://example.com/docs' } = {}) {
     async stop() {
       notify.restore();
       clearRequestedFocus();
+      clearDrafts();
       activeTabService.dispose();
       scopeStoreService.dispose();
       settingsService.dispose();

@@ -7,6 +7,10 @@ ${editing ? html`
   <button class="button button--small button--primary" type="submit" tabindex="0">Save</button>
   <button class="button button--small todo-item__cancel" type="button" tabindex="0" data-event="click:_cancel">Cancel</button>
 </form>` : html`
+${reorderable ? html`
+<button class="todo-item__handle" type="button" tabindex="0" aria-label="Reorder: ${todo.text}" aria-describedby="todo-reorder-help" aria-pressed="${grabbed ? 'true' : 'false'}">
+  <span class="todo-item__grip" aria-hidden="true"></span>
+</button>` : ''}
 <a11y-checkbox class="todo-item__check" id="todo-${todo.id}-check" label="${todo.text}">
   <input class="todo-item__checkbox" type="checkbox" tabindex="0" ${todo.done ? raw('checked') : ''} data-event="change:_toggle:@checked">
 </a11y-checkbox>

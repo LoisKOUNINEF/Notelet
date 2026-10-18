@@ -62,7 +62,13 @@ export class NoteListComponent extends Component<HTMLElement, INoteListView> {
 
   public update(notes: INote[]): void {
     if (notes === this._notes) return;
-    this._notes = notes;
+    // Every change to a note gives it a new updatedAt. An unchanged one keeps its previous object, so
+    // the catalog (which compares items shallowly, and a note holds its checklist array) keeps it.
+    const previous = new Map(this._notes.map((note) => [note.id, note]));
+    this._notes = notes.map((note) => {
+      const kept = previous.get(note.id);
+      return kept && kept.updatedAt === note.updatedAt ? kept : note;
+    });
     this.config = NoteListComponent.view(this._scope, notes);
     this.render();
   }

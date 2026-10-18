@@ -3,10 +3,15 @@ import { clearRequestedFocus, requestFocus } from '../../lib/focus.js';
 import { errorMessage } from '../../lib/errors.js';
 import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
+import { ChecklistItemComponent } from '../checklist-item/checklist-item.component.js';
+import { NoteEditorComponent } from '../note-editor/note-editor.component.js';
 
 interface INoteItemView {
   note: INote;
+  items: IChecklistItem[];
   editing: boolean;
+  // "Add checklist" was used: the "Add an item" field shows before the first item exists.
+  addingItem: boolean;
   edited: boolean;
   moveTarget: string;
 }
@@ -16,16 +21,18 @@ export interface INoteItemOptions {
   keys: IScopeKeys;
 }
 
-const templateFn = ({ note, editing, edited, moveTarget }: INoteItemView) => html`__TEMPLATE_PLACEHOLDER__`;
+const templateFn = ({ note, items, editing, addingItem, edited, moveTarget }: INoteItemView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 /**
- * One note: its text, when it was last edited, and its actions. Edit mode swaps the text
- * for a textarea in place; the list then keeps it as-is while other notes change.
+ * One note: its text, its checklist if it has one (checked and added to right here), when it
+ * was last edited, and its actions. Edit mode swaps all that for the note editor in place;
+ * the list then keeps it as-is while other notes change.
  */
 export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
   private _note: INote;
   private _index: number;
   private _keys: IScopeKeys;
+  private _editor: NoteEditorComponent | null = null;
 
   constructor(mountTarget: HTMLElement, config: INote & { index: number }, options: INoteItemOptions) {
     const { index, ...note } = config;
@@ -35,7 +42,7 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
       mountTarget,
       tagName: 'article',
       props: { className: 'note-item' },
-      config: NoteItemComponent.view(note, false),
+      config: NoteItemComponent.view(note, false, false),
     });
     // Lets the list find this note's controls again after it re-renders (see requestFocus).
     this.element.dataset.noteId = note.id;
@@ -44,52 +51,80 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
     this._keys = options.keys;
   }
 
-  private static view(note: INote, editing: boolean): INoteItemView {
+  private static view(note: INote, editing: boolean, addingItem: boolean): INoteItemView {
     return {
       note,
+      items: note.items ?? [],
       editing,
+      addingItem,
       edited: note.updatedAt !== note.createdAt,
       moveTarget: note.scope === 'page' ? 'this site' : 'this page',
     };
   }
 
+  public override registerChildren(): Nutin.ComponentConfig[] {
+    if (this.config.editing) {
+      return [{
+        selector: 'note-editor',
+        factory: (el) => (this._editor = new NoteEditorComponent(el, {
+          note: this._note,
+          onSave: (text, items) => void this.save(text, items),
+          onCancel: () => this.cancel(),
+        })),
+      }];
+    }
+    return this.createCatalogComponents({
+      items: this.config.items,
+      selector: 'checklist',
+      elementName: 'checklist-item',
+      elementTag: 'li',
+      component: ChecklistItemComponent,
+      props: { note: this._note },
+    });
+  }
+
   private _edit(): void {
-    this.setEditing(true);
-    // Rendered by setEditing(true) just above.
-    const input = this.element.querySelector<HTMLTextAreaElement>('.note-item__input')!;
-    input.focus();
-    // Caret at the end, where one usually continues a note.
-    input.setSelectionRange(input.value.length, input.value.length);
+    this.setView(true, false);
+    this._editor?.focus();
   }
 
-  private _cancel(): void {
-    this.setEditing(false);
-    this.element.querySelector<HTMLElement>('.note-item__edit')?.focus();
+  private cancel(): void {
+    this.setView(false, false);
+    this.element.querySelector<HTMLElement>('.note-item__edit')!.focus();
   }
 
-  private _onKeydown(event: KeyboardEvent): void {
-    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
-      event.preventDefault();
-      this.element.querySelector('form')?.requestSubmit();
-    } else if (event.key === 'Escape') {
-      // Don't let Escape also reach the panel (it would close an open overlay).
-      event.stopPropagation();
-      this._cancel();
+  private _addChecklist(): void {
+    this.setView(false, true);
+    this.element.querySelector<HTMLInputElement>('.note-item__add-item-input')!.focus();
+  }
+
+  private async _addItem(): Promise<void> {
+    const input = this.element.querySelector<HTMLInputElement>('.note-item__add-item-input')!;
+    const text = input.value.trim();
+    if (!text) return;
+
+    // The note comes back with the item as a new list item: focus the field again there.
+    requestFocus(`[data-note-id="${this._note.id}"] .note-item__add-item-input`);
+    try {
+      await scopeStoreService.updateWith('notes', this._note, (current) => ({
+        items: [...(current.items ?? []), { id: crypto.randomUUID(), text, done: false }],
+      }));
+    } catch (error) {
+      clearRequestedFocus();
+      notifierService.error(`Couldn't add the item. ${errorMessage(error)}`);
     }
   }
 
-  private async _save(): Promise<void> {
-    const text = this.element.querySelector<HTMLTextAreaElement>('.note-item__input')!.value.trim();
-    if (!text) return;
-    if (text === this._note.text) {
-      this._cancel();
+  private async save(text: string, items: IChecklistItem[]): Promise<void> {
+    if (text === this._note.text && sameItems(items, this._note.items ?? [])) {
+      this.cancel();
       return;
     }
 
     // The saved note comes back through `scope-content-changed` as a new list item, in view mode.
     requestFocus(`[data-note-id="${this._note.id}"] .note-item__edit`);
     try {
-      await scopeStoreService.update('notes', this._note, { text });
+      await scopeStoreService.update('notes', this._note, { text, items });
     } catch (error) {
       clearRequestedFocus();
       notifierService.error(`Couldn't save the note. ${errorMessage(error)}`);
@@ -134,8 +169,13 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
     );
   }
 
-  private setEditing(editing: boolean): void {
-    this.config = NoteItemComponent.view(this._note, editing);
+  private setView(editing: boolean, addingItem: boolean): void {
+    this._editor = null;
+    this.config = NoteItemComponent.view(this._note, editing, addingItem);
     this.render();
   }
+}
+
+function sameItems(a: IChecklistItem[], b: IChecklistItem[]): boolean {
+  return a.length === b.length && a.every((item, i) => item.id === b[i]!.id && item.text === b[i]!.text && item.done === b[i]!.done);
 }

@@ -26,8 +26,7 @@
   gap: var(--space-2);
 }
 
-.note-item__meta,
-.note-item__hint {
+.note-item__meta {
   color: var(--color-text-muted);
   font-size: 0.75rem;
 }
@@ -39,11 +38,14 @@
   gap: var(--space-1);
 }
 
-.note-item__form {
+.note-item__checklist {
   display: grid;
-  gap: var(--space-2);
+  gap: 2px;
+  margin: 0;
+  padding: 0 0 0 var(--space-1);
+  list-style: none;
 }
 
-.note-item__input {
-  min-height: 6rem;
+.note-item__add-item {
+  padding-left: var(--space-1);
 }
