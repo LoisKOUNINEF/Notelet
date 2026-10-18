@@ -1,0 +1,11 @@
+export const Guards = {
+  /**
+   * Basic example
+   */
+  requireAuth: (redirectTo: string = '/login'): Nutin.RouteGuard => {
+    return () => {
+      const isAuthenticated = !!localStorage.getItem('user_token');
+      return isAuthenticated || redirectTo;
+    };
+  },
+};

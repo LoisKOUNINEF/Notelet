@@ -1,0 +1,137 @@
+/**
+ * Abstract class for implementing the Singleton pattern.
+ * Supports constructor parameters for initialization.
+ */
+export abstract class Service<T extends Service<T>> {
+  private static _instances = new Map<Function, Service<any>>();
+  private static _instantiating = new Set<Function>();
+  private _cleanupCallbacks: (() => void)[] = [];
+
+  constructor() {
+    const constructor = this.constructor as new (...args: any[]) => T;
+
+    if (!Service._instantiating.has(constructor)) {
+      throw new Error(
+        `${constructor.name} is a Service. Use ${constructor.name}.getInstance() instead.`
+      );
+    }
+    this.autoBindMethods();
+  }
+
+  /**
+   * Returns the singleton instance, creating it with the provided args if it
+   * doesn't exist yet. Throws if args are passed to an already-initialized instance,
+   * preventing silent re-initialization mismatches.
+   */
+  public static getInstance<C extends new (...args: any) => Service<any>>(
+    this: C,
+    ...args: ConstructorParameters<C> | []
+  ): InstanceType<C> {
+    const alreadyExists = Service._instances.has(this);
+
+    if (alreadyExists && args.length > 0) {
+      throw new Error(
+        `${this.name} is already initialized. ` +
+        `getInstance() was called with arguments on an existing instance, ` +
+        `which would silently ignore them. ` +
+        `Call getInstance() without arguments to retrieve the existing instance.`
+      );
+    }
+
+    if (!alreadyExists) {
+      Service._instantiating.add(this);
+      Service._instances.set(this, new this(...args));
+      Service._instantiating.delete(this);
+    }
+
+    return Service._instances.get(this) as InstanceType<C>;
+  }
+
+  public static hasInstance<T extends Service<T>>(
+    constructor: new (...args: any[]) => T
+  ): boolean {
+    return Service._instances.has(constructor);
+  }
+
+  public static async destroy<T extends Service<T>>(
+    this: new (...args: any[]) => T
+  ): Promise<void> {
+    const instance = Service._instances.get(this);
+    if (instance) {
+      await instance.onDestroy();
+      instance.runCleanup();
+      Service._instances.delete(this);
+    }
+  }
+
+  // No page-unload hook: the browser frees everything on unload, and tearing down on
+  // `beforeunload` left a page restored from the back/forward cache (or kept after a
+  // cancelled "Leave site?" prompt) with every service already disposed.
+  public dispose = (): void => {
+    this.runCleanup();
+    Service._instances.delete(this.constructor);
+  };
+
+  public static async destroyAll(): Promise<void> {
+    const instances = Array.from(Service._instances.values());
+
+    await Promise.all(instances.map(instance => instance.onDestroy()));
+    instances.forEach(instance => instance.runCleanup());
+    Service._instances.clear();
+    Service._instantiating.clear();
+  }
+
+  protected registerCleanup(callback: () => void): void {
+    this._cleanupCallbacks.push(callback);
+  }
+
+  private runCleanup(): void {
+    const callbacks = this._cleanupCallbacks;
+    this._cleanupCallbacks = [];
+    callbacks.forEach(fn => fn());
+  }
+
+  /**
+   * For async and custom cleanup operations.
+   */
+  protected onDestroy(): void {}
+
+  private autoBindMethods(): void {
+    let proto = Object.getPrototypeOf(this);
+
+    while (proto && proto !== Service.prototype) {
+      const propertyNames = Object.getOwnPropertyNames(proto);
+
+      for (const key of propertyNames) {
+        const descriptor = Object.getOwnPropertyDescriptor(proto, key);
+
+        if (
+          key !== 'constructor' &&
+          descriptor &&
+          typeof descriptor.value === 'function'
+        ) {
+          (this as any)[key] = descriptor.value.bind(this);
+        }
+      }
+
+      proto = Object.getPrototypeOf(proto);
+    }
+  }
+
+  /**
+   * Resets the Service instance without cleanup.
+   */
+  public static testingReset<T extends Service<T>>(
+    this: new (...args: any[]) => T
+  ): void {
+    Service._instances.delete(this);
+  }
+
+  /**
+   * Resets all Service instances without cleanup.
+   */
+  public static testingResetAll(): void {
+    Service._instances.clear();
+    Service._instantiating.clear();
+  }
+}

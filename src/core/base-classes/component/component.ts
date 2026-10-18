@@ -1,0 +1,64 @@
+import { BaseComponent } from '../base-component/base-component.js';
+import * as ConfigHelper from './helpers/config.helper.js';
+import * as DataBindingHelper from './helpers/data-binding.helper.js';
+
+export abstract class Component<T extends HTMLElement = HTMLElement, K = any> extends BaseComponent<T> {
+  protected config: K;
+  protected props: Nutin.ComponentProps;
+  private _templateFn: (config?: K) => Nutin.Template;
+  private _normalizeKeys: (keyof K)[];
+  private _defaults: Partial<K>;
+
+  constructor({
+    templateFn = () => '',
+    mountTarget = '#app',
+    tagName = 'div' as keyof HTMLElementTagNameMap,
+    props = {},
+    config,
+    normalizeKeys = [],
+    defaults = {},
+    trustLevel,
+  }: Nutin.ComponentOptions) {
+    super({ mountTarget, tagName, trustLevel });
+
+    this.config = ConfigHelper.setConfigValue(config, normalizeKeys);
+    this.props = props;
+    this._templateFn = templateFn;
+    this._normalizeKeys = normalizeKeys as (keyof K)[];
+    this._defaults = defaults;
+  }
+
+  public getValues(): Record<string, string> {
+    return DataBindingHelper.getDataBindingValues(this.element);
+  }
+
+  protected override generateTemplate(): Nutin.Template {
+    return ConfigHelper.createNormalizedTemplate({
+      config: this.config,
+      defaults: this._defaults,
+      normalizeKeys: this._normalizeKeys,
+      templateFn: this._templateFn,
+    });
+  }
+
+  protected override onBeforeRender(): void {
+    this.applyProps();
+  }
+
+  protected override onAfterRender(): void {
+    this.applyDataBindings();
+  }
+
+  private applyProps(): void {
+    if (this.props.className) {
+      this.element.classList.add(...this.props.className.split(/\s+/).filter(Boolean));
+    }
+    if (this.props.style) {
+      this.element.style.cssText = this.props.style;
+    }
+  }
+
+  private applyDataBindings(): void {
+    DataBindingHelper.applyDataBindings(this.element, this.props);
+  }
+}

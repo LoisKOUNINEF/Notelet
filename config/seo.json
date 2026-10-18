@@ -1,0 +1,12 @@
+{
+  "baseUrl": "https://my-website.com",
+  "disallowBots": [],
+  "routes": [
+    {
+      "path": "/",
+      "title": "notes-extension",
+      "description": "notes-extension",
+      "ogImage": "/assets/images/og-cover.jpg"
+    }
+  ]
+}

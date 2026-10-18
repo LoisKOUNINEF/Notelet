@@ -1,0 +1,34 @@
+{
+  "name": "notes-extension",
+  "version": "0.1.0",
+  "type": "module",
+  "imports": {
+    "#root/*.js": "./*.js"
+  },
+  "scripts": {
+    "build": "node tools/builder/builder.js",
+    "build:prod": "node tools/builder/builder.js --prod",
+    "serve": "npm run build && node tools/dev/serve.js",
+    "serve:only": "node tools/dev/serve.js",
+    "serve:prod": "npm run build:prod && node tools/dev/serve.js",
+    "dev": "node tools/dev/dev-serve.js",
+    "generate": "node tools/generator/generator.js",
+    "testin-nutin": "npm run build && node tools/testin-nutin/runner.js",
+    "testin-nutin:only": "node tools/testin-nutin/runner.js",
+    "testin-nutin:watch": "npm run build && node tools/testin-nutin/watch-tests.js",
+    "testin-nutin:coverage": "npm run build && node tools/testin-nutin/runner.js --coverage",
+    "testin-nutin:verbose": "npm run build && node tools/testin-nutin/runner.js --verbose"
+  },
+  "devDependencies": {
+    "chokidar": "^5.0.0",
+    "esbuild": "^0.28.2",
+    "html-minifier-terser": "^7.2.0",
+    "jsdom": "^30.1.1",
+    "linkedom": "^0.18.13",
+    "sass": "^1.89.0",
+    "typescript": "^7.0.2"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

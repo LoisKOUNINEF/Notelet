@@ -1,0 +1,45 @@
+import fs from 'fs';
+import { print } from '../utils/index.js';
+// Imported directly, not via the utils barrel: it reads config/languages.json on load.
+import { LANGUAGES } from '../utils/languages.js';
+import { localeTemplate } from './templates/index.js';
+
+export function generateFile({
+  name,
+  targetPath,
+  templateFn,
+  suffix,
+  extension = 'ts',
+}) {
+  fs.mkdirSync(targetPath, { recursive: true });
+  const template = templateFn(name, targetPath, suffix);
+  const filePath = `${targetPath}/${name.kebab}.${suffix}.${extension}`;
+
+  if (fs.existsSync(filePath)) {
+    print.boldError('A file with this name already exists');
+    process.exit(1);
+  }
+
+  fs.writeFileSync(filePath, template);
+}
+
+export function generateLocalesJson({ targetPath, name, isView }) {
+  const localesDir = `${targetPath}/locales`;
+  fs.mkdirSync(localesDir, { recursive: true });
+
+  const template = localeTemplate(name, isView);
+
+  const failedLangs = [];
+  for (const lang of LANGUAGES) {
+    try {
+      fs.writeFileSync(`${localesDir}/${lang}.json`, template);
+    } catch (err) {
+      print.error(`Failed to write locale file for "${lang}": ${err.message}`);
+      failedLangs.push(lang);
+    }
+  }
+
+  if (failedLangs.length) {
+    throw new Error(`Failed to generate locale file(s) for: ${failedLangs.join(', ')}`);
+  }
+}
