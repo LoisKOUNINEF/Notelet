@@ -1,3 +1,4 @@
+import { removeOverlaysWithin } from 'a11y-elements/core';
 import { Component, html, raw } from '../../../core/index.js';
 import { errorMessage } from '../../lib/errors.js';
 import { clearRequestedFocus, requestFocus } from '../../lib/focus.js';
@@ -12,6 +13,8 @@ export interface ITodoItemOptions {
   reorderable: boolean;
   // The to-do picked up with the keyboard, if any.
   grabbedId: string | null;
+  // Where "Move to this site/page" sends it.
+  keys: IScopeKeys;
 }
 
 interface ITodoItemView {
@@ -19,9 +22,10 @@ interface ITodoItemView {
   editing: boolean;
   reorderable: boolean;
   grabbed: boolean;
+  moveTarget: string;
 }
 
-const templateFn = ({ todo, editing, reorderable, grabbed }: ITodoItemView) => html`__TEMPLATE_PLACEHOLDER__`;
+const templateFn = ({ todo, editing, reorderable, grabbed, moveTarget }: ITodoItemView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 /**
  * One to-do: a checkbox labelled by its text, and its actions. Edit mode swaps them for a
@@ -31,6 +35,7 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
   private _todo: ITodo;
   private _index: number;
   private _group: ITodoItemOptions['group'];
+  private _keys: IScopeKeys;
 
   constructor(mountTarget: HTMLElement, config: ITodo & { index: number }, options: ITodoItemOptions) {
     const { index, ...todo } = config;
@@ -39,13 +44,49 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
       templateFn,
       mountTarget,
       props: { className: todo.done ? 'todo-item todo-item--done' : 'todo-item' },
-      config: { todo, editing: false, reorderable: options.reorderable, grabbed: options.grabbedId === todo.id },
+      config: {
+        todo,
+        editing: false,
+        reorderable: options.reorderable,
+        grabbed: options.grabbedId === todo.id,
+        moveTarget: todo.scope === 'page' ? 'this site' : 'this page',
+      },
     });
     // Lets the list find this to-do's controls again after it re-renders (see requestFocus).
     this.element.dataset.todoId = todo.id;
     this._todo = todo;
     this._index = index;
     this._group = options.group;
+    this._keys = options.keys;
+  }
+
+  // The "⋯" menu is an a11y-elements dropdown: it moves itself to <body> once connected (see the
+  // a11y-elements guide). It's removed with this item's own wrapper, found again by id, and its
+  // clicks are delegated from it.
+  protected override onBeforeRender(): void {
+    this.removeOwnOverlays();
+    super.onBeforeRender();
+  }
+
+  protected override onAfterRender(): void {
+    super.onAfterRender();
+    const menu = document.getElementById(`todo-${this._todo.id}-menu`);
+    if (!menu) return;
+    const onClick = (event: Event) => {
+      if ((event.target as Element).closest('[data-action="move"]')) void this.move();
+    };
+    menu.addEventListener('click', onClick);
+    this.eventListeners.push([menu, 'click', onClick]);
+  }
+
+  protected override onBeforeDestroy(): void {
+    this.removeOwnOverlays();
+    super.onBeforeDestroy();
+  }
+
+  private removeOwnOverlays(): void {
+    const own = this.element.querySelector('.todo-item__overlays');
+    if (own) removeOverlaysWithin(own);
   }
 
   private async _toggle(done: boolean): Promise<void> {
@@ -121,6 +162,18 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
     } catch (error) {
       clearRequestedFocus();
       notifierService.error(`Couldn't delete the to-do. ${errorMessage(error)}`);
+    }
+  }
+
+  private async move(): Promise<void> {
+    const target = this._todo.scope === 'page' ? 'site' : 'page';
+    this.requestFocusAfterLeaving();
+    try {
+      await scopeStoreService.move('todos', this._todo, this._keys);
+      notifierService.success(`Moved to this ${target}'s to-dos.`);
+    } catch (error) {
+      clearRequestedFocus();
+      notifierService.error(`Couldn't move the to-do. ${errorMessage(error)}`);
     }
   }
 

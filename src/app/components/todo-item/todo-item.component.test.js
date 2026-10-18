@@ -47,8 +47,8 @@ describe('TodoItemComponent', () => {
     expect(checkbox(todos[0]).checked).toBe(false);
 
     const checkId = el.querySelector('a11y-checkbox').id;
-    // The reorder handle is described by the reorder help instead.
-    el.querySelectorAll('button:not(.todo-item__handle)').forEach((button) => expect(button.getAttribute('aria-describedby')).toBe(checkId));
+    // The reorder handle is described by the reorder help, and "⋯" names the to-do in its label.
+    el.querySelectorAll('button:not(.todo-item__handle):not(.todo-item__more)').forEach((button) => expect(button.getAttribute('aria-describedby')).toBe(checkId));
   });
 
   it('with "Done" open, checks a to-do, moves it below the open ones and keeps focus on its checkbox', async () => {
@@ -253,3 +253,110 @@ describe('TodoItemComponent', () => {
     expect(document.activeElement).toBe(checkbox(todos[1]));
   });
 });
+
+describe('TodoItemComponent - actions menu', () => {
+  let panel;
+  let sidebar;
+  let todos;
+
+  const item = (todo) => $(`[data-todo-id="${todo.id}"]`);
+  const menuItem = (todo) => document.getElementById(`todo-${todo.id}-menu`).querySelector('[role="menuitem"]');
+  const content = async () => scopeStoreService.load(KEYS);
+  const mount = async () => {
+    sidebar = new SidebarComponent('#app');
+    sidebar.render();
+    await settle();
+  };
+
+  beforeEach(async () => {
+    panel = await startPanel();
+    const now = spyOn(Date, 'now');
+    todos = [];
+    for (const [i, text] of ['First', 'Second'].entries()) {
+      now.andReturn(1_000_000 + i);
+      todos.push(await scopeStoreService.addTodo('page', KEYS.page, text));
+    }
+    now.restore();
+    await scopeStoreService.addTodo('site', KEYS.site, 'Already on the site');
+    await mount();
+  });
+
+  afterEach(async () => {
+    sidebar.destroy();
+    await panel.stop();
+  });
+
+  it('has a "More actions" trigger per to-do, opening a menu with the move', () => {
+    const trigger = item(todos[0]).querySelector('.todo-item__more');
+    expect(trigger.getAttribute('aria-label')).toBe('More actions for: First');
+    const menu = document.getElementById(`todo-${todos[0].id}-menu`);
+    expect(menu.getAttribute('anchor')).toBe(trigger.id);
+    expect(menuItem(todos[0]).textContent).toBe('Move to this site');
+  });
+
+  it('moves a to-do to the top of the site\'s list, with focus on the next one', async () => {
+    item(todos[0]).querySelector('.todo-item__more').focus();
+    menuItem(todos[0]).click();
+    await settle();
+
+    const stored = await content();
+    expect(stored.page.todos.map((t) => t.text)).toEqual(['Second']);
+    expect(stored.site.todos.map((t) => t.text)).toEqual(['First', 'Already on the site']);
+    expect(panel.toasts.at(-1)).toEqual({ message: 'Moved to this site\'s to-dos.', type: 'success' });
+    expect(document.activeElement).toBe(item(todos[1]).querySelector('.todo-item__checkbox'));
+    expect($('#scope-tab-page .a11y-visually-hidden').textContent).toBe(', 1 to-do');
+    expect($('#scope-tab-site .a11y-visually-hidden').textContent).toBe(', 2 to-dos');
+  });
+
+  it('offers "Move to this page" on the site\'s to-dos', async () => {
+    $('#scope-tab-site').click();
+    const [siteTodo] = (await content()).site.todos;
+    expect(menuItem(siteTodo).textContent).toBe('Move to this page');
+    menuItem(siteTodo).click();
+    await settle();
+    expect(panel.toasts.at(-1).message).toBe('Moved to this page\'s to-dos.');
+    expect((await content()).page.todos[0].text).toBe('Already on the site');
+  });
+
+  it('moves a done to-do too', async () => {
+    const done = await scopeStoreService.update('todos', todos[1], { done: true });
+    await settle();
+    menuItem(done).click();
+    await settle();
+    expect((await content()).site.todos.find((t) => t.id === done.id).done).toBe(true);
+  });
+
+  it('ignores clicks in the menu outside its items', async () => {
+    const set = spyOn(panel.fake.storage.local, 'set');
+    document.getElementById(`todo-${todos[0].id}-menu`).click();
+    await settle();
+    expect(set.callCount).toBe(0);
+    set.restore();
+  });
+
+  it('reports a failed move and keeps the to-do', async () => {
+    panel.fake.storage.local.failNextSet = new Error('Quota exceeded.');
+    menuItem(todos[0]).click();
+    await settle();
+    expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t move the to-do. Quota exceeded.', type: 'error', duration: 6000 });
+    expect((await content()).page.todos.map((t) => t.text)).toEqual(['First', 'Second']);
+  });
+
+  it('keeps one menu per to-do through re-renders, and none in edit mode', async () => {
+    const count = (todo) => $$(`[id="todo-${todo.id}-menu"]`).length;
+    await check(todos[0]);
+    await check(todos[0], false);
+    expect(count(todos[0])).toBe(1);
+
+    item(todos[1]).querySelector('.todo-item__edit').click();
+    expect(count(todos[1])).toBe(0);
+  });
+
+  async function check(todo, checked = true) {
+    const box = item(todo).querySelector('.todo-item__checkbox');
+    box.checked = checked;
+    box.dispatchEvent(new window.Event('change', { bubbles: true }));
+    await settle();
+  }
+});
+

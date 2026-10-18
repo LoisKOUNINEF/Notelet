@@ -10,7 +10,7 @@ describe('TodoListComponent', () => {
   const todo = (id, text, done = false, createdAt = 1) => ({ id, scope: 'page', key: KEYS.page, text, done, doneAt: done ? createdAt : null, createdAt, updatedAt: createdAt });
   const mount = (todos) => {
     const placeholder = document.getElementById('app').appendChild(document.createElement('div'));
-    list = new TodoListComponent(placeholder, { scope: 'page', key: KEYS.page, todos });
+    list = new TodoListComponent(placeholder, { scope: 'page', keys: KEYS, todos });
     list.render();
   };
   const labels = () => $$('.todo-item a11y-checkbox').map((el) => el.getAttribute('label'));
@@ -170,7 +170,7 @@ describe('TodoListComponent - reordering', () => {
   };
   const mount = (items = todos) => {
     const placeholder = document.getElementById('app').appendChild(document.createElement('div'));
-    list = new TodoListComponent(placeholder, { scope: 'page', key: KEYS.page, todos: items });
+    list = new TodoListComponent(placeholder, { scope: 'page', keys: KEYS, todos: items });
     list.render();
   };
   // jsdom has no layout: each open to-do is 40px tall, stacked from y = 0.

@@ -39,6 +39,11 @@ function position(todo: ITodo): number {
   return todo.position ?? Number.MAX_SAFE_INTEGER;
 }
 
+// Above every open to-do of a list: reordered ones start at 0, never-reordered ones sort last.
+function topPosition(todos: ITodo[]): number {
+  return Math.min(0, ...todos.filter((todo) => !todo.done && todo.position !== undefined).map((todo) => todo.position!)) - 1;
+}
+
 // To-dos checked before doneAt existed have none: their last update is the closest guess.
 function doneTime(todo: ITodo): Timestamp {
   return todo.doneAt ?? todo.updatedAt;
@@ -149,17 +154,20 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
   }
 
   // Moves an item to the other scope of the same tab (page ↔ site), in a single write.
+  // A to-do lands at the top of the other list's open ones (see topPosition).
   public move<K extends ScopeContentKind>(kind: K, item: IScopeItemKinds[K], keys: IScopeKeys): Promise<IScopeItemKinds[K]> {
     const scope: NoteScope = item.scope === 'page' ? 'site' : 'page';
-    const moved = { ...item, scope, key: keys[scope], updatedAt: Date.now() };
+    let moved = { ...item, scope, key: keys[scope], updatedAt: Date.now() };
     const from = storageKey(kind, item.scope, item.key);
     const to = storageKey(kind, moved.scope, moved.key);
 
     return this.enqueue(async () => {
       const stored = await chromeApiService.storageGet(this.area, [from, to]);
+      const target = sortItems(kind, stored[to]);
+      if (kind === 'todos') moved = { ...moved, position: topPosition(target as ITodo[]) };
       await chromeApiService.storageSet(this.area, {
         [from]: sortItems(kind, stored[from]).filter((i) => i.id !== item.id),
-        [to]: sortItems(kind, [...sortItems(kind, stored[to]), moved]),
+        [to]: sortItems(kind, [...target, moved]),
       });
       return moved;
     });

@@ -536,3 +536,61 @@ describe('ScopeStoreService - reordering to-dos', () => {
   });
 });
 
+describe('ScopeStoreService - moving to-dos', () => {
+  const keys = { page: 'https://example.com/a', site: 'example.com', pageLabel: '/a', siteLabel: 'example.com' };
+  const siteTexts = async () => (await scopeStoreService.load(keys)).site.todos.map((t) => t.text);
+  let fake;
+
+  beforeEach(async () => {
+    fake = installFakeChrome();
+    await settingsService.init();
+    scopeStoreService.init();
+  });
+
+  afterEach(() => {
+    scopeStoreService.dispose();
+    settingsService.dispose();
+    uninstallFakeChrome();
+  });
+
+  it('lands a moved to-do at the top of the other list, in one write', async () => {
+    await scopeStoreService.addTodo('site', keys.site, 'Site 1');
+    await scopeStoreService.addTodo('site', keys.site, 'Site 2');
+    const page = await scopeStoreService.addTodo('page', keys.page, 'From the page');
+    const set = spyOn(fake.storage.local, 'set');
+
+    const moved = await scopeStoreService.move('todos', page, keys);
+    expect(set.callCount).toBe(1);
+    set.restore();
+
+    expect(moved.scope).toBe('site');
+    expect(await siteTexts()).toEqual(['From the page', 'Site 1', 'Site 2']);
+    expect((await scopeStoreService.load(keys)).page.todos).toEqual([]);
+  });
+
+  it('lands above reordered to-dos and above one moved before', async () => {
+    const a = await scopeStoreService.addTodo('site', keys.site, 'A');
+    const b = await scopeStoreService.addTodo('site', keys.site, 'B');
+    await scopeStoreService.reorderTodos('site', keys.site, [b.id, a.id]);
+    const first = await scopeStoreService.addTodo('page', keys.page, 'Moved first');
+    const second = await scopeStoreService.addTodo('page', keys.page, 'Moved second');
+
+    await scopeStoreService.move('todos', first, keys);
+    await scopeStoreService.move('todos', second, keys);
+    expect(await siteTexts()).toEqual(['Moved second', 'Moved first', 'B', 'A']);
+  });
+
+  it('keeps a done to-do done, back at the top once unchecked', async () => {
+    await scopeStoreService.addTodo('site', keys.site, 'Open on the site');
+    const added = await scopeStoreService.addTodo('page', keys.page, 'Done on the page');
+    const done = await scopeStoreService.update('todos', added, { done: true });
+
+    const moved = await scopeStoreService.move('todos', done, keys);
+    expect(moved.done).toBe(true);
+    expect(await siteTexts()).toEqual(['Open on the site', 'Done on the page']);
+
+    await scopeStoreService.update('todos', moved, { done: false });
+    expect(await siteTexts()).toEqual(['Done on the page', 'Open on the site']);
+  });
+});
+

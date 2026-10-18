@@ -10,7 +10,7 @@ import { TodoReorder } from './todo-reorder.js';
 
 export interface ITodoListConfig {
   scope: NoteScope;
-  key: string;
+  keys: IScopeKeys;
   todos: ITodo[];
 }
 
@@ -23,18 +23,6 @@ interface ITodoListView {
 
 const templateFn = ({ open, done, expanded, label }: ITodoListView) => html`__TEMPLATE_PLACEHOLDER__`;
 
-// One object per combination, reused across renders: items are only kept while their options are
-// unchanged (picking a to-do up changes them, so the open ones are rebuilt with its new state).
-const itemOptionsCache = new Map<string, ITodoItemOptions>();
-function itemOptions(group: ITodoItemOptions['group'], reorderable: boolean, grabbedId: string | null): ITodoItemOptions {
-  const id = `${group}|${reorderable}|${grabbedId}`;
-  let options = itemOptionsCache.get(id);
-  if (!options) {
-    options = { group, reorderable, grabbedId };
-    itemOptionsCache.set(id, options);
-  }
-  return options;
-}
 
 /**
  * One scope's to-dos: the open ones, its quick add, then the done ones in a "Done (n)" group,
@@ -45,7 +33,11 @@ function itemOptions(group: ITodoItemOptions['group'], reorderable: boolean, gra
 export class TodoListComponent extends Component<HTMLElement, ITodoListView> {
   private _scope: NoteScope;
   private _key: string;
+  private _keys: IScopeKeys;
   private _todos: ITodo[];
+  // One options object per combination, reused across renders: items are only kept while their
+  // options are unchanged (picking a to-do up changes them: the open ones are rebuilt with its state).
+  private readonly _itemOptions = new Map<string, ITodoItemOptions>();
   // Handed over by update() while a reorder gesture runs, applied once it ends.
   private _held: ITodo[] | null = null;
   private readonly _reorder = new TodoReorder({
@@ -58,11 +50,22 @@ export class TodoListComponent extends Component<HTMLElement, ITodoListView> {
     settle: () => this.applyHeld(),
   });
 
-  constructor(mountTarget: HTMLElement, { scope, key, todos }: ITodoListConfig) {
+  constructor(mountTarget: HTMLElement, { scope, keys, todos }: ITodoListConfig) {
     super({ templateFn, mountTarget, config: TodoListComponent.view(scope, todos, null) });
     this._scope = scope;
-    this._key = key;
+    this._key = keys[scope];
+    this._keys = keys;
     this._todos = todos;
+  }
+
+  private itemOptions(group: ITodoItemOptions['group'], reorderable: boolean, grabbedId: string | null): ITodoItemOptions {
+    const id = `${group}|${reorderable}|${grabbedId}`;
+    let options = this._itemOptions.get(id);
+    if (!options) {
+      options = { group, reorderable, grabbedId, keys: this._keys };
+      this._itemOptions.set(id, options);
+    }
+    return options;
   }
 
   private static view(scope: NoteScope, todos: ITodo[], order: string[] | null): ITodoListView {
@@ -91,8 +94,8 @@ export class TodoListComponent extends Component<HTMLElement, ITodoListView> {
     });
 
     return [
-      ...catalog('open', open, itemOptions('open', reorderable, this._reorder.grabbedId)),
-      ...catalog('done', done, itemOptions('done', false, null)),
+      ...catalog('open', open, this.itemOptions('open', reorderable, this._reorder.grabbedId)),
+      ...catalog('done', done, this.itemOptions('done', false, null)),
       { selector: 'todo-composer', factory: (el) => new TodoComposerComponent(el, { scope: this._scope, key: this._key }), keep: 'composer' },
     ];
   }

@@ -17,4 +17,10 @@ ${reorderable ? html`
 <div class="todo-item__actions">
   <button class="button button--small todo-item__edit" type="button" tabindex="0" aria-describedby="todo-${todo.id}-check" data-event="click:_edit">Edit</button>
   <button class="button button--small button--danger todo-item__delete" type="button" tabindex="0" aria-describedby="todo-${todo.id}-check" data-event="click:_delete">Delete</button>
+  <button class="button button--small todo-item__more" id="todo-${todo.id}-more" type="button" tabindex="0" aria-label="More actions for: ${todo.text}">⋯</button>
+</div>
+<div class="todo-item__overlays">
+  <a11y-dropdown id="todo-${todo.id}-menu" anchor="todo-${todo.id}-more" placement="bottom-end">
+    <div role="menuitem" tabindex="-1" data-action="move">Move to ${moveTarget}</div>
+  </a11y-dropdown>
 </div>`}

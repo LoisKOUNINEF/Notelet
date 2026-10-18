@@ -55,6 +55,12 @@
   --a11y-checkbox-color-border-strong: var(--color-text-muted);
   --a11y-checkbox-color-primary: var(--color-primary);
   --a11y-checkbox-color-text: var(--color-text);
+  --a11y-dropdown-color-background: var(--color-surface);
+  --a11y-dropdown-color-text: var(--color-text);
+  --a11y-dropdown-min-width: 10rem;
+  --a11y-menu-item-color-background: var(--color-surface);
+  --a11y-menu-item-color-text: var(--color-text);
+  --a11y-menu-item-color-secondary-hover: var(--color-primary);
   --a11y-snackbar-container-width: calc(100vw - 2rem);
   --a11y-color-success: #3f6b34;
   --a11y-color-info: #2b2b28;

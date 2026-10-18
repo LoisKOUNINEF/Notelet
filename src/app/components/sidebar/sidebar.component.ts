@@ -76,7 +76,7 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
       // Kept while on the same scope and page: drafts and the lists' DOM survive other renders.
       {
         selector: 'todo-list',
-        factory: (el) => (this._todoList = new TodoListComponent(el, { scope, key: keys[scope], todos: content[scope].todos })),
+        factory: (el) => (this._todoList = new TodoListComponent(el, { scope, keys, todos: content[scope].todos })),
         keep: scopeKey,
       },
       { selector: 'note-composer', factory: (el) => new NoteComposerComponent(el, { scope, key: keys[scope] }), keep: scopeKey },

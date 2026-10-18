@@ -3,6 +3,7 @@ import 'a11y-elements/components/input';
 import 'a11y-elements/components/radio-group';
 import 'a11y-elements/components/textarea';
 import 'a11y-elements/components/visually-hidden';
+import 'a11y-elements/overlays/dropdown';
 import 'a11y-elements/overlays/snackbar';
 import { initI18n, registerPipes } from '../core/index.js';
 import { SidebarComponent } from './components/sidebar/sidebar.component.js';
