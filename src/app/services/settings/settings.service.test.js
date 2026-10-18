@@ -35,7 +35,7 @@ describe('SettingsService', () => {
     await settingsService.setStorageArea('sync');
 
     expect(settingsService.storageArea).toBe('sync');
-    expect(fake.storage.local.data.get('settings')).toEqual({ storageArea: 'sync' });
+    expect(fake.storage.local.data.get('settings')).toEqual({ storageArea: 'sync', doneExpanded: false });
     expect(fake.storage.sync.data.size).toBe(0);
     expect(areaEvents).toEqual(['sync']);
   });
@@ -58,5 +58,26 @@ describe('SettingsService', () => {
     await settingsService.init();
     settingsService.dispose();
     expect(fake.storage.onChanged.hasListeners()).toBe(false);
+  });
+
+  it('keeps the "Done" group collapsed by default, and remembers when it\'s opened', async () => {
+    await settingsService.init();
+    expect(settingsService.doneExpanded).toBe(false);
+
+    await settingsService.setDoneExpanded(true);
+    expect(settingsService.doneExpanded).toBe(true);
+    expect(fake.storage.local.data.get('settings')).toEqual({ storageArea: 'local', doneExpanded: true });
+    expect(areaEvents).toEqual([]);
+
+    settingsService.dispose();
+    await settingsService.init();
+    expect(settingsService.doneExpanded).toBe(true);
+  });
+
+  it('reads settings saved before doneExpanded existed', async () => {
+    fake.storage.local.data.set('settings', { storageArea: 'sync' });
+    await settingsService.init();
+    expect(settingsService.doneExpanded).toBe(false);
+    expect(settingsService.storageArea).toBe('sync');
   });
 });

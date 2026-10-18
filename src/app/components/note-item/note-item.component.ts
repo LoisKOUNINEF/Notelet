@@ -55,10 +55,11 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
 
   private _edit(): void {
     this.setEditing(true);
-    const input = this.element.querySelector<HTMLTextAreaElement>('.note-item__input');
-    input?.focus();
+    // Rendered by setEditing(true) just above.
+    const input = this.element.querySelector<HTMLTextAreaElement>('.note-item__input')!;
+    input.focus();
     // Caret at the end, where one usually continues a note.
-    input?.setSelectionRange(input.value.length, input.value.length);
+    input.setSelectionRange(input.value.length, input.value.length);
   }
 
   private _cancel(): void {
@@ -78,7 +79,7 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
   }
 
   private async _save(): Promise<void> {
-    const text = this.element.querySelector<HTMLTextAreaElement>('.note-item__input')?.value.trim() ?? '';
+    const text = this.element.querySelector<HTMLTextAreaElement>('.note-item__input')!.value.trim();
     if (!text) return;
     if (text === this._note.text) {
       this._cancel();

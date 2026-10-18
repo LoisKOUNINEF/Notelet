@@ -353,4 +353,33 @@ describe('ScopeStoreService - to-dos', () => {
     expect(content.todos.length).toBe(2);
     expect(content.notes.length).toBe(1);
   });
+
+  it('removes and restores several to-dos of one list in one write each', async () => {
+    const now = spyOn(Date, 'now');
+    const added = [];
+    for (const [i, text] of ['One', 'Two', 'Three'].entries()) {
+      now.andReturn(1000 + i);
+      added.push(await scopeStoreService.addTodo('page', keys.page, text));
+    }
+    now.restore();
+    const set = spyOn(fake.storage.local, 'set');
+
+    await scopeStoreService.removeMany('todos', [added[0], added[2]]);
+    expect(set.callCount).toBe(1);
+    expect(await texts()).toEqual(['Two']);
+
+    await scopeStoreService.restoreMany('todos', [added[0], added[2]]);
+    await scopeStoreService.restoreMany('todos', [added[0]]);
+    expect(set.callCount).toBe(3);
+    set.restore();
+    expect(await texts()).toEqual(['One', 'Two', 'Three']);
+  });
+
+  it('does nothing for an empty list of to-dos', async () => {
+    const set = spyOn(fake.storage.local, 'set');
+    await scopeStoreService.removeMany('todos', []);
+    await scopeStoreService.restoreMany('todos', []);
+    expect(set.callCount).toBe(0);
+    set.restore();
+  });
 });

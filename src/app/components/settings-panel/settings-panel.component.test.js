@@ -78,4 +78,12 @@ describe('SettingsPanelComponent', () => {
       { url: 'chrome://extensions/shortcuts' },
     ]);
   });
+
+  it('does nothing when the area already in use is picked again', async () => {
+    const get = spyOn(panel.fake.storage.local, 'get');
+    await choose('local');
+    expect(get.callCount).toBe(0);
+    get.restore();
+    expect(panel.toasts).toEqual([]);
+  });
 });

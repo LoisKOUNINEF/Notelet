@@ -34,15 +34,15 @@ export class NoteComposerComponent extends Component<HTMLElement, INoteComposerV
     this._key = key;
   }
 
-  private get input(): HTMLTextAreaElement | null {
-    return this.element.querySelector<HTMLTextAreaElement>('.note-composer__input');
+  // Always rendered by the template.
+  private get input(): HTMLTextAreaElement {
+    return this.element.querySelector<HTMLTextAreaElement>('.note-composer__input')!;
   }
 
   protected override onAfterRender(): void {
     super.onAfterRender();
     // `input` is the only event left to the textarea: data-event already holds its keydown.
     const input = this.input;
-    if (!input) return;
     const onInput = () => setDraft(draftId(this._scope, this._key), input.value);
     input.addEventListener('input', onInput);
     this.eventListeners.push([input, 'input', onInput]);
@@ -57,8 +57,8 @@ export class NoteComposerComponent extends Component<HTMLElement, INoteComposerV
 
   private async _add(): Promise<void> {
     const input = this.input;
-    const text = input?.value.trim() ?? '';
-    if (!input || !text) return;
+    const text = input.value.trim();
+    if (!text) return;
 
     // Ready for the next note right away; restored if the save fails.
     input.value = '';

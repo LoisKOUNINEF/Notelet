@@ -1,5 +1,6 @@
 import { SidebarComponent } from '#root/dist/src/app/components/sidebar/sidebar.component.js';
 import { scopeStoreService } from '#root/dist/src/app/services/scope-store/scope-store.service.js';
+import { settingsService } from '#root/dist/src/app/services/settings/settings.service.js';
 import { KEYS, keydown, settle, startPanel } from '../../testing/panel.js';
 
 // Items are tested in their list, in the panel: their actions go through the store and come back as a new list.
@@ -49,7 +50,8 @@ describe('TodoItemComponent', () => {
     el.querySelectorAll('button').forEach((button) => expect(button.getAttribute('aria-describedby')).toBe(checkId));
   });
 
-  it('checks a to-do, moves it below the open ones and keeps focus on its checkbox', async () => {
+  it('with "Done" open, checks a to-do, moves it below the open ones and keeps focus on its checkbox', async () => {
+    await settingsService.setDoneExpanded(true);
     checkbox(todos[0]).focus();
     await check(todos[0]);
 
@@ -150,5 +152,103 @@ describe('TodoItemComponent', () => {
 
     expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t update the to-do. Quota exceeded.', type: 'error', duration: 6000 });
     expect(checkbox(todos[0]).checked).toBe(false);
+  });
+
+  it('leaves edit mode without saving when the text is unchanged', async () => {
+    const set = spyOn(panel.fake.storage.local, 'set');
+    item(todos[0]).querySelector('.todo-item__edit').click();
+    item(todos[0]).querySelector('button[type="submit"]').click();
+    await settle();
+
+    expect(set.callCount).toBe(0);
+    set.restore();
+    expect(item(todos[0]).querySelector('.todo-item__input')).toBeFalsy();
+    expect(document.activeElement).toBe(item(todos[0]).querySelector('.todo-item__edit'));
+  });
+
+  it('ignores keys other than Escape while editing', () => {
+    item(todos[0]).querySelector('.todo-item__edit').click();
+    keydown(item(todos[0]).querySelector('.todo-item__input'), 'a');
+    expect(item(todos[0]).querySelector('.todo-item__input')).toBeTruthy();
+  });
+
+  it('reports a failed save and stays in edit mode', async () => {
+    item(todos[0]).querySelector('.todo-item__edit').click();
+    item(todos[0]).querySelector('.todo-item__input').value = 'Renamed';
+    panel.fake.storage.local.failNextSet = new Error('Quota exceeded.');
+    item(todos[0]).querySelector('button[type="submit"]').click();
+    await settle();
+
+    expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t save the to-do. Quota exceeded.', type: 'error', duration: 6000 });
+    expect(item(todos[0]).querySelector('.todo-item__input').value).toBe('Renamed');
+  });
+
+  it('reports a failed delete and keeps the to-do', async () => {
+    panel.fake.storage.local.failNextSet = new Error('Quota exceeded.');
+    item(todos[1]).querySelector('.todo-item__delete').click();
+    await settle();
+
+    expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t delete the to-do. Quota exceeded.', type: 'error', duration: 6000 });
+    expect(labels()).toEqual(['First', 'Second', 'Third']);
+  });
+
+  it('reports a failed undo', async () => {
+    item(todos[1]).querySelector('.todo-item__delete').click();
+    await settle();
+    panel.fake.storage.local.failNextSet = new Error('Quota exceeded.');
+    panel.toasts.at(-1).onAction();
+    await settle();
+
+    expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t restore the to-do. Quota exceeded.', type: 'error', duration: 6000 });
+    expect(labels()).toEqual(['First', 'Third']);
+  });
+
+  it('with "Done" collapsed, hides the checked to-do and moves focus to the next open one', async () => {
+    checkbox(todos[1]).focus();
+    await check(todos[1]);
+
+    expect(item(todos[1]).closest('ul').hidden).toBe(true);
+    expect(item(todos[1]).closest('[data-catalog]').dataset.catalog).toBe('done-todos');
+    expect(document.activeElement).toBe(checkbox(todos[2]));
+    const toast = panel.toasts.at(-1);
+    expect(toast.message).toBe('Marked as done.');
+    expect(toast.type).toBe('success');
+    expect(toast.actionText).toBe('Undo');
+  });
+
+  it('with "Done" collapsed, moves focus to the previous open one, then to the quick add', async () => {
+    await check(todos[2]);
+    expect(document.activeElement).toBe(checkbox(todos[1]));
+    await check(todos[1]);
+    await check(todos[0]);
+    expect(document.activeElement).toBe($('.todo-composer__input'));
+  });
+
+  it('undoes a check made while "Done" is collapsed', async () => {
+    await check(todos[0]);
+    panel.toasts.at(-1).onAction();
+    await settle();
+
+    expect((await stored()).find((t) => t.id === todos[0].id).done).toBe(false);
+    expect(item(todos[0]).closest('[data-catalog]').dataset.catalog).toBe('open-todos');
+  });
+
+  it('reports a failed undo of a check', async () => {
+    await check(todos[0]);
+    panel.fake.storage.local.failNextSet = new Error('Quota exceeded.');
+    panel.toasts.at(-1).onAction();
+    await settle();
+    expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t update the to-do. Quota exceeded.', type: 'error', duration: 6000 });
+  });
+
+  it('keeps focus inside its own group when a done to-do is deleted', async () => {
+    await settingsService.setDoneExpanded(true);
+    await check(todos[0]);
+    await check(todos[1]);
+    const doneDelete = (todo) => item(todo).querySelector('.todo-item__delete');
+
+    doneDelete(todos[0]).click();
+    await settle();
+    expect(document.activeElement).toBe(checkbox(todos[1]));
   });
 });

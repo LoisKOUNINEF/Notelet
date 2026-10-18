@@ -98,7 +98,23 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
 
   // Undoes a remove: the item comes back with its id and dates, so at the same place in its list.
   public restore<K extends ScopeContentKind>(kind: K, item: IScopeItemKinds[K]): Promise<void> {
-    return this.enqueue(() => this.write(kind, item.scope, item.key, (items) => [...items.filter((i) => i.id !== item.id), item]));
+    return this.restoreMany(kind, [item]);
+  }
+
+  // Removes several items of one list (one scope key) in a single write, e.g. "Clear completed".
+  public removeMany<K extends ScopeContentKind>(kind: K, items: IScopeItemKinds[K][]): Promise<void> {
+    const [first] = items;
+    if (!first) return Promise.resolve();
+    const ids = new Set(items.map((item) => item.id));
+    return this.enqueue(() => this.write(kind, first.scope, first.key, (list) => list.filter((i) => !ids.has(i.id))));
+  }
+
+  // Undoes removeMany(), in a single write.
+  public restoreMany<K extends ScopeContentKind>(kind: K, items: IScopeItemKinds[K][]): Promise<void> {
+    const [first] = items;
+    if (!first) return Promise.resolve();
+    const ids = new Set(items.map((item) => item.id));
+    return this.enqueue(() => this.write(kind, first.scope, first.key, (list) => [...list.filter((i) => !ids.has(i.id)), ...items]));
   }
 
   // Moves an item to the other scope of the same tab (page ↔ site), in a single write.

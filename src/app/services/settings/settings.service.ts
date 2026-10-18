@@ -3,12 +3,14 @@ import { chromeApiService } from '../chrome-api/chrome-api.service.js';
 
 interface ISettings {
   storageArea: StorageAreaName;
+  // Whether the to-do lists' "Done (n)" group is open, for every page.
+  doneExpanded: boolean;
 }
 
 // Settings always live on this device: they say where the notes are.
 const SETTINGS_AREA: StorageAreaName = 'local';
 const SETTINGS_KEY = 'settings';
-const DEFAULTS: ISettings = { storageArea: 'local' };
+const DEFAULTS: ISettings = { storageArea: 'local', doneExpanded: false };
 
 export class SettingsService extends Service<SettingsService> {
   private _settings: ISettings = { ...DEFAULTS };
@@ -19,6 +21,10 @@ export class SettingsService extends Service<SettingsService> {
 
   public get storageArea(): StorageAreaName {
     return this._settings.storageArea;
+  }
+
+  public get doneExpanded(): boolean {
+    return this._settings.doneExpanded;
   }
 
   public async init(): Promise<void> {
@@ -33,8 +39,16 @@ export class SettingsService extends Service<SettingsService> {
     }));
   }
 
-  public async setStorageArea(storageArea: StorageAreaName): Promise<void> {
-    const settings = { ...this._settings, storageArea };
+  public setStorageArea(storageArea: StorageAreaName): Promise<void> {
+    return this.save({ storageArea });
+  }
+
+  public setDoneExpanded(doneExpanded: boolean): Promise<void> {
+    return this.save({ doneExpanded });
+  }
+
+  private async save(changes: Partial<ISettings>): Promise<void> {
+    const settings = { ...this._settings, ...changes };
     await chromeApiService.storageSet(SETTINGS_AREA, { [SETTINGS_KEY]: settings });
     this.apply(settings);
   }

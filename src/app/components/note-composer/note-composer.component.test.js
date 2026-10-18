@@ -1,6 +1,6 @@
 import { NoteComposerComponent } from '#root/dist/src/app/components/note-composer/note-composer.component.js';
 import { scopeStoreService } from '#root/dist/src/app/services/scope-store/scope-store.service.js';
-import { KEYS, settle, startPanel, typeInto } from '../../testing/panel.js';
+import { KEYS, keydown, settle, startPanel, typeInto } from '../../testing/panel.js';
 
 describe('NoteComposerComponent', () => {
   let panel;
@@ -55,6 +55,16 @@ describe('NoteComposerComponent', () => {
 
     mount('page');
     expect(input().value).toBe('Unsent');
+    typeInto(input(), '');
+  });
+
+  it('adds a line on plain Enter, only Ctrl/Cmd+Enter adds the note', async () => {
+    mount('page');
+    typeInto(input(), 'Line one');
+    keydown(input(), 'Enter');
+    await settle();
+    expect((await scopeStoreService.load(KEYS)).page.notes).toEqual([]);
+    expect(input().value).toBe('Line one');
     typeInto(input(), '');
   });
 });

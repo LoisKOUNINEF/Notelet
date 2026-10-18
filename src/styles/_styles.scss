@@ -93,6 +93,11 @@ body {
   margin: 0;
 }
 
+// `hidden` must win over any component's own display (grid, flex...).
+[hidden] {
+  display: none !important;
+}
+
 body {
   min-height: 100vh;
   background: var(--color-bg);

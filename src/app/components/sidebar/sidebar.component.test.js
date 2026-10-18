@@ -1,3 +1,4 @@
+import { AppEventBus } from '#root/dist/src/core/index.js';
 import { SidebarComponent } from '#root/dist/src/app/components/sidebar/sidebar.component.js';
 import { scopeStoreService } from '#root/dist/src/app/services/scope-store/scope-store.service.js';
 import { KEYS, keydown, settle, startPanel, typeInto } from '../../testing/panel.js';
@@ -224,5 +225,32 @@ describe('SidebarComponent', () => {
 
     expect(panel.fake.storage.sync.data.size).toBe(1);
     expect(texts('.note-item__text')).toEqual(['Travels along']);
+  });
+
+  it('shows the latest tab\'s content when an older load finishes last', async () => {
+    await scopeStoreService.addNote('page', KEYS.page, 'Old page note');
+    await scopeStoreService.addNote('page', 'https://other.org/x', 'New page note');
+    await mount();
+
+    // Hold the panel's next load of this page (a 4-item read), let the other tab's through.
+    const storage = panel.fake.storage.local;
+    const realGet = storage.get.bind(storage);
+    let releaseOld = null;
+    const get = spyOn(storage, 'get').andCallFake((keys) => {
+      if (!releaseOld && keys?.length === 4 && keys.includes(`notes:page:${KEYS.page}`)) {
+        return new Promise((resolve) => { releaseOld = () => resolve(realGet(keys)); });
+      }
+      return realGet(keys);
+    });
+
+    AppEventBus.emit('scope-content-changed');
+    panel.fake.activateTab('https://other.org/x');
+    await settle();
+    releaseOld();
+    await settle();
+    get.restore();
+
+    expect($('.sidebar__location-text').textContent).toBe('/x');
+    expect(texts('.note-item__text')).toEqual(['New page note']);
   });
 });

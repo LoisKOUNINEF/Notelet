@@ -35,14 +35,14 @@ export class TodoComposerComponent extends Component<HTMLElement, ITodoComposerV
     this._key = key;
   }
 
-  private get input(): HTMLInputElement | null {
-    return this.element.querySelector<HTMLInputElement>('.todo-composer__input');
+  // Always rendered by the template.
+  private get input(): HTMLInputElement {
+    return this.element.querySelector<HTMLInputElement>('.todo-composer__input')!;
   }
 
   protected override onAfterRender(): void {
     super.onAfterRender();
     const input = this.input;
-    if (!input) return;
     const onInput = () => setDraft(draftId(this._scope, this._key), input.value);
     input.addEventListener('input', onInput);
     this.eventListeners.push([input, 'input', onInput]);
@@ -50,8 +50,8 @@ export class TodoComposerComponent extends Component<HTMLElement, ITodoComposerV
 
   private async _add(): Promise<void> {
     const input = this.input;
-    const text = input?.value.trim() ?? '';
-    if (!input || !text) return;
+    const text = input.value.trim();
+    if (!text) return;
 
     // Ready for the next one right away; restored if the save fails.
     input.value = '';

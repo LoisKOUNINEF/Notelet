@@ -64,4 +64,10 @@ describe('ChromeApiService', () => {
     await chromeApiService.openTab('chrome://settings/appearance');
     expect(fake.tabs.created).toEqual([{ url: 'chrome://settings/appearance' }]);
   });
+
+  it('has no active tab URL when no tab is found', async () => {
+    const query = spyOn(fake.tabs, 'query').andCallFake(async () => []);
+    expect(await chromeApiService.getActiveTabUrl()).toBe(null);
+    query.restore();
+  });
 });

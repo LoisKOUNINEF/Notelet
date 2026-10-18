@@ -3,6 +3,12 @@ import { errorMessage } from '../../lib/errors.js';
 import { clearRequestedFocus, requestFocus } from '../../lib/focus.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
 import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
+import { settingsService } from '../../services/settings/settings.service.js';
+
+// What the to-do list passes to each item, besides the to-do (see createCatalogComponents).
+export interface ITodoItemOptions {
+  group: 'open' | 'done';
+}
 
 interface ITodoItemView {
   todo: ITodo;
@@ -18,8 +24,9 @@ const templateFn = ({ todo, editing }: ITodoItemView) => html`__TEMPLATE_PLACEHO
 export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
   private _todo: ITodo;
   private _index: number;
+  private _group: ITodoItemOptions['group'];
 
-  constructor(mountTarget: HTMLElement, config: ITodo & { index: number }) {
+  constructor(mountTarget: HTMLElement, config: ITodo & { index: number }, options: ITodoItemOptions) {
     const { index, ...todo } = config;
     // The item's own root, directly inside the catalog's <li>.
     super({
@@ -32,12 +39,24 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
     this.element.dataset.todoId = todo.id;
     this._todo = todo;
     this._index = index;
+    this._group = options.group;
   }
 
   private async _toggle(done: boolean): Promise<void> {
-    requestFocus(`[data-todo-id="${this._todo.id}"] .todo-item__checkbox`);
+    // Checked into a collapsed "Done" group, it disappears: focus stays among the open ones.
+    const hidden = done && !settingsService.doneExpanded;
+    if (hidden) this.requestFocusAfterLeaving();
+    else requestFocus(`[data-todo-id="${this._todo.id}"] .todo-item__checkbox`);
     try {
-      await scopeStoreService.update('todos', this._todo, { done });
+      const updated = await scopeStoreService.update('todos', this._todo, { done });
+      if (hidden) {
+        notifierService.success('Marked as done.', {
+          label: 'Undo',
+          run: () => void scopeStoreService.update('todos', updated, { done: false }).catch((error) => {
+            notifierService.error(`Couldn't update the to-do. ${errorMessage(error)}`);
+          }),
+        });
+      }
     } catch (error) {
       clearRequestedFocus();
       notifierService.error(`Couldn't update the to-do. ${errorMessage(error)}`);
@@ -47,9 +66,10 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
 
   private _edit(): void {
     this.setEditing(true);
-    const input = this.element.querySelector<HTMLInputElement>('.todo-item__input');
-    input?.focus();
-    input?.setSelectionRange(input.value.length, input.value.length);
+    // Rendered by setEditing(true) just above.
+    const input = this.element.querySelector<HTMLInputElement>('.todo-item__input')!;
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
   }
 
   private _cancel(): void {
@@ -64,7 +84,7 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
   }
 
   private async _save(): Promise<void> {
-    const text = this.element.querySelector<HTMLInputElement>('.todo-item__input')?.value.trim() ?? '';
+    const text = this.element.querySelector<HTMLInputElement>('.todo-item__input')!.value.trim();
     if (!text) return;
     if (text === this._todo.text) {
       this._cancel();
@@ -83,12 +103,7 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
 
   private async _delete(): Promise<void> {
     const todo = this._todo;
-    // Once this to-do leaves the list, the next one takes its index; else the previous one, else the quick add.
-    requestFocus(
-      `[data-index="${this._index}"] .todo-item__checkbox`,
-      `[data-index="${this._index - 1}"] .todo-item__checkbox`,
-      '.todo-composer__input',
-    );
+    this.requestFocusAfterLeaving();
     try {
       await scopeStoreService.remove('todos', todo);
       notifierService.info('To-do deleted.', {
@@ -101,6 +116,17 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
       clearRequestedFocus();
       notifierService.error(`Couldn't delete the to-do. ${errorMessage(error)}`);
     }
+  }
+
+  // Once this to-do leaves its group, the next one there takes its index; else the previous one,
+  // else the quick add. Each group is its own catalog, with its own indexes.
+  private requestFocusAfterLeaving(): void {
+    const group = `[data-catalog="${this._group}-todos"]`;
+    requestFocus(
+      `${group} > [data-index="${this._index}"] .todo-item__checkbox`,
+      `${group} > [data-index="${this._index - 1}"] .todo-item__checkbox`,
+      '.todo-composer__input',
+    );
   }
 
   private setEditing(editing: boolean): void {
