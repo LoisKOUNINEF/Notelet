@@ -1,5 +1,5 @@
 import { SidebarComponent } from '#root/dist/src/app/components/sidebar/sidebar.component.js';
-import { notesStoreService } from '#root/dist/src/app/services/notes-store/notes-store.service.js';
+import { scopeStoreService } from '#root/dist/src/app/services/scope-store/scope-store.service.js';
 import { KEYS, keydown, settle, startPanel } from '../../testing/panel.js';
 
 // Items are tested in their list, in the panel: their actions go through the store and come back as a new list.
@@ -10,7 +10,7 @@ describe('NoteItemComponent', () => {
 
   const item = (note) => $(`[data-note-id="${note.id}"]`);
   const texts = () => $$('.note-item__text').map((el) => el.textContent);
-  const stored = async () => notesStoreService.load(KEYS);
+  const stored = async () => scopeStoreService.load(KEYS);
 
   beforeEach(async () => {
     panel = await startPanel();
@@ -19,7 +19,7 @@ describe('NoteItemComponent', () => {
     // Oldest first, shown newest first: notes[2] is at the top.
     for (const [i, text] of ['First', 'Second', 'Third'].entries()) {
       now.andReturn(1_000_000 + i);
-      notes.push(await notesStoreService.add('page', KEYS.page, text));
+      notes.push(await scopeStoreService.addNote('page', KEYS.page, text));
     }
     now.restore();
     sidebar = new SidebarComponent('#app');
@@ -67,7 +67,7 @@ describe('NoteItemComponent', () => {
     item(notes[0]).querySelector('button[type="submit"]').click();
     await settle();
 
-    expect((await stored()).page.find((n) => n.id === notes[0].id).text).toBe('First, revised');
+    expect((await stored()).page.notes.find((n) => n.id === notes[0].id).text).toBe('First, revised');
     expect(item(notes[0]).querySelector('.note-item__text').textContent).toBe('First, revised');
     expect(item(notes[0]).querySelector('.note-item__meta').textContent).toContain('Edited');
     expect(document.activeElement).toBe(item(notes[0]).querySelector('.note-item__edit'));
@@ -92,7 +92,7 @@ describe('NoteItemComponent', () => {
     item(notes[0]).querySelector('.note-item__edit').click();
     item(notes[0]).querySelector('[data-event="click:_cancel"]').click();
     await settle();
-    expect((await stored()).page.find((n) => n.id === notes[0].id).text).toBe('First');
+    expect((await stored()).page.notes.find((n) => n.id === notes[0].id).text).toBe('First');
   });
 
   it('keeps an edit in progress while another note is deleted', async () => {
@@ -140,7 +140,7 @@ describe('NoteItemComponent', () => {
     await settle();
 
     expect(texts()).toEqual(['Second', 'First']);
-    expect((await stored()).site.map((n) => n.id)).toEqual([notes[2].id]);
+    expect((await stored()).site.notes.map((n) => n.id)).toEqual([notes[2].id]);
     expect(panel.toasts.at(-1)).toEqual({ message: 'Moved to this site\'s notes.', type: 'success' });
 
     $('#scope-tab-site').click();

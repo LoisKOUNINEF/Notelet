@@ -5,7 +5,8 @@ describe('ScopeTabsComponent', () => {
   let tabs;
   let selected;
 
-  const mount = (active, counts = { page: 0, site: 0 }) => {
+  const none = { notes: 0, todos: 0 };
+  const mount = (active, counts = { page: none, site: none }) => {
     const placeholder = document.getElementById('app').appendChild(document.createElement('div'));
     tabs = new ScopeTabsComponent(placeholder, { active, counts, panelId: 'panel', onSelect: (scope) => selected.push(scope) });
     tabs.render();
@@ -21,13 +22,24 @@ describe('ScopeTabsComponent', () => {
   });
 
   it('renders a labelled tablist whose tabs control the panel', () => {
-    mount('page', { page: 1, site: 4 });
+    mount('page', { page: { notes: 1, todos: 0 }, site: { notes: 4, todos: 2 } });
 
     expect($('[role="tablist"]').getAttribute('aria-label')).toBe('Show notes for');
     const [page, site] = $$('[role="tab"]');
     expect(page.getAttribute('aria-controls')).toBe('panel');
-    expect(page.textContent.replace(/\s+/g, ' ').trim()).toBe('This page 1 note');
-    expect(site.textContent.replace(/\s+/g, ' ').trim()).toBe('This site 4 notes');
+    expect(page.querySelector('.scope-tabs__label').textContent).toBe('This page');
+    expect(page.querySelector('.scope-tabs__count').textContent).toBe('1');
+    expect(page.querySelector('.a11y-visually-hidden').textContent).toBe(', 1 note');
+    expect(site.querySelector('.scope-tabs__count').textContent).toBe('6');
+    expect(site.querySelector('.a11y-visually-hidden').textContent).toBe(', 4 notes, 2 to-dos');
+  });
+
+  it('shows notes plus open to-dos as one number, read out in words', () => {
+    mount('page', { page: { notes: 0, todos: 1 }, site: none });
+    expect($('#scope-tab-page .scope-tabs__count').textContent).toBe('1');
+    expect($('#scope-tab-page .scope-tabs__count').getAttribute('aria-hidden')).toBe('true');
+    expect($('#scope-tab-page .a11y-visually-hidden').textContent).toBe(', 1 to-do');
+    expect($('#scope-tab-site .a11y-visually-hidden').textContent).toBe(', no items');
   });
 
   it('marks the active tab as the only Tab stop', () => {

@@ -1,0 +1,16 @@
+${editing ? html`
+<form class="todo-item__form" data-event="submit:_save">
+  <a11y-input class="todo-item__field">
+    <a11y-label><span class="a11y-visually-hidden">Edit to-do</span></a11y-label>
+    <input class="todo-item__input" type="text" name="text" required autocomplete="off" value="${todo.text}" data-event="keydown:_onKeydown:@event">
+  </a11y-input>
+  <button class="button button--small button--primary" type="submit" tabindex="0">Save</button>
+  <button class="button button--small todo-item__cancel" type="button" tabindex="0" data-event="click:_cancel">Cancel</button>
+</form>` : html`
+<a11y-checkbox class="todo-item__check" id="todo-${todo.id}-check" label="${todo.text}">
+  <input class="todo-item__checkbox" type="checkbox" tabindex="0" ${todo.done ? raw('checked') : ''} data-event="change:_toggle:@checked">
+</a11y-checkbox>
+<div class="todo-item__actions">
+  <button class="button button--small todo-item__edit" type="button" tabindex="0" aria-describedby="todo-${todo.id}-check" data-event="click:_edit">Edit</button>
+  <button class="button button--small button--danger todo-item__delete" type="button" tabindex="0" aria-describedby="todo-${todo.id}-check" data-event="click:_delete">Delete</button>
+</div>`}

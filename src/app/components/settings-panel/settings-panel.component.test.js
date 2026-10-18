@@ -1,5 +1,5 @@
 import { SettingsPanelComponent } from '#root/dist/src/app/components/settings-panel/settings-panel.component.js';
-import { notesStoreService } from '#root/dist/src/app/services/notes-store/notes-store.service.js';
+import { scopeStoreService } from '#root/dist/src/app/services/scope-store/scope-store.service.js';
 import { settingsService } from '#root/dist/src/app/services/settings/settings.service.js';
 import { KEYS, settle, startPanel } from '../../testing/panel.js';
 
@@ -34,7 +34,7 @@ describe('SettingsPanelComponent', () => {
   });
 
   it('moves the notes to sync, confirms it, and keeps the choice focused', async () => {
-    await notesStoreService.add('page', KEYS.page, 'A');
+    await scopeStoreService.addNote('page', KEYS.page, 'A');
     await choose('sync');
 
     expect(settingsService.storageArea).toBe('sync');
@@ -45,7 +45,7 @@ describe('SettingsPanelComponent', () => {
   });
 
   it('explains a refusal and goes back to the area in use', async () => {
-    await notesStoreService.add('page', KEYS.page, 'x'.repeat(9000));
+    await scopeStoreService.addNote('page', KEYS.page, 'x'.repeat(9000));
     await choose('sync');
 
     expect(settingsService.storageArea).toBe('local');

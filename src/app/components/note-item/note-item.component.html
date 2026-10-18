@@ -1,7 +1,7 @@
 ${editing ? html`
 <form class="note-item__form" data-event="submit:_save">
   <a11y-textarea class="note-item__field">
-    <a11y-label class="a11y-visually-hidden">Edit note</a11y-label>
+    <a11y-label><span class="a11y-visually-hidden">Edit note</span></a11y-label>
     <textarea class="note-item__input" name="text" rows="4" required data-event="keydown:_onKeydown:@event">${note.text}</textarea>
   </a11y-textarea>
   <div class="note-item__actions">

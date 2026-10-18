@@ -1,0 +1,48 @@
+.todo-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-small);
+  transition: background-color var(--transition);
+
+  &:hover,
+  &:focus-within {
+    background: var(--color-surface-muted);
+  }
+}
+
+// <a11y-checkbox> wraps the checkbox in a <label> with the text in .a11y-checkbox__label.
+.todo-item__check {
+  flex: 1;
+  min-width: 0;
+
+  .a11y-checkbox__label {
+    overflow-wrap: anywhere;
+  }
+}
+
+// Muted text keeps a 4.5:1 contrast in both themes; the strike says "done" without color.
+.todo-item--done .a11y-checkbox__label {
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+}
+
+.todo-item__actions {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.todo-item__form {
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+  gap: var(--space-1);
+}
+
+.todo-item__field {
+  flex: 1;
+  min-width: 0;
+}

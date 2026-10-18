@@ -38,11 +38,12 @@ export function getScopeKeys(url: string | null | undefined): IScopeKeys | null 
   };
 }
 
-// chrome.storage item that holds one scope's notes.
-export function storageKey(scope: NoteScope, key: string): string {
-  return `notes:${scope}:${key}`;
+// chrome.storage item that holds one scope's notes, or its to-dos.
+export function storageKey(kind: ScopeContentKind, scope: NoteScope, key: string): string {
+  return `${kind}:${scope}:${key}`;
 }
 
-export function isNotesStorageKey(key: string): boolean {
-  return key.startsWith('notes:');
+// Every item holding notes or to-dos (unlike `settings`).
+export function isScopeContentKey(key: string): boolean {
+  return key.startsWith('notes:') || key.startsWith('todos:');
 }

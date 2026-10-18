@@ -1,5 +1,5 @@
 import { SidebarComponent } from '#root/dist/src/app/components/sidebar/sidebar.component.js';
-import { notesStoreService } from '#root/dist/src/app/services/notes-store/notes-store.service.js';
+import { scopeStoreService } from '#root/dist/src/app/services/scope-store/scope-store.service.js';
 import { KEYS, keydown, settle, startPanel, typeInto } from '../../testing/panel.js';
 
 describe('SidebarComponent', () => {
@@ -36,18 +36,53 @@ describe('SidebarComponent', () => {
   });
 
   it('loads the page and site notes, with their counts on the tabs', async () => {
-    await notesStoreService.add('page', KEYS.page, 'About this page');
-    await notesStoreService.add('site', KEYS.site, 'About the site');
-    await notesStoreService.add('site', KEYS.site, 'More about the site');
+    await scopeStoreService.addNote('page', KEYS.page, 'About this page');
+    await scopeStoreService.addNote('site', KEYS.site, 'About the site');
+    await scopeStoreService.addNote('site', KEYS.site, 'More about the site');
     await mount();
 
     expect(texts('.note-item__text')).toEqual(['About this page']);
-    expect(tab('page').querySelector('.scope-tabs__count').textContent).toContain('1 note');
-    expect(tab('site').querySelector('.scope-tabs__count').textContent).toContain('2 notes');
+    expect(tab('page').querySelector('.a11y-visually-hidden').textContent).toBe(', 1 note');
+    expect(tab('site').querySelector('.a11y-visually-hidden').textContent).toBe(', 2 notes');
+  });
+
+  it('shows the to-dos section, with its quick add, above the notes', async () => {
+    await mount();
+
+    expect($$('[role="tabpanel"] h2').map((h) => h.textContent)).toEqual(['To-dos', 'Notes']);
+    const [todos, notes] = $$('.sidebar__section');
+    expect(todos.getAttribute('aria-labelledby')).toBe('todos-title');
+    expect(todos.querySelector('.todo-composer__input')).toBeTruthy();
+    expect(notes.querySelector('.note-composer__input')).toBeTruthy();
+  });
+
+  it('shows each tab\'s own to-dos and counts them with its notes', async () => {
+    await scopeStoreService.addTodo('page', KEYS.page, 'Page task');
+    await scopeStoreService.addTodo('site', KEYS.site, 'Site task');
+    await scopeStoreService.addNote('site', KEYS.site, 'Site note');
+    await mount();
+    const todoLabels = () => $$('.todo-item a11y-checkbox').map((el) => el.getAttribute('label'));
+
+    expect(todoLabels()).toEqual(['Page task']);
+    expect(tab('site').querySelector('.scope-tabs__count').textContent).toBe('2');
+    expect(tab('site').querySelector('.a11y-visually-hidden').textContent).toBe(', 1 note, 1 to-do');
+
+    tab('site').click();
+    expect(todoLabels()).toEqual(['Site task']);
+  });
+
+  it('adds a to-do from the quick add and keeps the focus there', async () => {
+    await mount();
+    typeInto($('.todo-composer__input'), 'Ship it');
+    $('.todo-composer').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+    await settle();
+
+    expect($$('.todo-item a11y-checkbox').map((el) => el.getAttribute('label'))).toEqual(['Ship it']);
+    expect(document.activeElement).toBe($('.todo-composer__input'));
   });
 
   it('switches to the site notes from its tab, without reading storage again', async () => {
-    await notesStoreService.add('site', KEYS.site, 'About the site');
+    await scopeStoreService.addNote('site', KEYS.site, 'About the site');
     await mount();
     const get = spyOn(panel.fake.storage.local, 'get');
 
@@ -91,7 +126,7 @@ describe('SidebarComponent', () => {
     expect(texts('.note-item__text')).toEqual(['Remember this']);
     expect($('.note-composer__input').value).toBe('');
     expect(document.activeElement).toBe($('.note-composer__input'));
-    expect(tab('page').querySelector('.scope-tabs__count').textContent).toContain('1 note');
+    expect(tab('page').querySelector('.a11y-visually-hidden').textContent).toBe(', 1 note');
   });
 
   it('adds a note with Ctrl+Enter or Cmd+Enter', async () => {
@@ -125,22 +160,22 @@ describe('SidebarComponent', () => {
   });
 
   it('keeps the draft and the list items when the notes change elsewhere', async () => {
-    const note = await notesStoreService.add('page', KEYS.page, 'Unchanged');
+    const note = await scopeStoreService.addNote('page', KEYS.page, 'Unchanged');
     await mount();
     typeInto($('.note-composer__input'), 'Typing…');
     const item = $(`[data-note-id="${note.id}"]`);
 
     // Another window adds a site note.
-    await notesStoreService.add('site', KEYS.site, 'From elsewhere');
+    await scopeStoreService.addNote('site', KEYS.site, 'From elsewhere');
     await settle();
 
     expect($('.note-composer__input').value).toBe('Typing…');
     expect($(`[data-note-id="${note.id}"]`)).toBe(item);
-    expect(tab('site').querySelector('.scope-tabs__count').textContent).toContain('1 note');
+    expect(tab('site').querySelector('.a11y-visually-hidden').textContent).toBe(', 1 note');
   });
 
   it('follows the active tab to another page', async () => {
-    await notesStoreService.add('page', 'https://other.org/x', 'Other page note');
+    await scopeStoreService.addNote('page', 'https://other.org/x', 'Other page note');
     await mount();
 
     panel.fake.activateTab('https://other.org/x');
@@ -178,7 +213,7 @@ describe('SidebarComponent', () => {
   });
 
   it('reloads the notes from the new storage area once switched', async () => {
-    await notesStoreService.add('page', KEYS.page, 'Travels along');
+    await scopeStoreService.addNote('page', KEYS.page, 'Travels along');
     await mount();
     $('.sidebar__settings-toggle').click();
 

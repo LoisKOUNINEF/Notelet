@@ -4,7 +4,7 @@ import { registerPipes } from '#root/dist/src/core/index.js';
 import { registerAppPipes } from '#root/dist/src/app/lib/pipes.js';
 import { clearRequestedFocus } from '#root/dist/src/app/lib/focus.js';
 import { activeTabService } from '#root/dist/src/app/services/active-tab/active-tab.service.js';
-import { notesStoreService } from '#root/dist/src/app/services/notes-store/notes-store.service.js';
+import { scopeStoreService } from '#root/dist/src/app/services/scope-store/scope-store.service.js';
 import { notifierService } from '#root/dist/src/app/services/notifier/notifier.service.js';
 import { settingsService } from '#root/dist/src/app/services/settings/settings.service.js';
 import { installFakeChrome, uninstallFakeChrome } from './fake-chrome.js';
@@ -28,7 +28,7 @@ export async function startPanel({ url = 'https://example.com/docs' } = {}) {
     pipesRegistered = true;
   }
   await settingsService.init();
-  notesStoreService.init();
+  scopeStoreService.init();
   await activeTabService.init();
 
   const toasts = [];
@@ -41,7 +41,7 @@ export async function startPanel({ url = 'https://example.com/docs' } = {}) {
       notify.restore();
       clearRequestedFocus();
       activeTabService.dispose();
-      notesStoreService.dispose();
+      scopeStoreService.dispose();
       settingsService.dispose();
       uninstallFakeChrome();
       document.getElementById('app').innerHTML = '';
@@ -49,7 +49,7 @@ export async function startPanel({ url = 'https://example.com/docs' } = {}) {
   };
 }
 
-// The storage, the store's `notes-changed` and the renders it triggers all resolve as promises.
+// The storage, the store's `scope-content-changed` and the renders it triggers all resolve as promises.
 export async function settle() {
   await flushPromises();
   await flushPromises();

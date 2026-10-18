@@ -1,11 +1,12 @@
 import { Component, html } from '../../../core/index.js';
 import { applyRequestedFocus, requestFocus } from '../../lib/focus.js';
 import { activeTabService } from '../../services/active-tab/active-tab.service.js';
-import { notesStoreService, type IScopedNotes } from '../../services/notes-store/notes-store.service.js';
+import { scopeStoreService, type IScopedContent } from '../../services/scope-store/scope-store.service.js';
 import { NoteComposerComponent } from '../note-composer/note-composer.component.js';
 import { NoteListComponent } from '../note-list/note-list.component.js';
-import { ScopeTabsComponent } from '../scope-tabs/scope-tabs.component.js';
+import { ScopeTabsComponent, type IScopeCounts } from '../scope-tabs/scope-tabs.component.js';
 import { SettingsPanelComponent } from '../settings-panel/settings-panel.component.js';
+import { TodoListComponent } from '../todo-list/todo-list.component.js';
 
 interface ISidebarView {
   keys: IScopeKeys | null;
@@ -20,15 +21,16 @@ const templateFn = ({ keys, scope, loaded, settingsOpen, location }: ISidebarVie
 const PANEL_ID = 'sidebar-panel';
 
 /**
- * The side panel's root: the active tab's page and site notes, behind "This page" / "This site"
- * tabs, or the settings. Both scopes are loaded together, so switching tabs never waits.
+ * The side panel's root: the active tab's page and site to-dos and notes, behind "This page" /
+ * "This site" tabs, or the settings. Both scopes are loaded together, so switching tabs never waits.
  */
 export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
   private _keys: IScopeKeys | null;
   private _scope: NoteScope = 'page';
-  private _notes: IScopedNotes | null = null;
+  private _content: IScopedContent | null = null;
   private _settingsOpen = false;
   private _noteList: NoteListComponent | null = null;
+  private _todoList: TodoListComponent | null = null;
   // Only the latest load's result is shown, however the requests resolve.
   private _loadId = 0;
 
@@ -39,11 +41,11 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
 
     this.listen('active-scope-changed', ({ keys }) => {
       this._keys = keys;
-      this._notes = null;
+      this._content = null;
       this.refresh();
       void this.load();
     });
-    this.listen('notes-changed', () => void this.load());
+    this.listen('scope-content-changed', () => void this.load());
     this.listen('storage-area-changed', () => void this.load());
     void this.load();
   }
@@ -57,7 +59,8 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
 
     const scope = this._scope;
     const scopeKey = `${scope}|${keys[scope]}`;
-    const notes = this._notes ?? { page: [], site: [] };
+    const empty = { notes: [], todos: [] };
+    const content = this._content ?? { page: empty, site: empty };
 
     return [
       ...children,
@@ -65,16 +68,21 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
         selector: 'scope-tabs',
         factory: (el) => new ScopeTabsComponent(el, {
           active: scope,
-          counts: { page: notes.page.length, site: notes.site.length },
+          counts: { page: counts(content.page), site: counts(content.site) },
           panelId: PANEL_ID,
           onSelect: (selected) => this.selectScope(selected),
         }),
       },
-      // Kept while on the same scope and page: a draft and the notes' DOM survive other renders.
+      // Kept while on the same scope and page: drafts and the lists' DOM survive other renders.
+      {
+        selector: 'todo-list',
+        factory: (el) => (this._todoList = new TodoListComponent(el, { scope, key: keys[scope], todos: content[scope].todos })),
+        keep: scopeKey,
+      },
       { selector: 'note-composer', factory: (el) => new NoteComposerComponent(el, { scope, key: keys[scope] }), keep: scopeKey },
       {
         selector: 'note-list',
-        factory: (el) => (this._noteList = new NoteListComponent(el, { scope, keys, notes: notes[scope] })),
+        factory: (el) => (this._noteList = new NoteListComponent(el, { scope, keys, notes: content[scope].notes })),
         keep: scopeKey,
       },
     ];
@@ -82,9 +90,13 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
 
   protected override onAfterRender(): void {
     super.onAfterRender();
-    // A kept list still shows the previous notes: hand it the new ones, then place the focus.
-    if (this._noteList && this._notes && this.element.contains(this._noteList.getElement())) {
-      this._noteList.update(this._notes[this._scope]);
+    // Kept lists still show the previous items: hand them the new ones, then place the focus.
+    const content = this._content?.[this._scope];
+    if (content && this._todoList && this.element.contains(this._todoList.getElement())) {
+      this._todoList.update(content.todos);
+    }
+    if (content && this._noteList && this.element.contains(this._noteList.getElement())) {
+      this._noteList.update(content.notes);
     }
     applyRequestedFocus(this.element);
   }
@@ -106,9 +118,9 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
     const loadId = ++this._loadId;
     if (!keys) return;
 
-    const notes = await notesStoreService.load(keys);
+    const content = await scopeStoreService.load(keys);
     if (loadId !== this._loadId) return;
-    this._notes = notes;
+    this._content = content;
     this.refresh();
   }
 
@@ -122,11 +134,16 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
     return {
       keys,
       scope: this._scope,
-      loaded: this._notes !== null,
+      loaded: this._content !== null,
       settingsOpen: this._settingsOpen,
       location: keys
         ? { text: this._scope === 'page' ? keys.pageLabel : keys.siteLabel, full: this._scope === 'page' ? keys.page : keys.site }
         : { text: '', full: '' },
     };
   }
+}
+
+// What the tab shows: notes plus the to-dos still open.
+function counts({ notes, todos }: IScopedContent[NoteScope]): IScopeCounts {
+  return { notes: notes.length, todos: todos.filter((todo) => !todo.done).length };
 }

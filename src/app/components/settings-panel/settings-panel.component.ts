@@ -1,6 +1,7 @@
 import { Component, html, raw } from '../../../core/index.js';
 import { chromeApiService } from '../../services/chrome-api/chrome-api.service.js';
-import { notesStoreService } from '../../services/notes-store/notes-store.service.js';
+import { errorMessage } from '../../lib/errors.js';
+import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
 import { settingsService } from '../../services/settings/settings.service.js';
 
@@ -48,10 +49,10 @@ export class SettingsPanelComponent extends Component<HTMLElement, ISettingsPane
 
     this.setBusy(true);
     try {
-      await notesStoreService.migrateTo(area);
+      await scopeStoreService.migrateTo(area);
       notifierService.success(SUCCESS[area]);
     } catch (error) {
-      notifierService.error(error instanceof Error ? error.message : String(error));
+      notifierService.error(errorMessage(error));
     } finally {
       // Back to the area actually in use, whether the move worked or not.
       this.setBusy(false);

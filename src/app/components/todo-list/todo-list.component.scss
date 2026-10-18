@@ -1,0 +1,12 @@
+.todo-list {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.todo-list__items {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}

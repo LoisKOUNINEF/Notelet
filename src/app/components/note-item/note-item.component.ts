@@ -1,6 +1,7 @@
 import { Component, html } from '../../../core/index.js';
 import { clearRequestedFocus, requestFocus } from '../../lib/focus.js';
-import { notesStoreService } from '../../services/notes-store/notes-store.service.js';
+import { errorMessage } from '../../lib/errors.js';
+import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
 
 interface INoteItemView {
@@ -84,10 +85,10 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
       return;
     }
 
-    // The saved note comes back through `notes-changed` as a new list item, in view mode.
+    // The saved note comes back through `scope-content-changed` as a new list item, in view mode.
     requestFocus(`[data-note-id="${this._note.id}"] .note-item__edit`);
     try {
-      await notesStoreService.update(this._note, text);
+      await scopeStoreService.update('notes', this._note, { text });
     } catch (error) {
       clearRequestedFocus();
       notifierService.error(`Couldn't save the note. ${errorMessage(error)}`);
@@ -98,7 +99,7 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
     const target = this._note.scope === 'page' ? 'site' : 'page';
     this.requestFocusAfterLeaving();
     try {
-      await notesStoreService.move(this._note, this._keys);
+      await scopeStoreService.move('notes', this._note, this._keys);
       notifierService.success(`Moved to this ${target}'s notes.`);
     } catch (error) {
       clearRequestedFocus();
@@ -110,10 +111,10 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
     const note = this._note;
     this.requestFocusAfterLeaving();
     try {
-      await notesStoreService.remove(note);
+      await scopeStoreService.remove('notes', note);
       notifierService.info('Note deleted.', {
         label: 'Undo',
-        run: () => void notesStoreService.restore(note).catch((error) => {
+        run: () => void scopeStoreService.restore('notes', note).catch((error) => {
           notifierService.error(`Couldn't restore the note. ${errorMessage(error)}`);
         }),
       });
@@ -136,8 +137,4 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
     this.config = NoteItemComponent.view(this._note, editing);
     this.render();
   }
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

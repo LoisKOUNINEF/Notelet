@@ -1,5 +1,5 @@
 import { NoteComposerComponent } from '#root/dist/src/app/components/note-composer/note-composer.component.js';
-import { notesStoreService } from '#root/dist/src/app/services/notes-store/notes-store.service.js';
+import { scopeStoreService } from '#root/dist/src/app/services/scope-store/scope-store.service.js';
 import { KEYS, settle, startPanel, typeInto } from '../../testing/panel.js';
 
 describe('NoteComposerComponent', () => {
@@ -34,7 +34,7 @@ describe('NoteComposerComponent', () => {
     $('button[type="submit"]').click();
     await settle();
 
-    expect((await notesStoreService.load(KEYS)).site.map((n) => n.text)).toEqual(['Site-wide']);
+    expect((await scopeStoreService.load(KEYS)).site.notes.map((n) => n.text)).toEqual(['Site-wide']);
   });
 
   it('gives the text back and explains when the note can\'t be saved', async () => {

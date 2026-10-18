@@ -1,4 +1,4 @@
-import { getScopeKeys, storageKey, isNotesStorageKey } from '#root/dist/src/app/lib/scope-keys.js';
+import { getScopeKeys, storageKey, isScopeContentKey } from '#root/dist/src/app/lib/scope-keys.js';
 
 describe('getScopeKeys', () => {
   it('keys a page by its URL and a site by its host', () => {
@@ -55,13 +55,14 @@ describe('getScopeKeys', () => {
 });
 
 describe('storageKey', () => {
-  it('prefixes the scope key with its scope', () => {
-    expect(storageKey('page', 'https://example.com/a')).toBe('notes:page:https://example.com/a');
-    expect(storageKey('site', 'example.com')).toBe('notes:site:example.com');
+  it('prefixes the scope key with its kind and scope', () => {
+    expect(storageKey('notes', 'page', 'https://example.com/a')).toBe('notes:page:https://example.com/a');
+    expect(storageKey('todos', 'site', 'example.com')).toBe('todos:site:example.com');
   });
 
-  it('is recognized as a notes item, unlike settings', () => {
-    expect(isNotesStorageKey(storageKey('site', 'example.com'))).toBe(true);
-    expect(isNotesStorageKey('settings')).toBe(false);
+  it('is recognized as scope content, unlike settings', () => {
+    expect(isScopeContentKey(storageKey('notes', 'site', 'example.com'))).toBe(true);
+    expect(isScopeContentKey(storageKey('todos', 'page', 'https://example.com/a'))).toBe(true);
+    expect(isScopeContentKey('settings')).toBe(false);
   });
 });

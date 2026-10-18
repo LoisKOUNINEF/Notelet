@@ -23,7 +23,15 @@
   </p>
   <div data-component="scope-tabs"></div>
   <div class="sidebar__panel" id="sidebar-panel" role="tabpanel" aria-labelledby="scope-tab-${scope}">
-    <div data-component="note-composer"></div>
-    ${loaded ? html`<div data-component="note-list"></div>` : ''}
+    ${loaded ? html`
+    <section class="sidebar__section" aria-labelledby="todos-title">
+      <h2 class="sidebar__section-title" id="todos-title">To-dos</h2>
+      <div data-component="todo-list"></div>
+    </section>` : ''}
+    <section class="sidebar__section" aria-labelledby="notes-title">
+      <h2 class="sidebar__section-title" id="notes-title">Notes</h2>
+      <div data-component="note-composer"></div>
+      ${loaded ? html`<div data-component="note-list"></div>` : ''}
+    </section>
   </div>`}
 </div>

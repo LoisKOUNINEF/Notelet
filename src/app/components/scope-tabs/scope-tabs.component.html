@@ -11,6 +11,6 @@
     data-scope="${tab.scope}"
     data-event="click:_select:@dataset:scope">
     <span class="scope-tabs__label">${tab.label}</span>
-    <span class="scope-tabs__count">${tab.count}<a11y-visually-hidden>${tab.count === 1 ? ' note' : ' notes'}</a11y-visually-hidden></span>
+    <span class="scope-tabs__count" aria-hidden="true">${tab.count}</span><span class="a11y-visually-hidden">${tab.countText}</span>
   </button>`)}
 </div>
