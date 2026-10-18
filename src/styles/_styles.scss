@@ -1,1 +1,155 @@
-// Global styles
+// Global styles: theme tokens, base elements and the shared button.
+// Components style their own blocks in their .scss (BEM: .block__element--modifier).
+
+:root {
+  color-scheme: light dark;
+
+  --color-bg: #fafaf9;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f1f1ef;
+  --color-border: #d6d6d2;
+  --color-border-strong: #a8a8a2;
+  --color-text: #1c1c1a;
+  --color-text-muted: #5f5f59;
+  --color-primary: #4f6741;
+  --color-primary-hover: #3f5434;
+  --color-on-primary: #ffffff;
+  --color-danger: #a9432a;
+  --color-focus: #2f6fb5;
+
+  --radius: 8px;
+  --radius-small: 6px;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --font-small: 0.8125rem;
+  --transition: 150ms ease;
+
+  // a11y-elements live partly on <body> (the snackbar): their tokens are set at :root.
+  --a11y-textarea-color-background: var(--color-surface);
+  --a11y-textarea-color-border: var(--color-border);
+  --a11y-textarea-color-border-strong: var(--color-border-strong);
+  --a11y-textarea-color-primary: var(--color-focus);
+  --a11y-textarea-color-text: var(--color-text);
+  --a11y-textarea-color-error: var(--color-danger);
+  --a11y-textarea-control-border-radius: var(--radius-small);
+  --a11y-textarea-resize: vertical;
+  --a11y-label-color-text: var(--color-text);
+  --a11y-label-color-required: var(--color-danger);
+  --a11y-radio-group-color-background: var(--color-surface);
+  --a11y-radio-group-color-border: var(--color-border-strong);
+  --a11y-radio-group-color-primary: var(--color-primary);
+  --a11y-radio-group-color-text: var(--color-text);
+  --a11y-radio-group-color-text-muted: var(--color-text-muted);
+  --a11y-snackbar-container-width: calc(100vw - 2rem);
+  --a11y-color-success: #3f6b34;
+  --a11y-color-info: #2b2b28;
+  --a11y-color-error: #a9432a;
+
+  @media (prefers-color-scheme: dark) {
+    --color-bg: #1b1b19;
+    --color-surface: #252522;
+    --color-surface-muted: #2e2e2b;
+    --color-border: #3d3d39;
+    --color-border-strong: #5d5d57;
+    --color-text: #ecece8;
+    --color-text-muted: #a9a9a2;
+    --color-primary: #9cb88a;
+    --color-primary-hover: #b2cba2;
+    --color-on-primary: #14140f;
+    --color-danger: #f0937a;
+    --color-focus: #8ab8ec;
+    --a11y-color-info: #3a3a36;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    --transition: 0s;
+    --a11y-snackbar-animation-duration: 0s;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+}
+
+body {
+  min-height: 100vh;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: 0.9375rem/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+kbd {
+  padding: 0 var(--space-1);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 4px;
+  font: inherit;
+  font-size: 0.85em;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 2rem;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-small);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  cursor: pointer;
+  transition: background-color var(--transition), border-color var(--transition);
+
+  &:hover {
+    border-color: var(--color-border-strong);
+    background: var(--color-surface-muted);
+  }
+
+  &--primary {
+    border-color: var(--color-primary);
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+    font-weight: 600;
+
+    &:hover {
+      border-color: var(--color-primary-hover);
+      background: var(--color-primary-hover);
+    }
+  }
+
+  &--small {
+    min-height: 1.75rem;
+    padding: 0 var(--space-2);
+    font-size: var(--font-small);
+  }
+
+  &--danger {
+    color: var(--color-danger);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}

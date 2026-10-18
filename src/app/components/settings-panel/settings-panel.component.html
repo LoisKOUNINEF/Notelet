@@ -1,0 +1,26 @@
+<section class="settings-panel" aria-labelledby="settings-title">
+  <h2 class="settings-panel__title" id="settings-title" tabindex="-1">Settings</h2>
+
+  <a11y-radio-group class="settings-panel__group" legend="Where to keep your notes" ${busy ? raw('disabled') : ''}>
+    ${areas.map((area) => html`
+    <label class="settings-panel__option">
+      <input type="radio" tabindex="0" name="storage-area" value="${area.value}" ${area.checked ? raw('checked') : ''} data-event="change:_setArea:@value">
+      <span class="settings-panel__option-text">
+        <span class="settings-panel__option-label">${area.label}</span>
+        <span class="settings-panel__option-hint">${area.hint}</span>
+      </span>
+    </label>`)}
+  </a11y-radio-group>
+
+  <div class="settings-panel__section">
+    <h3 class="settings-panel__subtitle">Panel side</h3>
+    <p class="settings-panel__text">Chrome decides whether the side panel opens on the left or the right.</p>
+    <button class="button" type="button" tabindex="0" data-event="click:_openChromeSettings:'chrome://settings/appearance'">Change it in Chrome settings</button>
+  </div>
+
+  <div class="settings-panel__section">
+    <h3 class="settings-panel__subtitle">Keyboard shortcut</h3>
+    <p class="settings-panel__text"><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd> opens and closes the panel, as does the toolbar button.</p>
+    <button class="button" type="button" tabindex="0" data-event="click:_openChromeSettings:'chrome://extensions/shortcuts'">Change the shortcut</button>
+  </div>
+</section>

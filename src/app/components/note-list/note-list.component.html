@@ -1,0 +1,5 @@
+<div class="note-list">
+  ${notes.length > 0
+    ? html`<ul class="note-list__items" data-catalog="notes" aria-label="${label}"></ul>`
+    : html`<p class="note-list__empty">${emptyText}</p>`}
+</div>

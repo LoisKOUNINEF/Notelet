@@ -1,0 +1,10 @@
+<form class="note-composer" data-event="submit:_add">
+  <a11y-textarea class="note-composer__field">
+    <a11y-label>${label}</a11y-label>
+    <textarea class="note-composer__input" name="text" rows="3" required placeholder="Write a note…" data-event="keydown:_onKeydown:@event">${draft}</textarea>
+  </a11y-textarea>
+  <div class="note-composer__actions">
+    <span class="note-composer__hint" aria-hidden="true">Ctrl+Enter to add</span>
+    <button class="button button--primary" type="submit" tabindex="0">Add note</button>
+  </div>
+</form>

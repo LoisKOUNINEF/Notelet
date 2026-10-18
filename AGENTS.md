@@ -40,7 +40,7 @@ BaseComponent<T>     — render/destroy engine, data-* parsing, children
 └── View              — one per route; mounted/unmounted by the Router
 ```
 
-- `render()`: `onBeforeRender()` → sanitize the template and insert the resulting nodes (`SecurityHelper.sanitizeToFragment()`, never assigned to `innerHTML`) → mount children (`data-component`/`data-catalog`) → parse `data-i18n`/`data-pipe` → bind `data-event` listeners → `onAfterRender()`. Runs in full on every `render()` call — no virtual DOM/diffing; only children with `keep`/`keepBy` are kept (see "Children components").
+- `render()`: `onBeforeRender()` → sanitize the template and insert the resulting nodes (`SecurityHelper.sanitizeToFragment()`, never assigned to `innerHTML`) → mount children (`data-component`/`data-catalog`) → parse `data-i18n`/`data-pipe` → bind `data-event` listeners → `onAfterRender()`. Runs in full on every `render()` call — no virtual DOM/diffing; only children with `keep`/`keepBy` are kept (see "Children components"). For frequent updates (a game loop, a timer), don't re-render a whole view or patch a child's DOM with `querySelector` from the parent: give the component a method that updates its own DOM (e.g. a canvas or grid `paint()`), or keep the child and update it only when its data changes (see "Children components").
 - `destroy()`: unbinds events, unsubscribes bus listeners, destroys children, removes the element.
 - `Service`: direct `new` throws — always use `MyService.getInstance()` (or the exported const). Auto-binds all methods to the instance. `registerCleanup(fn)` callbacks run on `dispose()`, `MyService.destroy()` and `Service.destroyAll()` (tests, SSR) — nothing is torn down on page unload.
 - Overridable hooks (all no-op by default): `onBeforeRender`, `onAfterRender`, `onBeforeDestroy`, `onAfterDestroy`, `onKept`, `generateTemplate()`, `registerChildren()`. `View` adds router-only `onEnter()`/`onExit()`.
@@ -49,7 +49,9 @@ BaseComponent<T>     — render/destroy engine, data-* parsing, children
 
 - Override `registerChildren(): Nutin.ComponentConfig[]` to declare children — matched against `[data-component="selector"]` elements in the rendered template. ComponentConfig: `{ selector: 'my-selector', factory: (el) => new MyComponent(el, {...} ), keep?: string | number }`.
 - Children are destroyed and recreated on every parent render unless they have a `keep` value: with the same value on the next render, the child is kept as-is (factory not called, not re-rendered, DOM state preserved) and only its `onKept()` hook runs. Put in `keep` whatever should force a recreate.
+- Updating a kept child: Nutin has no public setter (`config` is `protected`). Give the child its own method, e.g. `update(data) { this.config = data; this.render(); }`, ideally returning early when `data` is unchanged, and call it from the parent (after its own render or on each state change) instead of reaching into the child's DOM. A re-render rebuilds the child's nodes: focus on a rebuilt control is lost, so restore it if one may be focused (kept grandchildren keep theirs).
 - For repeated lists, use the inherited `createCatalogComponents({ items, elementName, selector, component })` inside `registerChildren()` instead of hand-writing one entry per item — targets `[data-catalog="selector"]`. Add `keepBy: (item, index) => id` to keep items whose id is unchanged and whose item is shallow-equal; without it the catalog is rebuilt every render.
+- Catalog DOM: each item is `<elementTag data-index>` (default `div`) wrapping the item component's own root (a `div`, unless the component sets `tagName`), which holds its template. Set the root's class with `props: { className }` in the item component's constructor. The two wrappers break structures that need direct children (`dl`'s `dt`/`dd`, a parent CSS grid's items): use a list element per item, or `display: contents` / `grid-template-columns: subgrid` on the wrappers.
 
 ## `data-*` attributes
 
@@ -59,10 +61,10 @@ BaseComponent<T>     — render/destroy engine, data-* parsing, children
 | `data-i18n="key"` | Sets translated text/placeholder via `I18nService`. |
 | `data-pipe="name[:args]\|name2..."` | Pipes value/text through registered pipes, chainable with `\|`. |
 | `data-pipe-source="..."` | Overrides the raw value fed into `data-pipe`. |
-| `data-optional` | Removes the element post-render if it ends up empty (tag-specific check: `src`/`value`/`textContent`). |
+| `data-optional` / `data-optional="${value}"` | Removes the element post-render if it ends up empty (tag-specific check: `src`/`value`/`textContent`), or, in the interpolated form, if `value` is `null`/`undefined` — a conditional element without a ternary. |
 | `data-component="selector"` | Child component mount point, from `registerChildren()`. |
 | `data-catalog="selector"` | Repeated-children mount point, from `createCatalogComponents()`. |
-| `data-bind="propKey"` | `Component`-only two-way field binding; read back with `getValues()`. |
+| `data-bind="propKey"` | `Component`-only two-way field binding; read back with `getValues()`. Fields are `<input>`/`<textarea>`; any other element gets and returns its `textContent`, so not a `<select>`. |
 
 ## DOM events binding
 
@@ -77,7 +79,9 @@ private _myFunction(value: string, id: string) { doStuff() }
 
 The build type-checks each handler name written in a template against the class: a missing one fails `tsc` at the template line, and handlers count as used for `noUnusedLocals` (on in this project). Names built with `${}` aren't checked. At runtime, a missing handler binds nothing and logs a `console.warn` in development.
 
-Tokens: `@value`, `@id`, `@class`, `@textContent`, `@event`, `@target`, `@attr:name`, `@dataset:key`, plus string/number literals (quoted literals may contain commas). Token values are raw (not HTML-escaped): escaping happens when they are rendered through an `html` template.
+Tokens: `@value`, `@checked`, `@selected`, `@id`, `@class`, `@name`, `@tag`, `@textContent`, `@innerText`, `@html`, `@event`, `@target`, `@x`/`@y` (pointer), `@key`/`@code` (keyboard), `@attr:name`, `@dataset:key`, plus string/number literals (quoted literals may contain commas). Token values are raw (not HTML-escaped): escaping happens when they are rendered through an `html` template. `@value` reads `<input>`, `<textarea>` and `contenteditable` only (`''` elsewhere): for a `<select>`, pass `@target` and read its `.value`.
+
+One `data-event` per element (a single `event:handler[:args]`). For several events on one element (e.g. `pointerdown`/`pointerup`/`pointercancel`), bind them in `onAfterRender()` with `addEventListener` and push `[element, type, listener]` onto `this.eventListeners`, which Nutin unbinds on re-render and `destroy()`.
 
 Only defaults that leave the page are cancelled: link clicks (`<a href>`, unless modified, e.g. ctrl+click), form `submit` and submit-button clicks inside a form. Other events keep their default (typing, checking a box); take `@event` and call `preventDefault()` yourself if needed. A component only binds its own `data-event`/`data-bind`/`data-i18n` elements, not those inside nested child components.
 
@@ -96,6 +100,7 @@ Only defaults that leave the page are cancelled: link clicks (`<a href>`, unless
 
 - Sass is the primary styling system; Tailwind is optional (`nutin.config.js`'s `tailwind` flag).
 - Naming convention: `.my-element__my-class`.
+- Build: `src/styles/main.scss` is compiled first, then every `.scss` under `src/app` (except `_partials`) is compiled on its own and appended to the same `main.css`, in the order the builder walks the folders. Each file therefore sees only what it `@use`s: share mixins/functions through partials in `src/styles/base` (on the load path, e.g. `@use "mixins"`), not through another component's file; placeholders (`%x`) and variables don't cross files. Rules of equal specificity in different files depend on that order: keep a base rule and its modifiers in one file, or raise the modifiers' specificity.
 
 ## Pipes
 

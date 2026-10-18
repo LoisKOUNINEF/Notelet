@@ -1,0 +1,29 @@
+<div class="sidebar">
+  <header class="sidebar__header">
+    <h1 class="sidebar__title">Notes</h1>
+    <button
+      class="button button--small sidebar__settings-toggle"
+      type="button"
+      tabindex="0"
+      aria-expanded="${settingsOpen ? 'true' : 'false'}"
+      aria-controls="sidebar-settings"
+      data-event="click:_toggleSettings">${settingsOpen ? 'Back to notes' : 'Settings'}</button>
+  </header>
+
+  ${settingsOpen ? html`
+  <div class="sidebar__settings" id="sidebar-settings">
+    <div data-component="settings-panel"></div>
+  </div>` : !keys ? html`
+  <div class="sidebar__unavailable" role="status">
+    <p class="sidebar__unavailable-title">Notes aren't available on this page.</p>
+    <p class="sidebar__unavailable-text">Open a website to see its notes or write some.</p>
+  </div>` : html`
+  <p class="sidebar__location" title="${location.full}">
+    <span class="a11y-visually-hidden">Current ${scope}: </span><span class="sidebar__location-text">${location.text}</span>
+  </p>
+  <div data-component="scope-tabs"></div>
+  <div class="sidebar__panel" id="sidebar-panel" role="tabpanel" aria-labelledby="scope-tab-${scope}">
+    <div data-component="note-composer"></div>
+    ${loaded ? html`<div data-component="note-list"></div>` : ''}
+  </div>`}
+</div>
