@@ -4,8 +4,8 @@
   "routes": [
     {
       "path": "/",
-      "title": "notes-extension",
-      "description": "notes-extension",
+      "title": "Ticknote",
+      "description": "Notes and to-dos for each page and each site, in Chrome's side panel.",
       "ogImage": "/assets/images/og-cover.jpg"
     }
   ]

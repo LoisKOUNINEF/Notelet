@@ -95,3 +95,13 @@ describe('continueChecklist, mid-text', () => {
   });
 });
 
+describe('continueChecklist, with a selection', () => {
+  it('replaces the selected text, as Enter would', () => {
+    // "lk" selected in "- [ ] Milk".
+    expect(continueChecklist('- [ ] Milk', 8, 10)).toEqual({ value: '- [ ] Mi\n- [ ] ', caret: 15 });
+  });
+
+  it('ends the list when the selection held the whole item', () => {
+    expect(continueChecklist('- [ ] A\n- [ ] Milk', 14, 18)).toEqual({ value: '- [ ] A\n', caret: 8 });
+  });
+});

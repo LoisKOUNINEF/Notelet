@@ -1,3 +1,5 @@
+import { AppEventBus } from '#root/dist/src/core/index.js';
+import { formatTimeAgo } from '#root/dist/src/app/lib/pipes.js';
 import { SidebarComponent } from '#root/dist/src/app/components/sidebar/sidebar.component.js';
 import { scopeStoreService } from '#root/dist/src/app/services/scope-store/scope-store.service.js';
 import { KEYS, keydown, settle, startPanel } from '../../testing/panel.js';
@@ -380,5 +382,16 @@ describe('NoteItemComponent - checklist', () => {
     expect(set.callCount).toBe(0);
     set.restore();
   });
-});
 
+  it('keeps its relative time true as minutes pass, without re-rendering', async () => {
+    const note = await scopeStoreService.addNote('page', KEYS.page, 'Timed');
+    await mount();
+    const time = item(note).querySelector('time');
+    const now = spyOn(Date, 'now').andReturn(note.updatedAt + 5 * 60_000);
+    AppEventBus.emit('minute-tick');
+    now.restore();
+
+    expect(item(note).querySelector('time')).toBe(time);
+    expect(time.textContent).toBe(formatTimeAgo(note.updatedAt, note.updatedAt + 5 * 60_000));
+  });
+});

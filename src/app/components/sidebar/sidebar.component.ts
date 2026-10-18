@@ -1,6 +1,8 @@
 import { Component, html } from '../../../core/index.js';
-import { applyRequestedFocus, requestFocus } from '../../lib/focus.js';
+import { applyRequestedFocus, hasRequestedFocus, requestFocus } from '../../lib/focus.js';
+import { errorMessage } from '../../lib/errors.js';
 import { activeTabService } from '../../services/active-tab/active-tab.service.js';
+import { notifierService } from '../../services/notifier/notifier.service.js';
 import { scopeStoreService, type IScopedContent } from '../../services/scope-store/scope-store.service.js';
 import { NoteComposerComponent } from '../note-composer/note-composer.component.js';
 import { NoteListComponent } from '../note-list/note-list.component.js';
@@ -118,15 +120,42 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
     const loadId = ++this._loadId;
     if (!keys) return;
 
-    const content = await scopeStoreService.load(keys);
+    let content: IScopedContent;
+    try {
+      content = await scopeStoreService.load(keys);
+    } catch (error) {
+      if (loadId !== this._loadId) return;
+      // What was shown stays (or empty lists), rather than a panel stuck loading.
+      notifierService.error(`Couldn't load your notes. ${errorMessage(error)}`);
+      content = this._content ?? { page: { notes: [], todos: [] }, site: { notes: [], todos: [] } };
+    }
     if (loadId !== this._loadId) return;
     this._content = content;
     this.refresh();
   }
 
+  /**
+   * Re-renders, keeping keyboard focus where it was. Kept children (lists, composers) keep theirs
+   * through Nutin's preservation, but this component's own controls (the scope tabs, the Settings
+   * toggle) are rebuilt: a reload from elsewhere (another window, Chrome sync) would drop them to
+   * <body>. Unless the action that caused the render asked for focus somewhere else.
+   */
   private refresh(): void {
+    const focused = this.ownFocusSelector();
+    const requested = hasRequestedFocus();
     this.config = this.view();
     this.render();
+    if (!focused || requested || this.element.contains(document.activeElement)) return;
+    this.element.querySelector<HTMLElement>(focused)?.focus();
+  }
+
+  // A selector for the focused element, if it's one of the controls rebuilt on every render.
+  private ownFocusSelector(): string | null {
+    const active = document.activeElement;
+    if (!(active instanceof HTMLElement) || !this.element.contains(active)) return null;
+    if (active.matches('[role="tab"][id]')) return `#${active.id}`;
+    if (active.matches('.sidebar__settings-toggle')) return '.sidebar__settings-toggle';
+    return null;
   }
 
   private view(): ISidebarView {

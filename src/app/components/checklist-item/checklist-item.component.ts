@@ -1,6 +1,6 @@
 import { Component, html, raw } from '../../../core/index.js';
 import { errorMessage } from '../../lib/errors.js';
-import { clearRequestedFocus, requestFocus } from '../../lib/focus.js';
+import { byData, clearRequestedFocus, requestFocus } from '../../lib/focus.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
 import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
 
@@ -36,7 +36,7 @@ export class ChecklistItemComponent extends Component<HTMLElement, IChecklistIte
 
   private async _toggle(done: boolean): Promise<void> {
     const id = this._item.id;
-    requestFocus(`[data-note-id="${this._note.id}"] [data-item-id="${id}"] .checklist-item__checkbox`);
+    requestFocus(`${byData('note-id', this._note.id)} ${byData('item-id', id)} .checklist-item__checkbox`);
     try {
       // From the stored note: another item checked a moment ago isn't overwritten.
       await scopeStoreService.updateWith('notes', this._note, (current) => ({

@@ -1,9 +1,20 @@
 import { Component, html } from '../../../core/index.js';
+import { announce } from '../../lib/announce.js';
+import { setEditDraft } from '../../lib/drafts.js';
+import { byData } from '../../lib/focus.js';
 import { parseChecklist, withIds } from '../../lib/checklist.js';
 import { ChecklistFieldComponent, type IChecklistFieldOptions } from '../checklist-field/checklist-field.component.js';
 
+// What an edit in progress holds, kept as a draft if the editor goes away unsaved.
+export interface INoteEditDraft {
+  text: string;
+  items: IChecklistItem[];
+}
+
 export interface INoteEditorConfig {
   note: INote;
+  // An earlier, unsaved edit of this note to start from.
+  draft?: INoteEditDraft | null;
   onSave: (text: string, items: IChecklistItem[]) => void;
   onCancel: () => void;
 }
@@ -11,9 +22,10 @@ export interface INoteEditorConfig {
 interface INoteEditorView {
   text: string;
   hasItems: boolean;
+  restored: boolean;
 }
 
-const templateFn = ({ text, hasItems }: INoteEditorView) => html`__TEMPLATE_PLACEHOLDER__`;
+const templateFn = ({ text, hasItems, restored }: INoteEditorView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 /**
  * A note in edit mode: its text, and one field per checklist item (rename, remove, add).
@@ -24,19 +36,55 @@ export class NoteEditorComponent extends Component<HTMLElement, INoteEditorView>
   private _fields: IChecklistItem[];
   private _onSave: INoteEditorConfig['onSave'];
   private _onCancel: INoteEditorConfig['onCancel'];
+  private readonly _note: INote;
+  private readonly _restored: boolean;
+  private _announced = false;
+  // Saved or cancelled: nothing to keep when the editor goes away.
+  private _closed = false;
   private readonly _fieldOptions: IChecklistFieldOptions = {
     onEnter: (id) => this.insertFieldAfter(id),
     onRemove: (id) => this.removeField(id),
     onEscape: () => this._cancel(),
   };
 
-  constructor(mountTarget: HTMLElement, { note, onSave, onCancel }: INoteEditorConfig) {
-    const fields = note.items ?? [];
-    super({ templateFn, mountTarget, config: { text: note.text, hasItems: fields.length > 0 } });
-    this._text = note.text;
+  constructor(mountTarget: HTMLElement, { note, draft, onSave, onCancel }: INoteEditorConfig) {
+    const text = draft?.text ?? note.text;
+    const fields = draft?.items ?? note.items ?? [];
+    super({ templateFn, mountTarget, config: { text, hasItems: fields.length > 0, restored: !!draft } });
+    this._note = note;
+    this._restored = !!draft;
+    this._text = text;
     this._fields = fields;
     this._onSave = onSave;
     this._onCancel = onCancel;
+  }
+
+  // The note item closes the editor itself (save, cancel): from then on there's no draft to keep.
+  public close(): void {
+    this._closed = true;
+    setEditDraft('note', this._note.id, null);
+  }
+
+  // A save that failed: the edit is still open, and kept again if the editor goes away.
+  public reopen(): void {
+    this._closed = false;
+  }
+
+  protected override onBeforeDestroy(): void {
+    if (!this._closed) {
+      this.collect();
+      const unchanged = this._text === this._note.text && sameFields(this._fields, this._note.items ?? []);
+      setEditDraft('note', this._note.id, unchanged ? null : { text: this._text, items: this._fields });
+    }
+    super.onBeforeDestroy();
+  }
+
+  protected override onAfterRender(): void {
+    super.onAfterRender();
+    if (this._restored && !this._announced) {
+      this._announced = true;
+      announce('Unsaved changes restored.');
+    }
   }
 
   public override registerChildren(): Nutin.ComponentConfig[] {
@@ -122,18 +170,22 @@ export class NoteEditorComponent extends Component<HTMLElement, INoteEditorView>
     this._fields = this._fields.map((field) => ({
       ...field,
       // Every field is rendered.
-      text: this.element.querySelector<HTMLInputElement>(`[data-item-id="${field.id}"] .checklist-field__input`)!.value,
+      text: this.element.querySelector<HTMLInputElement>(`${byData('item-id', field.id)} .checklist-field__input`)!.value,
     }));
   }
 
   private refresh(): void {
-    this.config = { text: this._text, hasItems: this._fields.length > 0 };
+    this.config = { text: this._text, hasItems: this._fields.length > 0, restored: this._restored };
     this.render();
   }
 
   private focusField(id: string): void {
-    this.element.querySelector<HTMLInputElement>(`[data-item-id="${id}"] .checklist-field__input`)!.focus();
+    this.element.querySelector<HTMLInputElement>(`${byData('item-id', id)} .checklist-field__input`)!.focus();
   }
+}
+
+function sameFields(a: IChecklistItem[], b: IChecklistItem[]): boolean {
+  return a.length === b.length && a.every((item, i) => item.id === b[i]!.id && item.text === b[i]!.text);
 }
 
 function newField(): IChecklistItem {

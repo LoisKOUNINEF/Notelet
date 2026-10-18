@@ -11,6 +11,22 @@ export function setDraft(id: string, text: string): void {
   else drafts.delete(id);
 }
 
+// An item's edit left open when its item went away (tab switch, navigation, another window
+// saving it...): restored when the item shows up again in this panel.
+export function getEditDraft<T>(kind: 'note' | 'todo', id: string): T | null {
+  const draft = getDraft(`edit:${kind}:${id}`);
+  if (!draft) return null;
+  try {
+    return JSON.parse(draft) as T;
+  } catch {
+    return null;
+  }
+}
+
+export function setEditDraft(kind: 'note' | 'todo', id: string, draft: unknown): void {
+  setDraft(`edit:${kind}:${id}`, draft === null ? '' : JSON.stringify(draft));
+}
+
 // Forgets every draft (tests start each panel fresh).
 export function clearDrafts(): void {
   drafts.clear();

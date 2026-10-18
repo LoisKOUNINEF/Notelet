@@ -170,5 +170,16 @@ describe('NoteComposerComponent', () => {
     toggle().click();
     typeInto(input(), '');
   });
+
+  it('replaces selected text on Enter in checklist mode', () => {
+    mount('page');
+    toggle().click();
+    typeInto(input(), '- [ ] Milk');
+    input().setSelectionRange(8, 10);
+    keydown(input(), 'Enter');
+    expect(input().value).toBe('- [ ] Mi\n- [ ] ');
+    toggle().click();
+    typeInto(input(), '');
+  });
 });
 

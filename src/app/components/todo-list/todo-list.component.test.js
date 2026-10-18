@@ -1,3 +1,4 @@
+import { hasRequestedFocus } from '#root/dist/src/app/lib/focus.js';
 import { TodoListComponent } from '#root/dist/src/app/components/todo-list/todo-list.component.js';
 import { scopeStoreService } from '#root/dist/src/app/services/scope-store/scope-store.service.js';
 import { settingsService } from '#root/dist/src/app/services/settings/settings.service.js';
@@ -146,6 +147,7 @@ describe('TodoListComponent', () => {
     $('.todo-list__clear').click();
     await settle();
     expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t clear the completed to-dos. Quota exceeded.', type: 'error', duration: 6000 });
+    expect(hasRequestedFocus()).toBe(false);
 
     $('.todo-list__clear').click();
     await settle();
@@ -412,5 +414,82 @@ describe('TodoListComponent - reordering', () => {
     expect($$('[data-catalog="done-todos"] a11y-checkbox').map((el) => el.getAttribute('label'))).toEqual(['Done one']);
     expect(await stored()).toEqual(['C', 'A', 'B', 'Done one']);
   });
-});
 
+  it('doesn\'t keep the options of every to-do ever picked up', () => {
+    for (const todo of todos) {
+      handle(todo).focus();
+      keydown(handle(todo), ' ');
+      keydown(handle(todo), 'Escape');
+    }
+    // The stable combinations, plus at most the last grab's.
+    expect(list._itemOptions.size).toBeLessThan(4);
+  });
+
+  it('ends a drag whose pointer capture is lost, and applies what was held meanwhile', async () => {
+    layOut();
+    pointer('pointerdown', handle(todos[0]), 20);
+    pointer('pointermove', handle(todos[0]), 105);
+    const added = await scopeStoreService.addTodo('page', KEYS.page, 'D');
+    list.update([...todos, added]);
+    expect(shown()).toEqual(['A', 'B', 'C']);
+
+    handle(todos[0]).dispatchEvent(new window.Event('lostpointercapture', { bubbles: true }));
+
+    expect($('.todo-list__item--dragging')).toBeFalsy();
+    expect(shown()).toEqual(['A', 'B', 'C', 'D']);
+  });
+
+  it('ends a drag when the panel loses focus', () => {
+    layOut();
+    pointer('pointerdown', handle(todos[0]), 20);
+    pointer('pointermove', handle(todos[0]), 105);
+    window.dispatchEvent(new window.Event('blur'));
+    expect($('.todo-list__item--dragging')).toBeFalsy();
+    expect($$('[data-catalog="open-todos"] > li').every((li) => !li.style.transform)).toBe(true);
+  });
+
+  it('drops an update held during a reorder that was saved: it predates the new order', async () => {
+    handle(todos[2]).focus();
+    keydown(handle(todos[2]), ' ');
+    // Held: the old order, from a reload during the grab.
+    list.update([...todos]);
+    keydown(handle(todos[2]), 'Home');
+    keydown(handle(todos[2]), ' ');
+    await settle();
+    expect(shown()).toEqual(['C', 'A', 'B']);
+  });
+
+  it('applies the held update after a reorder that failed', async () => {
+    handle(todos[0]).focus();
+    keydown(handle(todos[0]), ' ');
+    const added = await scopeStoreService.addTodo('page', KEYS.page, 'D');
+    list.update([...todos, added]);
+    keydown(handle(todos[0]), 'ArrowDown');
+    panel.fake.storage.local.failNextSet = new Error('Quota exceeded.');
+    keydown(handle(todos[0]), ' ');
+    await settle();
+    expect(shown()).toEqual(['A', 'B', 'C', 'D']);
+  });
+
+  it('follows the "Done" group being opened in another window', async () => {
+    list.destroy();
+    const done = await scopeStoreService.update('todos', todos[0], { done: true });
+    mount([done, todos[1], todos[2]]);
+    expect($('#todo-done-items').hidden).toBe(true);
+
+    await panel.fake.storage.local.set({ settings: { storageArea: 'local', doneExpanded: true } });
+    expect($('#todo-done-items').hidden).toBe(false);
+  });
+
+  it('reports a failed "Done" toggle, leaving no focus request behind', async () => {
+    list.destroy();
+    const done = await scopeStoreService.update('todos', todos[0], { done: true });
+    mount([done, todos[1], todos[2]]);
+    panel.fake.storage.local.failNextSet = new Error('Quota exceeded.');
+    $('.todo-list__done-toggle').click();
+    await settle();
+    expect(panel.toasts.at(-1).message).toBe('Couldn\'t save that setting. Quota exceeded.');
+    expect(hasRequestedFocus()).toBe(false);
+  });
+
+});

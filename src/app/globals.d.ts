@@ -62,5 +62,9 @@ declare namespace Nutin {
     // Notes or to-dos were added, edited, moved or removed, here or in another window.
     'scope-content-changed': undefined;
     'storage-area-changed': { area: StorageAreaName };
+    // Any setting saved, here or in another window (see services/settings).
+    'settings-changed': undefined;
+    // Once a minute (services/clock): relative times refresh themselves.
+    'minute-tick': undefined;
   }
 }

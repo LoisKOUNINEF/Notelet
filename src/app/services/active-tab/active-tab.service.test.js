@@ -58,4 +58,12 @@ describe('ActiveTabService', () => {
     expect(fake.tabs.onActivated.hasListeners()).toBe(false);
     expect(fake.tabs.onUpdated.hasListeners()).toBe(false);
   });
+
+  it('keeps the last keys when the tab can\'t be read', async () => {
+    const query = spyOn(fake.tabs, 'query').andCallFake(async () => { throw new Error('Extension context invalidated.'); });
+    fake.activateTab('https://other.org/b');
+    await flushPromises();
+    query.restore();
+    expect(activeTabService.keys.page).toBe('https://example.com/a');
+  });
 });

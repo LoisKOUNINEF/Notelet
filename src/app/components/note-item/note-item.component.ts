@@ -1,10 +1,12 @@
 import { Component, html } from '../../../core/index.js';
-import { clearRequestedFocus, requestFocus } from '../../lib/focus.js';
+import { byData, clearRequestedFocus, requestFocus } from '../../lib/focus.js';
 import { errorMessage } from '../../lib/errors.js';
+import { formatTimeAgo } from '../../lib/pipes.js';
 import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
 import { ChecklistItemComponent } from '../checklist-item/checklist-item.component.js';
-import { NoteEditorComponent } from '../note-editor/note-editor.component.js';
+import { NoteEditorComponent, type INoteEditDraft } from '../note-editor/note-editor.component.js';
+import { getEditDraft } from '../../lib/drafts.js';
 
 interface INoteItemView {
   note: INote;
@@ -42,13 +44,19 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
       mountTarget,
       tagName: 'article',
       props: { className: 'note-item' },
-      config: NoteItemComponent.view(note, false, false),
+      // An edit left open when this note last went away comes back, still open.
+      config: NoteItemComponent.view(note, getEditDraft('note', note.id) !== null, false),
     });
     // Lets the list find this note's controls again after it re-renders (see requestFocus).
     this.element.dataset.noteId = note.id;
     this._note = note;
     this._index = index;
     this._keys = options.keys;
+    // Only its own <time> changes: an edit in progress isn't re-rendered away.
+    this.listen('minute-tick', () => {
+      const time = this.element.querySelector('.note-item__meta time');
+      if (time) time.textContent = formatTimeAgo(this._note.updatedAt);
+    });
   }
 
   private static view(note: INote, editing: boolean, addingItem: boolean): INoteItemView {
@@ -68,6 +76,7 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
         selector: 'note-editor',
         factory: (el) => (this._editor = new NoteEditorComponent(el, {
           note: this._note,
+          draft: getEditDraft<INoteEditDraft>('note', this._note.id),
           onSave: (text, items) => void this.save(text, items),
           onCancel: () => this.cancel(),
         })),
@@ -89,6 +98,7 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
   }
 
   private cancel(): void {
+    this._editor?.close();
     this.setView(false, false);
     this.element.querySelector<HTMLElement>('.note-item__edit')!.focus();
   }
@@ -104,7 +114,7 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
     if (!text) return;
 
     // The note comes back with the item as a new list item: focus the field again there.
-    requestFocus(`[data-note-id="${this._note.id}"] .note-item__add-item-input`);
+    requestFocus(`${byData('note-id', this._note.id)} .note-item__add-item-input`);
     try {
       await scopeStoreService.updateWith('notes', this._note, (current) => ({
         items: [...(current.items ?? []), { id: crypto.randomUUID(), text, done: false }],
@@ -121,11 +131,14 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
       return;
     }
 
-    // The saved note comes back through `scope-content-changed` as a new list item, in view mode.
-    requestFocus(`[data-note-id="${this._note.id}"] .note-item__edit`);
+    // The saved note comes back through `scope-content-changed` as a new list item, in view mode:
+    // this one goes away with no draft to keep.
+    this._editor?.close();
+    requestFocus(`${byData('note-id', this._note.id)} .note-item__edit`);
     try {
       await scopeStoreService.update('notes', this._note, { text, items });
     } catch (error) {
+      this._editor?.reopen();
       clearRequestedFocus();
       notifierService.error(`Couldn't save the note. ${errorMessage(error)}`);
     }

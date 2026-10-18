@@ -6,6 +6,7 @@ type StorageItems = Record<string, unknown>;
 // chrome.storage.sync's documented limits, used if the API doesn't expose them.
 const SYNC_QUOTA_BYTES = 102400;
 const SYNC_QUOTA_BYTES_PER_ITEM = 8192;
+const SYNC_MAX_ITEMS = 512;
 
 /**
  * The only place that touches `chrome.*`: a thin, typed surface over the few extension APIs
@@ -36,10 +37,11 @@ export class ChromeApiService extends Service<ChromeApiService> {
     return () => chrome.storage.onChanged.removeListener(callback);
   }
 
-  public syncQuota(): { total: number; perItem: number } {
+  public syncQuota(): { total: number; perItem: number; items: number } {
     return {
       total: chrome.storage.sync.QUOTA_BYTES ?? SYNC_QUOTA_BYTES,
       perItem: chrome.storage.sync.QUOTA_BYTES_PER_ITEM ?? SYNC_QUOTA_BYTES_PER_ITEM,
+      items: chrome.storage.sync.MAX_ITEMS ?? SYNC_MAX_ITEMS,
     };
   }
 

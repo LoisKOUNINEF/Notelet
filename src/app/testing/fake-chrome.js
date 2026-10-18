@@ -65,7 +65,7 @@ export function createFakeChrome({ url = 'https://example.com/' } = {}) {
     storage: {
       onChanged,
       local: createStorageArea('local', onChanged),
-      sync: createStorageArea('sync', onChanged, { QUOTA_BYTES: 102400, QUOTA_BYTES_PER_ITEM: 8192 }),
+      sync: createStorageArea('sync', onChanged, { QUOTA_BYTES: 102400, QUOTA_BYTES_PER_ITEM: 8192, MAX_ITEMS: 512 }),
     },
     tabs: {
       onActivated: createEvent(),

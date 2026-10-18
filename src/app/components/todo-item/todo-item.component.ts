@@ -1,7 +1,9 @@
 import { removeOverlaysWithin } from 'a11y-elements/core';
 import { Component, html, raw } from '../../../core/index.js';
+import { announce } from '../../lib/announce.js';
+import { getEditDraft, setEditDraft } from '../../lib/drafts.js';
 import { errorMessage } from '../../lib/errors.js';
-import { clearRequestedFocus, requestFocus } from '../../lib/focus.js';
+import { byData, clearRequestedFocus, requestFocus } from '../../lib/focus.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
 import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
 import { settingsService } from '../../services/settings/settings.service.js';
@@ -20,12 +22,15 @@ export interface ITodoItemOptions {
 interface ITodoItemView {
   todo: ITodo;
   editing: boolean;
+  // The edit field's text: the to-do's, or an unsaved edit restored.
+  editText: string;
+  restored: boolean;
   reorderable: boolean;
   grabbed: boolean;
   moveTarget: string;
 }
 
-const templateFn = ({ todo, editing, reorderable, grabbed, moveTarget }: ITodoItemView) => html`__TEMPLATE_PLACEHOLDER__`;
+const templateFn = ({ todo, editing, editText, restored, reorderable, grabbed, moveTarget }: ITodoItemView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 /**
  * One to-do: a checkbox labelled by its text, and its actions. Edit mode swaps them for a
@@ -36,9 +41,14 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
   private _index: number;
   private _group: ITodoItemOptions['group'];
   private _keys: IScopeKeys;
+  // Saved or cancelled: nothing to keep as a draft when the item goes away.
+  private _closing = false;
+  private _announced = false;
 
   constructor(mountTarget: HTMLElement, config: ITodo & { index: number }, options: ITodoItemOptions) {
     const { index, ...todo } = config;
+    // An edit left open when this to-do last went away comes back, still open.
+    const draft = getEditDraft<string>('todo', todo.id);
     // The item's own root, directly inside the catalog's <li>.
     super({
       templateFn,
@@ -46,7 +56,9 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
       props: { className: todo.done ? 'todo-item todo-item--done' : 'todo-item' },
       config: {
         todo,
-        editing: false,
+        editing: draft !== null,
+        editText: draft ?? todo.text,
+        restored: draft !== null,
         reorderable: options.reorderable,
         grabbed: options.grabbedId === todo.id,
         moveTarget: todo.scope === 'page' ? 'this site' : 'this page',
@@ -70,6 +82,10 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
 
   protected override onAfterRender(): void {
     super.onAfterRender();
+    if (this.config.restored && !this._announced) {
+      this._announced = true;
+      announce('Unsaved changes restored.');
+    }
     const menu = document.getElementById(`todo-${this._todo.id}-menu`);
     if (!menu) return;
     const onClick = (event: Event) => {
@@ -81,6 +97,11 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
 
   protected override onBeforeDestroy(): void {
     this.removeOwnOverlays();
+    // Going away mid-edit (tab switch, navigation, another window saving it): keep what was typed.
+    if (this.config.editing && !this._closing) {
+      const text = this.element.querySelector<HTMLInputElement>('.todo-item__input')!.value;
+      setEditDraft('todo', this._todo.id, text === this._todo.text ? null : text);
+    }
     super.onBeforeDestroy();
   }
 
@@ -93,7 +114,7 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
     // Checked into a collapsed "Done" group, it disappears: focus stays among the open ones.
     const hidden = done && !settingsService.doneExpanded;
     if (hidden) this.requestFocusAfterLeaving();
-    else requestFocus(`[data-todo-id="${this._todo.id}"] .todo-item__checkbox`);
+    else requestFocus(`${byData('todo-id', this._todo.id)} .todo-item__checkbox`);
     try {
       const updated = await scopeStoreService.update('todos', this._todo, { done });
       if (hidden) {
@@ -120,6 +141,7 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
   }
 
   private _cancel(): void {
+    setEditDraft('todo', this._todo.id, null);
     this.setEditing(false);
     this.element.querySelector<HTMLElement>('.todo-item__edit')?.focus();
   }
@@ -138,11 +160,15 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
       return;
     }
 
-    // The saved to-do comes back through `scope-content-changed` as a new list item, in view mode.
-    requestFocus(`[data-todo-id="${this._todo.id}"] .todo-item__edit`);
+    // The saved to-do comes back through `scope-content-changed` as a new list item, in view mode:
+    // this one goes away with no draft to keep.
+    this._closing = true;
+    setEditDraft('todo', this._todo.id, null);
+    requestFocus(`${byData('todo-id', this._todo.id)} .todo-item__edit`);
     try {
       await scopeStoreService.update('todos', this._todo, { text });
     } catch (error) {
+      this._closing = false;
       clearRequestedFocus();
       notifierService.error(`Couldn't save the to-do. ${errorMessage(error)}`);
     }
@@ -189,7 +215,7 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
   }
 
   private setEditing(editing: boolean): void {
-    this.config = { ...this.config, editing };
+    this.config = { ...this.config, editing, editText: this._todo.text, restored: false };
     this.render();
   }
 }

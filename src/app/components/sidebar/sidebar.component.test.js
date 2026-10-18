@@ -29,7 +29,7 @@ describe('SidebarComponent', () => {
     await mount();
 
     expect($('.sidebar__location-text').textContent).toBe('/docs');
-    expect($('h1').textContent).toBe('Notes');
+    expect($('h1').textContent).toBe('Ticknote');
     expect(tab('page').getAttribute('aria-selected')).toBe('true');
     expect(tab('site').getAttribute('aria-selected')).toBe('false');
     expect($('[role="tabpanel"]').getAttribute('aria-labelledby')).toBe('scope-tab-page');
@@ -252,5 +252,165 @@ describe('SidebarComponent', () => {
 
     expect($('.sidebar__location-text').textContent).toBe('/x');
     expect(texts('.note-item__text')).toEqual(['New page note']);
+  });
+
+  it('keeps focus on a tab, or on the Settings toggle, through a reload from elsewhere', async () => {
+    await mount();
+    tab('site').click();
+    tab('site').focus();
+    await scopeStoreService.addNote('site', KEYS.site, 'From another window');
+    await settle();
+    expect(document.activeElement).toBe(tab('site'));
+
+    $('.sidebar__settings-toggle').focus();
+    await scopeStoreService.addNote('page', KEYS.page, 'Another one');
+    await settle();
+    expect(document.activeElement).toBe($('.sidebar__settings-toggle'));
+  });
+
+  it('lets an action\'s own focus request win over keeping focus', async () => {
+    await mount();
+    tab('page').focus();
+    keydown(tab('page'), 'ArrowRight');
+    expect(document.activeElement).toBe(tab('site'));
+  });
+
+  it('keeps a note edit through a tab switch and back, until it\'s saved', async () => {
+    const note = await scopeStoreService.addNote('page', KEYS.page, 'Original');
+    await mount();
+    $(`[data-note-id="${note.id}"] .note-item__edit`).click();
+    $('.note-editor__input').value = 'Half-edited';
+
+    tab('site').click();
+    tab('page').click();
+
+    expect($('.note-editor__input').value).toBe('Half-edited');
+    expect($('.note-editor__restored').textContent).toBe('Unsaved changes restored.');
+    $('.note-editor button[type="submit"]').click();
+    await settle();
+    expect((await scopeStoreService.load(KEYS)).page.notes[0].text).toBe('Half-edited');
+
+    // Saved: nothing restored any more.
+    tab('site').click();
+    tab('page').click();
+    expect($('.note-editor')).toBeFalsy();
+  });
+
+  it('forgets a note edit that was cancelled, or left unchanged', async () => {
+    const note = await scopeStoreService.addNote('page', KEYS.page, 'Original');
+    await mount();
+    $(`[data-note-id="${note.id}"] .note-item__edit`).click();
+    $('.note-editor__input').value = 'Discarded';
+    keydown($('.note-editor__input'), 'Escape');
+    tab('site').click();
+    tab('page').click();
+    expect($('.note-editor')).toBeFalsy();
+
+    $(`[data-note-id="${note.id}"] .note-item__edit`).click();
+    tab('site').click();
+    tab('page').click();
+    expect($('.note-editor')).toBeFalsy();
+  });
+
+  it('keeps a note edit when another window saves that same note', async () => {
+    const note = await scopeStoreService.addNote('page', KEYS.page, 'Original');
+    await mount();
+    $(`[data-note-id="${note.id}"] .note-item__edit`).click();
+    $('.note-editor__input').value = 'Mine, unsaved';
+
+    await scopeStoreService.update('notes', note, { text: 'Theirs' });
+    await settle();
+
+    expect($('.note-editor__input').value).toBe('Mine, unsaved');
+  });
+
+  it('keeps a to-do edit through a tab switch and back, until it\'s saved or cancelled', async () => {
+    const todo = await scopeStoreService.addTodo('page', KEYS.page, 'Original');
+    await mount();
+    $(`[data-todo-id="${todo.id}"] .todo-item__edit`).click();
+    $('.todo-item__input').value = 'Half-edited';
+
+    tab('site').click();
+    tab('page').click();
+    expect($('.todo-item__input').value).toBe('Half-edited');
+    expect($(`[data-todo-id="${todo.id}"] .a11y-visually-hidden`).textContent).toBe('Unsaved changes restored.');
+
+    keydown($('.todo-item__input'), 'Escape');
+    tab('site').click();
+    tab('page').click();
+    expect($('.todo-item__input')).toBeFalsy();
+  });
+
+  it('forgets a to-do edit once saved, or when nothing changed', async () => {
+    const todo = await scopeStoreService.addTodo('page', KEYS.page, 'Original');
+    await mount();
+    $(`[data-todo-id="${todo.id}"] .todo-item__edit`).click();
+    tab('site').click();
+    tab('page').click();
+    expect($('.todo-item__input')).toBeFalsy();
+
+    $(`[data-todo-id="${todo.id}"] .todo-item__edit`).click();
+    $('.todo-item__input').value = 'Saved';
+    $(`[data-todo-id="${todo.id}"] button[type="submit"]`).click();
+    await settle();
+    tab('site').click();
+    tab('page').click();
+    expect($('.todo-item__input')).toBeFalsy();
+  });
+
+  it('keeps the panel usable when loading fails, and says so', async () => {
+    await scopeStoreService.addNote('page', KEYS.page, 'Shown before');
+    await mount();
+    const get = spyOn(panel.fake.storage.local, 'get').andCallFake(async () => { throw new Error('Extension context invalidated.'); });
+    await scopeStoreService.addNote('site', KEYS.site, 'Triggers a reload').catch(() => {});
+    AppEventBus.emit('scope-content-changed');
+    await settle();
+    get.restore();
+
+    expect(panel.toasts.at(-1).message).toBe('Couldn\'t load your notes. Extension context invalidated.');
+    expect(texts('.note-item__text')).toEqual(['Shown before']);
+  });
+
+  it('shows empty lists when the very first load fails', async () => {
+    const get = spyOn(panel.fake.storage.local, 'get').andCallFake(async () => { throw new Error('Nope.'); });
+    await mount();
+    get.restore();
+    expect($('.note-list__empty')).toBeTruthy();
+    expect($('.todo-composer__input')).toBeTruthy();
+  });
+
+  it('ignores a failed load that a newer one already replaced', async () => {
+    await scopeStoreService.addNote('page', 'https://other.org/x', 'Newer tab');
+    await mount();
+    const storage = panel.fake.storage.local;
+    const realGet = storage.get.bind(storage);
+    let failOld = null;
+    const get = spyOn(storage, 'get').andCallFake((keys) => {
+      if (!failOld && keys?.includes(`notes:page:${KEYS.page}`)) {
+        return new Promise((_, reject) => { failOld = () => reject(new Error('Too late.')); });
+      }
+      return realGet(keys);
+    });
+
+    AppEventBus.emit('scope-content-changed');
+    panel.fake.activateTab('https://other.org/x');
+    await settle();
+    failOld();
+    await settle();
+    get.restore();
+
+    expect(panel.toasts.some((t) => t.message.includes('Too late.'))).toBe(false);
+    expect(texts('.note-item__text')).toEqual(['Newer tab']);
+  });
+
+  it('keeps no draft for an unchanged edit of a note saved before checklists', async () => {
+    panel.fake.storage.local.data.set(`notes:page:${KEYS.page}`, [
+      { id: 'old', scope: 'page', key: KEYS.page, text: 'From before', createdAt: 1, updatedAt: 1 },
+    ]);
+    await mount();
+    $('[data-note-id="old"] .note-item__edit').click();
+    tab('site').click();
+    tab('page').click();
+    expect($('.note-editor')).toBeFalsy();
   });
 });

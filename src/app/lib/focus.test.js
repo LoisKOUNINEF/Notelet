@@ -1,4 +1,4 @@
-import { applyRequestedFocus, clearRequestedFocus, requestFocus } from '#root/dist/src/app/lib/focus.js';
+import { applyRequestedFocus, byData, clearRequestedFocus, hasRequestedFocus, requestFocus } from '#root/dist/src/app/lib/focus.js';
 
 describe('requestFocus / applyRequestedFocus', () => {
   let app;
@@ -39,5 +39,17 @@ describe('requestFocus / applyRequestedFocus', () => {
     requestFocus('.a');
     const other = document.createElement('div');
     expect(applyRequestedFocus(other)).toBe(false);
+  });
+
+  it('builds data-attribute selectors that survive any id', () => {
+    app.innerHTML = '<div data-note-id=\'we"ird\\id\'><button class="x">X</button></div>';
+    expect(byData('note-id', 'we"ird\\id')).toBe('[data-note-id="we\\"ird\\\\id"]');
+    expect(app.querySelector(`${byData('note-id', 'we"ird\\id')} .x`)).toBe($('.x'));
+  });
+
+  it('says whether a focus request is pending', () => {
+    expect(hasRequestedFocus()).toBe(false);
+    requestFocus('.a');
+    expect(hasRequestedFocus()).toBe(true);
   });
 });

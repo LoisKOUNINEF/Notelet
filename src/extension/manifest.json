@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "Notes",
-  "description": "Notes for each page and each site, in the side panel.",
+  "name": "Ticknote",
+  "description": "Ticknote: notes and to-dos for each page and each site, in Chrome's side panel.",
   "version": "0.0.0",
   "minimum_chrome_version": "116",
   "icons": {
@@ -11,7 +11,7 @@
     "128": "assets/icons/icon-128.png"
   },
   "action": {
-    "default_title": "Toggle notes",
+    "default_title": "Ticknote",
     "default_icon": {
       "16": "assets/icons/icon-16.png",
       "32": "assets/icons/icon-32.png"
@@ -30,7 +30,7 @@
       "suggested_key": {
         "default": "Alt+Shift+N"
       },
-      "description": "Toggle notes"
+      "description": "Open Ticknote"
     }
   }
 }

@@ -1,6 +1,6 @@
 import { Component, html, raw } from '../../../core/index.js';
 import { errorMessage } from '../../lib/errors.js';
-import { applyRequestedFocus, requestFocus } from '../../lib/focus.js';
+import { applyRequestedFocus, byData, clearRequestedFocus, requestFocus } from '../../lib/focus.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
 import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
 import { settingsService } from '../../services/settings/settings.service.js';
@@ -47,7 +47,7 @@ export class TodoListComponent extends Component<HTMLElement, ITodoListView> {
     textOf: (id) => this._todos.find((todo) => todo.id === id)!.text,
     preview: () => this.refresh(),
     commit: (order, movedId) => this.saveOrder(order, movedId),
-    settle: () => this.applyHeld(),
+    settle: (saved) => this.applyHeld(saved),
   });
 
   constructor(mountTarget: HTMLElement, { scope, keys, todos }: ITodoListConfig) {
@@ -56,12 +56,20 @@ export class TodoListComponent extends Component<HTMLElement, ITodoListView> {
     this._key = keys[scope];
     this._keys = keys;
     this._todos = todos;
+    // Opened or closed in another window: follow it.
+    this.listen('settings-changed', () => {
+      if (this.config.expanded !== settingsService.doneExpanded && !this._reorder.active) this.refresh();
+    });
   }
 
   private itemOptions(group: ITodoItemOptions['group'], reorderable: boolean, grabbedId: string | null): ITodoItemOptions {
     const id = `${group}|${reorderable}|${grabbedId}`;
     let options = this._itemOptions.get(id);
     if (!options) {
+      // Kept: the stable combinations, and the current grab's (an earlier grab's would pile up).
+      for (const cached of this._itemOptions.keys()) {
+        if (!cached.endsWith('|null')) this._itemOptions.delete(cached);
+      }
       options = { group, reorderable, grabbedId, keys: this._keys };
       this._itemOptions.set(id, options);
     }
@@ -120,34 +128,43 @@ export class TodoListComponent extends Component<HTMLElement, ITodoListView> {
     applyRequestedFocus(this.element);
   }
 
-  private async saveOrder(order: string[], movedId: string): Promise<void> {
+  private async saveOrder(order: string[], movedId: string): Promise<boolean> {
     // Shown right away in the new order; the stored list then comes back the same.
     const previous = this._todos;
     this._todos = [
       ...order.map((id, position) => ({ ...previous.find((todo) => todo.id === id)!, position })),
       ...previous.filter((todo) => todo.done),
     ];
-    requestFocus(`[data-todo-id="${movedId}"] .todo-item__handle`);
+    requestFocus(`${byData('todo-id', movedId)} .todo-item__handle`);
     this.refresh();
     try {
       await scopeStoreService.reorderTodos(this._scope, this._key, order);
+      return true;
     } catch (error) {
       this._todos = previous;
       this.refresh();
       notifierService.error(`Couldn't reorder the to-dos. ${errorMessage(error)}`);
+      return false;
     }
   }
 
-  private applyHeld(): void {
+  // After a saved reorder, what was held predates it: the reload our write triggers brings the
+  // stored list (other windows' changes included). Otherwise the held update is the latest.
+  private applyHeld(saved: boolean): void {
     const held = this._held;
     this._held = null;
-    if (held) this.update(held);
+    if (held && !saved) this.update(held);
   }
 
   private async _toggleDone(): Promise<void> {
     requestFocus('.todo-list__done-toggle');
-    await settingsService.setDoneExpanded(!settingsService.doneExpanded);
-    this.refresh();
+    try {
+      // Re-rendered by `settings-changed`, as in every other window.
+      await settingsService.setDoneExpanded(!settingsService.doneExpanded);
+    } catch (error) {
+      clearRequestedFocus();
+      notifierService.error(`Couldn't save that setting. ${errorMessage(error)}`);
+    }
   }
 
   private async _clearDone(): Promise<void> {
@@ -163,6 +180,7 @@ export class TodoListComponent extends Component<HTMLElement, ITodoListView> {
         }),
       });
     } catch (error) {
+      clearRequestedFocus();
       notifierService.error(`Couldn't clear the completed to-dos. ${errorMessage(error)}`);
     }
   }

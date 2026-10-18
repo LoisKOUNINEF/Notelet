@@ -11,6 +11,14 @@
       </span>
     </label>`)}
   </a11y-radio-group>
+  ${confirming ? html`
+  <div class="settings-panel__confirm" role="group" aria-labelledby="settings-confirm-text" tabindex="-1">
+    <p class="settings-panel__confirm-text" id="settings-confirm-text">Remove your synced notes from all your devices? They'll be kept on this device only, and your other computers will lose them.</p>
+    <div class="settings-panel__confirm-actions">
+      <button class="button button--danger settings-panel__confirm-remove" type="button" tabindex="0" data-event="click:_confirmLocal">Remove synced copy</button>
+      <button class="button settings-panel__confirm-cancel" type="button" tabindex="0" data-event="click:_cancelLocal">Cancel</button>
+    </div>
+  </div>` : ''}
 
   <div class="settings-panel__section">
     <h3 class="settings-panel__subtitle">Panel side</h3>

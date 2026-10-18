@@ -36,10 +36,11 @@ describe('ChromeApiService', () => {
   });
 
   it('falls back to the documented sync quotas', () => {
-    expect(chromeApiService.syncQuota()).toEqual({ total: 102400, perItem: 8192 });
+    expect(chromeApiService.syncQuota()).toEqual({ total: 102400, perItem: 8192, items: 512 });
     delete fake.storage.sync.QUOTA_BYTES;
     delete fake.storage.sync.QUOTA_BYTES_PER_ITEM;
-    expect(chromeApiService.syncQuota()).toEqual({ total: 102400, perItem: 8192 });
+    delete fake.storage.sync.MAX_ITEMS;
+    expect(chromeApiService.syncQuota()).toEqual({ total: 102400, perItem: 8192, items: 512 });
   });
 
   it('reads the active tab\'s URL', async () => {

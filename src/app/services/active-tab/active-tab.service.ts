@@ -26,9 +26,16 @@ export class ActiveTabService extends Service<ActiveTabService> {
     await this.refresh();
   }
 
+  // A failed read (the extension being reloaded under the panel...) keeps the last keys.
   public async refresh(): Promise<void> {
     const refreshId = ++this._refreshId;
-    const keys = getScopeKeys(await chromeApiService.getActiveTabUrl());
+    let url: string | null;
+    try {
+      url = await chromeApiService.getActiveTabUrl();
+    } catch {
+      return;
+    }
+    const keys = getScopeKeys(url);
     if (refreshId !== this._refreshId || keys?.page === this._keys?.page) return;
 
     this._keys = keys;

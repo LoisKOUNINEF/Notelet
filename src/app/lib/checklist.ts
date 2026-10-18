@@ -34,8 +34,14 @@ export function withIds(items: IParsedChecklist['items']): IChecklistItem[] {
 /**
  * What Enter does on a checklist line while typing one: start the next item, or, on an
  * empty item, end the list (its marker is removed). Null on any other line: Enter is left alone.
+ * Selected text (`caret` to `selectionEnd`) is replaced first, as Enter would.
  */
-export function continueChecklist(value: string, caret: number): { value: string; caret: number } | null {
+export function continueChecklist(
+  typed: string,
+  caret: number,
+  selectionEnd: number = caret
+): { value: string; caret: number } | null {
+  const value = typed.slice(0, caret) + typed.slice(selectionEnd);
   const lineStart = value.lastIndexOf('\n', caret - 1) + 1;
   const lineEnd = value.indexOf('\n', caret);
   const line = value.slice(lineStart, lineEnd === -1 ? value.length : lineEnd);

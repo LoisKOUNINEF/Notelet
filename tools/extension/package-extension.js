@@ -4,10 +4,12 @@
 // Runs after `builder.js` (see the build:extension scripts), so tools/builder stays untouched.
 import fs from 'fs';
 import path from 'path';
+import { spawnSync } from 'child_process';
 import esbuild from 'esbuild';
 import { print, errorExit, getFilesRecursive } from '../utils/index.js';
 
 const isProd = process.argv.includes('--prod');
+const zip = process.argv.includes('--zip');
 const SOURCE = path.resolve('src', 'extension');
 const OUTPUT = path.resolve('dist', 'src');
 
@@ -23,6 +25,7 @@ async function packageExtension() {
   if (isProd) removeCompressedFiles();
 
   print.boldSuccess(`\nExtension ready: load ${path.relative(process.cwd(), OUTPUT)} unpacked in chrome://extensions\n`);
+  if (zip) zipForStore();
 }
 
 async function bundleBackground() {
@@ -50,6 +53,18 @@ function writeManifest() {
 // Pre-compressed copies only matter to a web server: Chrome reads the plain files.
 function removeCompressedFiles() {
   getFilesRecursive(OUTPUT, ['.gz', '.br']).forEach((file) => fs.rmSync(file));
+}
+
+// The archive the Chrome Web Store takes: dist/src's content at the zip's root.
+function zipForStore() {
+  const { version } = JSON.parse(fs.readFileSync(path.resolve('package.json'), 'utf-8'));
+  const archive = path.resolve('dist', `ticknote-${version}.zip`);
+  fs.rmSync(archive, { force: true });
+  const result = spawnSync('zip', ['-r', '-X', '-q', archive, '.', '-x', '*.map', '.DS_Store'], { cwd: OUTPUT, stdio: 'inherit' });
+  if (result.error || result.status !== 0) {
+    throw new Error(`Couldn't create ${path.relative(process.cwd(), archive)}: the "zip" command is needed. ${result.error?.message ?? ''}`);
+  }
+  print.boldSuccess(`Store package: ${path.relative(process.cwd(), archive)}\n`);
 }
 
 packageExtension().catch((err) => {

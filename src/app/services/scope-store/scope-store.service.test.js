@@ -594,3 +594,153 @@ describe('ScopeStoreService - moving to-dos', () => {
   });
 });
 
+describe('ScopeStoreService - stale copies', () => {
+  const keys = { page: 'https://example.com/a', site: 'example.com', pageLabel: '/a', siteLabel: 'example.com' };
+  const storedTodo = async (scope = 'page') => (await scopeStoreService.load(keys))[scope].todos[0];
+  let fake;
+
+  beforeEach(async () => {
+    fake = installFakeChrome();
+    await settingsService.init();
+    scopeStoreService.init();
+  });
+
+  afterEach(() => {
+    scopeStoreService.dispose();
+    settingsService.dispose();
+    uninstallFakeChrome();
+  });
+
+  it('only changes the given fields, keeping what changed elsewhere since the copy was taken', async () => {
+    const copy = await scopeStoreService.addTodo('page', keys.page, 'Original');
+    // Another window renames it.
+    await scopeStoreService.update('todos', copy, { text: 'Renamed elsewhere' });
+
+    await scopeStoreService.update('todos', copy, { done: true });
+
+    const stored = await storedTodo();
+    expect(stored.text).toBe('Renamed elsewhere');
+    expect(stored.done).toBe(true);
+  });
+
+  it('writes nothing for an item deleted meanwhile', async () => {
+    const copy = await scopeStoreService.addTodo('page', keys.page, 'Gone');
+    await scopeStoreService.remove('todos', copy);
+    expect(await scopeStoreService.update('todos', copy, { done: true })).toBe(copy);
+    expect(fake.storage.local.data.size).toBe(0);
+  });
+
+  it('moves the stored version, and nothing when the item is gone', async () => {
+    const copy = await scopeStoreService.addTodo('page', keys.page, 'Original');
+    await scopeStoreService.update('todos', copy, { text: 'Renamed elsewhere' });
+    await scopeStoreService.move('todos', copy, keys);
+    expect((await storedTodo('site')).text).toBe('Renamed elsewhere');
+
+    const set = spyOn(fake.storage.local, 'set');
+    expect(await scopeStoreService.move('todos', copy, keys)).toBe(copy);
+    expect(set.callCount).toBe(0);
+    set.restore();
+  });
+
+  it('removes the list a move empties, instead of leaving an empty item', async () => {
+    const only = await scopeStoreService.addNote('page', keys.page, 'Only one');
+    await scopeStoreService.addNote('page', keys.page, 'Second');
+    const [, second] = (await scopeStoreService.load(keys)).page.notes;
+    await scopeStoreService.move('notes', only, keys);
+    expect(fake.storage.local.data.has(`notes:page:${keys.page}`)).toBe(true);
+
+    await scopeStoreService.move('notes', second, keys);
+    expect(fake.storage.local.data.has(`notes:page:${keys.page}`)).toBe(false);
+    expect((await scopeStoreService.load(keys)).site.notes.length).toBe(2);
+  });
+
+  it('refuses to sync more lists than sync storage allows', async () => {
+    fake.storage.sync.MAX_ITEMS = 2;
+    await scopeStoreService.addNote('page', keys.page, 'A');
+    await scopeStoreService.addNote('site', keys.site, 'B');
+    await scopeStoreService.addTodo('site', keys.site, 'C');
+
+    let error;
+    try {
+      await scopeStoreService.migrateTo('sync');
+    } catch (e) {
+      error = e;
+    }
+    expect(error).toBeInstanceOf(QuotaExceededError);
+    expect(error.message).toContain('too many pages');
+    expect(settingsService.storageArea).toBe('local');
+  });
+});
+
+describe('ScopeStoreService - switching areas across devices', () => {
+  const keys = { page: 'https://example.com/a', site: 'example.com', pageLabel: '/a', siteLabel: 'example.com' };
+  const note = (id, text, updatedAt) => ({ id, scope: 'page', key: keys.page, text, items: [], createdAt: 1, updatedAt });
+  const pageItem = `notes:page:${keys.page}`;
+  let fake;
+
+  beforeEach(async () => {
+    fake = installFakeChrome();
+    await settingsService.init();
+    scopeStoreService.init();
+  });
+
+  afterEach(() => {
+    scopeStoreService.dispose();
+    settingsService.dispose();
+    uninstallFakeChrome();
+  });
+
+  it('merges with notes another computer already synced, the latest edit winning', async () => {
+    // Another computer synced: "shared" (edited there later) and "theirs".
+    fake.storage.sync.data.set(pageItem, [note('shared', 'Edited there', 300), note('theirs', 'Only there', 100)]);
+    fake.storage.sync.data.set('notes:site:other.com', [note('far', 'Other site', 100)]);
+    fake.storage.local.data.set(pageItem, [note('shared', 'Older here', 200), note('mine', 'Only here', 100)]);
+
+    await scopeStoreService.migrateTo('sync');
+
+    const merged = fake.storage.sync.data.get(pageItem);
+    expect(merged.map((n) => n.id).sort()).toEqual(['mine', 'shared', 'theirs']);
+    expect(merged.find((n) => n.id === 'shared').text).toBe('Edited there');
+    expect(fake.storage.sync.data.get('notes:site:other.com').length).toBe(1);
+    expect(fake.storage.local.data.has(pageItem)).toBe(false);
+  });
+
+  it('keeps this device\'s copy when it was edited last', async () => {
+    fake.storage.sync.data.set(pageItem, [note('shared', 'Older there', 100)]);
+    fake.storage.local.data.set(pageItem, [note('shared', 'Newer here', 200)]);
+    await scopeStoreService.migrateTo('sync');
+    expect(fake.storage.sync.data.get(pageItem)[0].text).toBe('Newer here');
+  });
+
+  it('checks the sync quota on the merged notes, the other computer\'s included', async () => {
+    fake.storage.sync.QUOTA_BYTES = 1000;
+    fake.storage.sync.data.set('notes:site:other.com', [note('far', 'x'.repeat(700), 100)]);
+    fake.storage.local.data.set(pageItem, [note('mine', 'y'.repeat(400), 100)]);
+
+    let error;
+    try {
+      await scopeStoreService.migrateTo('sync');
+    } catch (e) {
+      error = e;
+    }
+    expect(error).toBeInstanceOf(QuotaExceededError);
+    expect(fake.storage.local.data.has(pageItem)).toBe(true);
+  });
+
+  it('merges into this device when leaving sync, then clears the synced copy', async () => {
+    await settingsService.setStorageArea('sync');
+    fake.storage.sync.data.set(pageItem, [note('synced', 'From sync', 100)]);
+    fake.storage.local.data.set(pageItem, [note('left', 'Left behind here', 100)]);
+
+    await scopeStoreService.migrateTo('local');
+
+    expect(fake.storage.local.data.get(pageItem).map((n) => n.id).sort()).toEqual(['left', 'synced']);
+    expect(fake.storage.sync.data.size).toBe(0);
+  });
+
+  it('drops malformed entries of a stored list instead of failing to load', async () => {
+    fake.storage.local.data.set(pageItem, [null, 'text', { id: 1 }, { text: 'no id', createdAt: 1 }, note('ok', 'Valid', 1)]);
+    const { page } = await scopeStoreService.load(keys);
+    expect(page.notes.map((n) => n.id)).toEqual(['ok']);
+  });
+});

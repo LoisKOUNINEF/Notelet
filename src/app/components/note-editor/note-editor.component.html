@@ -1,4 +1,5 @@
 <form class="note-editor" data-event="submit:_save">
+  ${restored ? html`<p class="note-editor__restored">Unsaved changes restored.</p>` : ''}
   <a11y-textarea class="note-editor__field">
     <a11y-label><span class="a11y-visually-hidden">Edit note</span></a11y-label>
     <textarea class="note-editor__input" name="text" rows="4" data-event="keydown:_onKeydown:@event">${text}</textarea>

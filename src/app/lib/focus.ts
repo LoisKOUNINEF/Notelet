@@ -22,3 +22,13 @@ export function applyRequestedFocus(root: ParentNode = document): boolean {
 export function clearRequestedFocus(): void {
   requested = [];
 }
+
+export function hasRequestedFocus(): boolean {
+  return requested.length > 0;
+}
+
+// `[data-<name>="<value>"]` for a value from storage (an id): quotes and backslashes are escaped,
+// so an unexpected id can't break the selector (querySelector would throw mid-render).
+export function byData(name: string, value: string): string {
+  return `[data-${name}="${value.replace(/["\\]/g, '\\$&')}"]`;
+}

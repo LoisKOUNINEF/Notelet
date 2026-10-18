@@ -95,20 +95,18 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
     return this.add('todos', { ...this.newItem(scope, key, text), done: false, doneAt: null });
   }
 
+  /**
+   * Applies `changes` to the item as currently stored (not to the caller's copy, which may be
+   * stale: renamed in another window, repositioned by a reorder...), so only the given fields change.
+   */
   public update<K extends ScopeContentKind>(kind: K, item: IScopeItemKinds[K], changes: ScopeItemChanges<K>): Promise<IScopeItemKinds[K]> {
-    const now = Date.now();
-    const updated = { ...item, ...changes, updatedAt: now } as IScopeItemKinds[K];
-    if (kind === 'todos') stampDoneAt(item as ITodo, updated as ITodo, now);
-    return this.enqueue(async () => {
-      await this.write(kind, item.scope, item.key, (items) => items.map((i) => (i.id === item.id ? updated : i)));
-      return updated;
-    });
+    return this.updateWith(kind, item, () => changes);
   }
 
   /**
-   * Like update(), but the changes are computed from the item as currently stored, inside the
-   * write queue: two quick changes to one item (e.g. checking two of a note's checklist items)
-   * both stick, where update() would have the second overwrite the first with a stale copy.
+   * Like update(), with the changes computed from the stored item, inside the write queue: two
+   * quick changes to one item (e.g. checking two of a note's checklist items) both stick.
+   * An item gone meanwhile (deleted in another window) is left gone: the caller's copy comes back.
    */
   public updateWith<K extends ScopeContentKind>(
     kind: K,
@@ -157,18 +155,26 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
   // A to-do lands at the top of the other list's open ones (see topPosition).
   public move<K extends ScopeContentKind>(kind: K, item: IScopeItemKinds[K], keys: IScopeKeys): Promise<IScopeItemKinds[K]> {
     const scope: NoteScope = item.scope === 'page' ? 'site' : 'page';
-    let moved = { ...item, scope, key: keys[scope], updatedAt: Date.now() };
     const from = storageKey(kind, item.scope, item.key);
-    const to = storageKey(kind, moved.scope, moved.key);
+    const to = storageKey(kind, scope, keys[scope]);
 
     return this.enqueue(async () => {
       const stored = await chromeApiService.storageGet(this.area, [from, to]);
+      const source = sortItems(kind, stored[from]);
+      // The stored version: fields changed elsewhere since the caller's copy are kept.
+      const current = source.find((i) => i.id === item.id);
+      if (!current) return item;
       const target = sortItems(kind, stored[to]);
+      let moved = { ...current, scope, key: keys[scope], updatedAt: Date.now() };
       if (kind === 'todos') moved = { ...moved, position: topPosition(target as ITodo[]) };
+
+      const rest = source.filter((i) => i.id !== item.id);
+      // Both lists in one write; an emptied one is removed, like write() does (sync allows 512 items).
       await chromeApiService.storageSet(this.area, {
-        [from]: sortItems(kind, stored[from]).filter((i) => i.id !== item.id),
         [to]: sortItems(kind, [...target, moved]),
+        ...(rest.length > 0 ? { [from]: rest } : {}),
       });
+      if (rest.length === 0) await chromeApiService.storageRemove(this.area, [from]);
       return moved;
     });
   }
@@ -194,18 +200,25 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
   /**
    * Moves every note and to-do to the other storage area, then switches the setting. Refuses
    * (and keeps everything where it is) if they don't fit in chrome.storage.sync.
+   *
+   * What the target already holds is merged, not replaced: Chrome sync may hold another
+   * computer's notes. Lists of the same page are merged item by item, the latest edit winning.
+   * Leaving sync clears the synced copy, on every device: the settings panel asks first.
+   *
+   * Known limitation: another window writing at that exact moment still uses the old area until
+   * it sees the new setting, so its write can land there. Avoiding it needs a cross-window lock.
    */
   public migrateTo(target: StorageAreaName): Promise<void> {
     return this.enqueue(async () => {
       const source = this.area;
       if (source === target) return;
 
-      const content = Object.fromEntries(
-        Object.entries(await chromeApiService.storageGet(source, null)).filter(([key]) => isScopeContentKey(key))
-      );
-      if (target === 'sync') this.checkSyncQuota(content);
+      const content = scopeContent(await chromeApiService.storageGet(source, null));
+      const existing = scopeContent(await chromeApiService.storageGet(target, null));
+      const merged = mergeContent(existing, content);
+      if (target === 'sync') this.checkSyncQuota(merged);
 
-      await chromeApiService.storageSet(target, content);
+      await chromeApiService.storageSet(target, merged);
       // Switch before clearing the source: its removals are then in an area nobody listens to.
       await settingsService.setStorageArea(target);
       await chromeApiService.storageRemove(source, Object.keys(content));
@@ -226,6 +239,10 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
 
   private checkSyncQuota(items: Record<string, unknown>): void {
     const quota = chromeApiService.syncQuota();
+    // One item per page and per site that has notes or to-dos.
+    if (Object.keys(items).length > quota.items) {
+      throw new QuotaExceededError('Notes and to-dos are kept on too many pages to sync. Remove some and try again.');
+    }
     let total = 0;
 
     for (const [key, value] of Object.entries(items)) {
@@ -263,9 +280,39 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
   }
 }
 
-// Stored lists are kept in display order, and sorted again on read.
+// Stored lists are kept in display order, and sorted again on read. Malformed entries (a
+// hand-edited or foreign list) are dropped rather than breaking the whole panel.
 function sortItems<K extends ScopeContentKind>(kind: K, value: unknown): IScopeItemKinds[K][] {
-  return Array.isArray(value) ? [...(value as IScopeItemKinds[K][])].sort(SORTERS[kind]) : [];
+  return Array.isArray(value) ? (value.filter(isItem) as IScopeItemKinds[K][]).sort(SORTERS[kind]) : [];
+}
+
+function isItem(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false;
+  const item = value as Partial<IScopeItem>;
+  return typeof item.id === 'string' && typeof item.createdAt === 'number';
+}
+
+// The notes and to-dos items of a storage area (leaving `settings` and anything else out).
+function scopeContent(items: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(items).filter(([key]) => isScopeContentKey(key)));
+}
+
+/**
+ * Both areas' lists together: a page's list present in both is merged item by item, the copy
+ * edited last (updatedAt) winning; lists in only one area are kept as they are.
+ */
+function mergeContent(target: Record<string, unknown>, incoming: Record<string, unknown>): Record<string, unknown> {
+  const merged: Record<string, unknown> = { ...target };
+  for (const [key, list] of Object.entries(incoming)) {
+    const kind: ScopeContentKind = key.startsWith('todos:') ? 'todos' : 'notes';
+    const byId = new Map<string, IScopeItem>();
+    for (const item of [...sortItems(kind, target[key]), ...sortItems(kind, list)]) {
+      const kept = byId.get(item.id);
+      if (!kept || item.updatedAt > kept.updatedAt) byId.set(item.id, item);
+    }
+    merged[key] = sortItems(kind, [...byId.values()]);
+  }
+  return merged;
 }
 
 // Checking a to-do records when; unchecking it clears that. Other edits keep it as it was.

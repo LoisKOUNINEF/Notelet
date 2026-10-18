@@ -62,7 +62,7 @@ export class NoteComposerComponent extends Component<HTMLElement, INoteComposerV
       return;
     }
     const input = this.input;
-    const next = this._checklist ? continueChecklist(input.value, input.selectionStart) : null;
+    const next = this._checklist ? continueChecklist(input.value, input.selectionStart, input.selectionEnd) : null;
     if (!next) return;
     event.preventDefault();
     this.setText(next.value, next.caret);

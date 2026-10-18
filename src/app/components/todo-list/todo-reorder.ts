@@ -1,4 +1,5 @@
 import { announce } from '../../lib/announce.js';
+import { byData } from '../../lib/focus.js';
 import { moveId, targetIndex } from '../../lib/reorder.js';
 
 // What the to-do list gives the reorder gestures to work with.
@@ -10,10 +11,11 @@ export interface IReorderHost {
   textOf(id: string): string;
   // Shows `order` (null: the stored one) with `grabbedId` picked up, focus back on its handle.
   preview(order: string[] | null, grabbedId: string | null): void;
-  // Saves the new order; focus ends on the moved to-do's handle.
-  commit(order: string[], movedId: string): Promise<void>;
-  // A gesture ended: updates held back meanwhile can be applied.
-  settle(): void;
+  // Saves the new order (resolves to whether it was saved); focus ends on the moved to-do's handle.
+  commit(order: string[], movedId: string): Promise<boolean>;
+  // A gesture ended. `saved`: a new order was written, whose own reload brings everything fresh,
+  // so updates held back meanwhile (older than it) are dropped; otherwise they can be applied.
+  settle(saved: boolean): void;
 }
 
 interface IKeyboardGrab {
@@ -48,6 +50,8 @@ export class TodoReorder {
   private _drag: IPointerDrag | null = null;
   // Set while preview() re-renders: the handle losing focus then isn't a drop.
   private _previewing = false;
+  // While dragging: the panel losing focus (another window, an OS gesture) cancels the drag.
+  private readonly _onWindowBlur = () => this.endDrag(false);
 
   constructor(private readonly host: IReorderHost) {}
 
@@ -72,6 +76,9 @@ export class TodoReorder {
       ['pointermove', (e) => this.onPointermove(e as PointerEvent)],
       ['pointerup', (e) => this.onPointerup(e as PointerEvent)],
       ['pointercancel', () => this.endDrag(false)],
+      // Capture lost without a pointerup reaching the list (context menu, OS gesture...): without
+      // this the drag would never end, and the list would hold every update.
+      ['lostpointercapture', () => this.endDrag(false)],
     ];
   }
 
@@ -142,11 +149,11 @@ export class TodoReorder {
     if (order.join() === original.join()) {
       this.preview(id);
       announce(`Dropped ${text}.`);
-    } else {
-      announce(`Dropped ${text} at position ${order.indexOf(id) + 1} of ${order.length}.`);
-      await this.host.commit(order, id);
+      this.host.settle(false);
+      return;
     }
-    this.host.settle();
+    announce(`Dropped ${text} at position ${order.indexOf(id) + 1} of ${order.length}.`);
+    this.host.settle(await this.host.commit(order, id));
   }
 
   private cancel(): void {
@@ -154,7 +161,7 @@ export class TodoReorder {
     this._grab = null;
     this.preview(id);
     announce('Reorder cancelled.');
-    this.host.settle();
+    this.host.settle(false);
   }
 
   // Re-renders the list with the current grab (if any), focus back on `focusId`'s handle.
@@ -179,6 +186,7 @@ export class TodoReorder {
     event.preventDefault();
     handle.setPointerCapture?.(event.pointerId);
     items[from]!.classList.add(DRAGGING);
+    window.addEventListener('blur', this._onWindowBlur);
     this._drag = {
       id,
       pointerId: event.pointerId,
@@ -218,6 +226,7 @@ export class TodoReorder {
     const drag = this._drag;
     if (!drag) return;
     this._drag = null;
+    window.removeEventListener('blur', this._onWindowBlur);
     drag.items.forEach((item) => {
       item.style.transform = '';
       item.classList.remove(DRAGGING);
@@ -227,11 +236,11 @@ export class TodoReorder {
     if (keep && drag.to !== drag.from) {
       const next = moveId(order, drag.id, drag.to);
       announce(`Moved ${this.host.textOf(drag.id)} to position ${drag.to + 1} of ${order.length}.`);
-      void this.host.commit(next, drag.id).then(() => this.host.settle());
+      void this.host.commit(next, drag.id).then((saved) => this.host.settle(saved));
       return;
     }
     focusHandle(this.host.root, drag.id);
-    this.host.settle();
+    this.host.settle(false);
   }
 }
 
@@ -242,5 +251,5 @@ function handleId(target: EventTarget | null): string | null {
 }
 
 function focusHandle(root: HTMLElement, id: string): void {
-  root.querySelector<HTMLElement>(`[data-todo-id="${id}"] ${HANDLE}`)?.focus();
+  root.querySelector<HTMLElement>(`${byData('todo-id', id)} ${HANDLE}`)?.focus();
 }

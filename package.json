@@ -1,5 +1,5 @@
 {
-  "name": "notes-extension",
+  "name": "ticknote",
   "version": "0.1.0",
   "type": "module",
   "imports": {
@@ -10,6 +10,7 @@
     "build:prod": "node tools/builder/builder.js --prod",
     "build:extension": "npm run build:prod -- -y && node tools/extension/package-extension.js --prod",
     "build:extension:dev": "npm run build -- -y && node tools/extension/package-extension.js",
+    "package:extension": "npm run build:prod -- -y && node tools/extension/package-extension.js --prod --zip",
     "serve": "npm run build && node tools/dev/serve.js",
     "serve:only": "node tools/dev/serve.js",
     "serve:prod": "npm run build:prod && node tools/dev/serve.js",

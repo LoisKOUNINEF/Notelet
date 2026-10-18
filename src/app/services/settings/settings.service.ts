@@ -57,6 +57,7 @@ export class SettingsService extends Service<SettingsService> {
     const areaChanged = settings.storageArea !== this._settings.storageArea;
     this._settings = settings;
     if (areaChanged) AppEventBus.emit('storage-area-changed', { area: settings.storageArea });
+    AppEventBus.emit('settings-changed');
   }
 }
 

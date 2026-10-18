@@ -86,4 +86,52 @@ describe('SettingsPanelComponent', () => {
     get.restore();
     expect(panel.toasts).toEqual([]);
   });
+
+  it('asks before leaving sync, since that removes the synced notes on every device', async () => {
+    await choose('sync');
+    await scopeStoreService.addNote('page', KEYS.page, 'Synced note');
+    const set = spyOn(panel.fake.storage.local, 'set');
+
+    await choose('local');
+
+    expect(set.callCount).toBe(0);
+    set.restore();
+    expect(settingsService.storageArea).toBe('sync');
+    const confirm = $('.settings-panel__confirm');
+    expect(confirm.getAttribute('role')).toBe('group');
+    expect($('#settings-confirm-text').textContent).toContain('from all your devices');
+    expect(confirm.getAttribute('aria-labelledby')).toBe('settings-confirm-text');
+    expect(document.activeElement).toBe(confirm);
+  });
+
+  it('leaves sync once confirmed', async () => {
+    await choose('sync');
+    await scopeStoreService.addNote('page', KEYS.page, 'Synced note');
+    await choose('local');
+    $('.settings-panel__confirm-remove').click();
+    await settle();
+
+    expect(settingsService.storageArea).toBe('local');
+    expect(panel.fake.storage.sync.data.size).toBe(0);
+    expect(panel.fake.storage.local.data.has(`notes:page:${KEYS.page}`)).toBe(true);
+    expect($('.settings-panel__confirm')).toBeFalsy();
+  });
+
+  it('stays on sync when cancelled, with focus back on its choice', async () => {
+    await choose('sync');
+    await choose('local');
+    $('.settings-panel__confirm-cancel').click();
+
+    expect(settingsService.storageArea).toBe('sync');
+    expect(radio('sync').checked).toBe(true);
+    expect($('.settings-panel__confirm')).toBeFalsy();
+    expect(document.activeElement).toBe(radio('sync'));
+  });
+
+  it('explains when Chrome\'s settings can\'t be opened', async () => {
+    panel.fake.tabs.create = async () => { throw new Error('No tab for you.'); };
+    $$('.settings-panel__section button')[0].click();
+    await settle();
+    expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t open Chrome\'s settings. No tab for you.', type: 'error', duration: 6000 });
+  });
 });
