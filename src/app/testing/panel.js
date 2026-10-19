@@ -14,7 +14,7 @@ import { installFakeChrome, uninstallFakeChrome } from './fake-chrome.js';
 export const KEYS = {
   page: 'https://example.com/docs',
   site: 'example.com',
-  pageLabel: '/docs',
+  pageLabel: 'example.com/docs',
   siteLabel: 'example.com',
 };
 

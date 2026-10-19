@@ -28,7 +28,7 @@ describe('SidebarComponent', () => {
   it('shows the current page, both tabs and an empty list', async () => {
     await mount();
 
-    expect($('.sidebar__location-text').textContent).toBe('/docs');
+    expect($('.sidebar__location-text').textContent).toBe('example.com/docs');
     expect($('h1').textContent).toBe('Ticknote');
     expect(tab('page').getAttribute('aria-selected')).toBe('true');
     expect(tab('site').getAttribute('aria-selected')).toBe('false');
@@ -262,7 +262,7 @@ describe('SidebarComponent', () => {
     panel.fake.activateTab('https://other.org/x');
     await settle();
 
-    expect($('.sidebar__location-text').textContent).toBe('/x');
+    expect($('.sidebar__location-text').textContent).toBe('other.org/x');
     expect(texts('.note-item__text')).toEqual(['Other page note']);
   });
 
@@ -456,7 +456,7 @@ describe('SidebarComponent', () => {
     await settle();
     get.restore();
 
-    expect($('.sidebar__location-text').textContent).toBe('/x');
+    expect($('.sidebar__location-text').textContent).toBe('other.org/x');
     expect(texts('.note-item__text')).toEqual(['New page note']);
   });
 

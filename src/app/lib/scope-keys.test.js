@@ -5,7 +5,7 @@ describe('getScopeKeys', () => {
     expect(getScopeKeys('https://example.com/docs/intro')).toEqual({
       page: 'https://example.com/docs/intro',
       site: 'example.com',
-      pageLabel: '/docs/intro',
+      pageLabel: 'example.com/docs/intro',
       siteLabel: 'example.com',
     });
   });
@@ -14,6 +14,7 @@ describe('getScopeKeys', () => {
     const keys = getScopeKeys('http://localhost:9090/app');
     expect(keys.page).toBe('http://localhost:9090/app');
     expect(keys.site).toBe('localhost');
+    expect(keys.pageLabel).toBe('localhost:9090/app');
   });
 
   it('ignores the hash: anchors of one page share its notes', () => {
@@ -27,7 +28,7 @@ describe('getScopeKeys', () => {
   it('drops tracking parameters and sorts the others', () => {
     const keys = getScopeKeys('https://example.com/a?utm_source=x&b=2&fbclid=y&a=1&gclid=z');
     expect(keys.page).toBe('https://example.com/a?a=1&b=2');
-    expect(keys.pageLabel).toBe('/a?a=1&b=2');
+    expect(keys.pageLabel).toBe('example.com/a?a=1&b=2');
   });
 
   it('treats www and a trailing slash as the same page and site', () => {
@@ -37,17 +38,17 @@ describe('getScopeKeys', () => {
     expect(a.site).toBe('example.com');
   });
 
-  it('labels the home page "/"', () => {
+  it('labels the home page with its site and "/"', () => {
     const keys = getScopeKeys('https://example.com/');
     expect(keys.page).toBe('https://example.com');
-    expect(keys.pageLabel).toBe('/');
+    expect(keys.pageLabel).toBe('example.com/');
   });
 
   it('treats a home page in one of the site\'s languages as the home page', () => {
     const home = getScopeKeys('https://example.com/').page;
     for (const url of ['https://example.com/en', 'https://example.com/en/', 'https://example.com/fr-CA', 'https://www.example.com/pt_br', 'https://example.com/zh-Hans']) {
       expect(getScopeKeys(url).page).toBe(home);
-      expect(getScopeKeys(url).pageLabel).toBe('/');
+      expect(getScopeKeys(url).pageLabel).toBe('example.com/');
     }
   });
 
@@ -55,7 +56,7 @@ describe('getScopeKeys', () => {
     expect(getScopeKeys('https://example.com/en/docs').page).toBe('https://example.com/en/docs');
     const keys = getScopeKeys('https://example.com/en?tab=2');
     expect(keys.page).toBe('https://example.com?tab=2');
-    expect(keys.pageLabel).toBe('?tab=2');
+    expect(keys.pageLabel).toBe('example.com/?tab=2');
   });
 
   it('keeps two-letter home paths that aren\'t languages', () => {

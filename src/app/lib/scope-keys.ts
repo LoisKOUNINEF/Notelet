@@ -40,12 +40,14 @@ export function getScopeKeys(url: string | null | undefined): IScopeKeys | null 
   let pathname = parsed.pathname.length > 1 ? parsed.pathname.replace(/\/+$/, '') : '';
   if (isLocaleRoot(pathname)) pathname = '';
   const search = parsed.searchParams.toString();
-  const pagePath = `${pathname}${search ? `?${search}` : ''}`;
+  const query = search ? `?${search}` : '';
+  const host = `${site}${parsed.port ? `:${parsed.port}` : ''}`;
 
   return {
-    page: `${parsed.protocol}//${site}${parsed.port ? `:${parsed.port}` : ''}${pagePath}`,
+    page: `${parsed.protocol}//${host}${pathname}${query}`,
     site,
-    pageLabel: pagePath || '/',
+    // The page key without its protocol, the home page's `/` shown.
+    pageLabel: `${host}${pathname || '/'}${query}`,
     siteLabel: site,
   };
 }
