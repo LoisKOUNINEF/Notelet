@@ -4,18 +4,31 @@
 :root {
   color-scheme: light dark;
 
-  --color-bg: #fafaf9;
-  --color-surface: #ffffff;
-  --color-surface-muted: #f1f1ef;
-  --color-border: #d6d6d2;
-  --color-border-strong: #a8a8a2;
-  --color-text: #1c1c1a;
-  --color-text-muted: #5f5f59;
-  --color-primary: #4f6741;
-  --color-primary-hover: #3f5434;
-  --color-on-primary: #ffffff;
-  --color-danger: #a9432a;
-  --color-focus: #2f6fb5;
+  // Theme: "Emigre 1994" (light) and "Broadcast dark", from the narrative-palettes project.
+  // Surfaces step away from the background: bg → surface → surface-muted (the palette's bgDisabled).
+  --color-bg: #f2eee6;
+  --color-surface: #e8e4da;
+  --color-surface-muted: #d8d4ca;
+  --color-border: #d8d4cc;
+  --color-border-strong: #a8a49c;
+  --color-text: #141210;
+  --color-text-muted: #585450;
+  --color-text-disabled: #989490;
+  --color-primary: #2e6870;
+  --color-primary-hover: #1c4850;
+  // The background: readable on the teal in both themes (white isn't on the dark theme's).
+  --color-on-primary: #f2eee6;
+  --color-secondary: #8c4840;
+  --color-secondary-hover: #683028;
+  --color-accent: #907830;
+  --color-success: #407048;
+  --color-warning: #886818;
+  --color-danger: #783024;
+  --color-focus: #386880;
+  --color-overlay: #14121080;
+
+  --font-body: 'Source Serif 4', Georgia, serif;
+  --font-display: 'Playfair Display', Georgia, serif;
 
   --radius: 8px;
   --radius-small: 6px;
@@ -38,7 +51,8 @@
   --a11y-label-color-text: var(--color-text);
   --a11y-label-color-required: var(--color-danger);
   --a11y-radio-group-color-background: var(--color-surface);
-  --a11y-radio-group-color-border: var(--color-border-strong);
+  // Controls' outlines need 3:1 against their background: border-strong is too faint for that.
+  --a11y-radio-group-color-border: var(--color-text-muted);
   --a11y-radio-group-color-primary: var(--color-primary);
   --a11y-radio-group-color-text: var(--color-text);
   --a11y-radio-group-color-text-muted: var(--color-text-muted);
@@ -51,8 +65,8 @@
   --a11y-input-control-border-radius: var(--radius-small);
   --a11y-input-control-padding-y: 0.375rem;
   --a11y-checkbox-color-background: var(--color-surface);
-  --a11y-checkbox-color-border: var(--color-border-strong);
-  --a11y-checkbox-color-border-strong: var(--color-text-muted);
+  --a11y-checkbox-color-border: var(--color-text-muted);
+  --a11y-checkbox-color-border-strong: var(--color-text);
   --a11y-checkbox-color-primary: var(--color-primary);
   --a11y-checkbox-color-text: var(--color-text);
   --a11y-dropdown-color-background: var(--color-surface);
@@ -71,25 +85,38 @@
   --a11y-modal-footer-gap: var(--space-2);
   --a11y-modal-overlay-padding: var(--space-4);
   --a11y-snackbar-container-width: calc(100vw - 2rem);
-  --a11y-color-success: #3f6b34;
-  --a11y-color-info: #2b2b28;
-  --a11y-color-error: #a9432a;
+  // Toasts: white text on these. Dark mode keeps the light success: the dark one is too light for white text.
+  --a11y-color-success: #407048;
+  --a11y-color-info: #386880;
+  --a11y-color-error: #783024;
+  --a11y-modal-color-overlay: var(--color-overlay);
 
   @media (prefers-color-scheme: dark) {
-    --color-bg: #1b1b19;
-    --color-surface: #252522;
-    --color-surface-muted: #2e2e2b;
-    --color-border: #3d3d39;
-    --color-border-strong: #5d5d57;
-    --color-text: #ecece8;
-    --color-text-muted: #a9a9a2;
-    --color-primary: #9cb88a;
-    --color-primary-hover: #b2cba2;
-    --color-on-primary: #14140f;
-    --color-danger: #f0937a;
-    --color-focus: #8ab8ec;
-    --a11y-color-info: #3a3a36;
+    --color-bg: #0a0c10;
+    --color-surface: #141820;
+    --color-surface-muted: #181c24;
+    --color-border: #1c202c;
+    --color-border-strong: #404858;
+    --color-text: #e8e4dc;
+    --color-text-muted: #8890a0;
+    --color-text-disabled: #404850;
+    --color-primary: #389098;
+    --color-primary-hover: #48b0b8;
+    --color-on-primary: #0a0c10;
+    --color-secondary: #b06058;
+    --color-secondary-hover: #d0786c;
+    --color-accent: #b09838;
+    --color-success: #48a078;
+    --color-warning: #c0a848;
+    // The palette's error (#c84840) is too dark for text here: its lighter rose-terracotta is (5.6:1).
+    --color-danger: #d0786c;
+    --color-focus: #4870a8;
+    --color-overlay: #0a0c10d9;
+    --a11y-color-success: #407048;
+    --a11y-color-info: #4870a8;
+    --a11y-color-error: #c84840;
   }
+
 
   @media (prefers-reduced-motion: reduce) {
     --transition: 0s;
@@ -108,6 +135,13 @@ body {
   margin: 0;
 }
 
+// Always keep room for the scrollbar: the popup's scroll lock (a11y-elements' html.a11y-no-scroll)
+// reserves it, which narrowed the panel behind an open popup when nothing was scrolling. A list
+// growing past the panel's height no longer shifts it either.
+html {
+  scrollbar-gutter: stable;
+}
+
 // `hidden` must win over any component's own display (grid, flex...).
 [hidden] {
   display: none !important;
@@ -117,7 +151,7 @@ body {
   min-height: 100vh;
   background: var(--color-bg);
   color: var(--color-text);
-  font: 0.9375rem/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font: 0.9375rem/1.5 var(--font-body);
 }
 
 h1,
@@ -179,10 +213,29 @@ kbd {
 
   &--danger {
     color: var(--color-danger);
+
+    &:hover {
+      color: var(--color-bg);
+      background: var(--color-danger);
+    }
   }
 
   &:disabled {
     opacity: 0.6;
     cursor: not-allowed;
   }
+}
+
+// The confirmation popup (components/confirm-dialog): a11y-elements builds its wrapper on <body>,
+// out of the component's reach. 40–50% of the panel's height, its content centered both ways.
+.a11y-modal-wrapper:has(.confirm-dialog__title) {
+  height: 50%;
+}
+
+.a11y-modal-content:has(.confirm-dialog__title) {
+  display: flex;
+  flex-direction: column;
+  // `safe`: a message too long for a short panel starts at the top (scrollable) rather than being cut off.
+  justify-content: safe center;
+  text-align: center;
 }

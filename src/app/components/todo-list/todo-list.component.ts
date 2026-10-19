@@ -26,8 +26,9 @@ const templateFn = ({ open, done, expanded, label }: ITodoListView) => html`__TE
 
 
 /**
- * One scope's to-dos: the open ones, its quick add, then the done ones in a "Done (n)" group,
- * collapsed or not as last left (a setting shared by every page). Like the note list, the
+ * One scope's to-dos: its quick add on top (like the note composer), the open ones, then the
+ * done ones in a "Done (n)" group, collapsed or not as last left (a setting shared by every
+ * page). Like the note list, the
  * sidebar keeps it across renders and hands it new to-dos through update(): unchanged items
  * and the quick add's text are kept. Open to-dos are reordered by their handles (see ListReorder).
  */

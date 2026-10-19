@@ -34,6 +34,13 @@ describe('TodoComposerComponent', () => {
     expect($('.todo-composer__submit').textContent).toBe('Add to-do');
   });
 
+  it('asks for text like the note composer, and says Enter adds', () => {
+    mount('page');
+    expect(input().required).toBe(true);
+    expect($('.todo-composer__hint').textContent).toBe('Enter to add');
+    expect($('.todo-composer__hint').getAttribute('aria-hidden')).toBe('true');
+  });
+
   it('adds the trimmed to-do to its scope and clears the field', async () => {
     mount('site');
     typeInto(input(), '  Renew the certificate  ');

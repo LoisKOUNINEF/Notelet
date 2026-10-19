@@ -1,4 +1,9 @@
 .todo-composer {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.todo-composer__row {
   display: flex;
   align-items: flex-end;
   gap: var(--space-2);
@@ -7,4 +12,11 @@
 .todo-composer__field {
   flex: 1;
   min-width: 0;
+}
+
+// Like the note composer's "Ctrl+Enter to add".
+.todo-composer__hint {
+  justify-self: end;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
 }

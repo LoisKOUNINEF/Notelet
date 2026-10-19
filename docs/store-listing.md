@@ -37,6 +37,7 @@ Drafts for the developer dashboard. Copy each part into its field.
 ## Images (to provide)
 
 - **Icon:** `src/assets/icons/ticknote-128.png` (the dark tile), 128×128 PNG. The extension ships `src/assets/icons/ticknote-{16,32,48,128}.png`; the panel's favicon is `public/favicon.ico`. Sources (SVGs, and the light tile PNGs for a future theme-aware icon) are in `docs/icons/`.
+- **Fonts:** Source Serif 4 and Playfair Display, both under the SIL Open Font License 1.1, bundled in `src/assets/fonts/` with their `LICENSE.txt` (copied into the package by `tools/extension/package-extension.js`). No remote fonts are loaded.
 - **Screenshots:** at least one, 1280×800 (or 640×400), PNG or JPEG. Suggested: the panel next to a page (notes and to-dos), a checklist note, and the settings.
 - **Small promo tile:** 440×280 PNG or JPEG.
 - **Marquee (optional):** 1400×560.

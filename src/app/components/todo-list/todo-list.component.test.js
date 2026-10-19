@@ -70,7 +70,7 @@ describe('TodoListComponent', () => {
     expect($('.todo-list__delete-done')).toBeFalsy();
   });
 
-  it('puts done to-dos in a collapsed "Done (n)" group under the quick add', () => {
+  it('puts the quick add on top, then the open to-dos, then the done ones in a collapsed "Done (n)" group', () => {
     mount([todo('a', 'Open'), todo('b', 'Done 1', true), todo('c', 'Done 2', true)]);
 
     expect(toggle().textContent.trim()).toBe('Done (2)');
@@ -79,8 +79,8 @@ describe('TodoListComponent', () => {
     expect(doneList().hidden).toBe(true);
     expect(doneList().getAttribute('aria-label')).toBe('Done to-dos for this page');
     expect($$('[data-catalog="done-todos"] a11y-checkbox').map((el) => el.getAttribute('label'))).toEqual(['Done 1', 'Done 2']);
-    expect($('[data-catalog="open-todos"]').compareDocumentPosition($('.todo-composer')) & window.Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect($('.todo-composer').compareDocumentPosition(toggle()) & window.Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect($('.todo-composer').compareDocumentPosition($('[data-catalog="open-todos"]')) & window.Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect($('[data-catalog="open-todos"]').compareDocumentPosition(toggle()) & window.Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('opens and closes the group, remembers it, and keeps focus on the toggle', async () => {

@@ -20,6 +20,7 @@ async function packageExtension() {
 
   await bundleBackground();
   writeManifest();
+  copyFontLicenses();
   // The builder copies src/extension's sources (and, in dev, tsc's output) like any other folder.
   fs.rmSync(path.join(OUTPUT, 'extension'), { recursive: true, force: true });
   if (isProd) removeCompressedFiles();
@@ -48,6 +49,17 @@ function writeManifest() {
   const { version } = JSON.parse(fs.readFileSync(path.resolve('package.json'), 'utf-8'));
   manifest.version = version;
   fs.writeFileSync(path.join(OUTPUT, 'manifest.json'), JSON.stringify(manifest, null, 2));
+}
+
+// The fonts' licenses (SIL OFL) must ship with them; the builder only copies the font files.
+function copyFontLicenses() {
+  const fonts = path.resolve('src', 'assets', 'fonts');
+  if (!fs.existsSync(fonts)) return;
+  getFilesRecursive(fonts, ['.txt']).forEach((file) => {
+    const dest = path.join(OUTPUT, 'assets', 'fonts', path.relative(fonts, file));
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.copyFileSync(file, dest);
+  });
 }
 
 // Pre-compressed copies only matter to a web server: Chrome reads the plain files.

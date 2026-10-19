@@ -1,7 +1,7 @@
 <div class="todo-list">
+  <div data-component="todo-composer"></div>
   ${open.length > 0 ? html`<ul class="todo-list__items todo-list__open" data-catalog="open-todos" aria-label="${label}"></ul>` : ''}
   ${open.length > 1 ? html`<p class="a11y-visually-hidden" id="todo-reorder-help">Press Space to pick up. Use the arrow keys to move, Space to drop, Escape to cancel.</p>` : ''}
-  <div data-component="todo-composer"></div>
   ${done.length > 0 ? html`
   <div class="todo-list__done">
     <button class="todo-list__done-toggle" type="button" tabindex="0" aria-expanded="${expanded ? 'true' : 'false'}" aria-controls="todo-done-items" data-event="click:_toggleDone">

@@ -4,7 +4,9 @@
 }
 
 .settings-panel__title {
-  font-size: 1rem;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 700;
 }
 
 .settings-panel__option {
@@ -33,7 +35,9 @@
 }
 
 .settings-panel__subtitle {
-  font-size: 0.875rem;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
 }
 
 .settings-panel__confirm {

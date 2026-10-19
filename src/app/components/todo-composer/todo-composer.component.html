@@ -1,7 +1,10 @@
 <form class="todo-composer" data-event="submit:_add">
-  <a11y-input class="todo-composer__field">
-    <a11y-label><span class="a11y-visually-hidden">${label}</span></a11y-label>
-    <input class="todo-composer__input" type="text" name="text" autocomplete="off" placeholder="Add a to-do…" value="${draft}">
-  </a11y-input>
-  <button class="button todo-composer__submit" type="submit" tabindex="0">Add<span class="a11y-visually-hidden">${' to-do'}</span></button>
+  <div class="todo-composer__row">
+    <a11y-input class="todo-composer__field">
+      <a11y-label><span class="a11y-visually-hidden">${label}</span></a11y-label>
+      <input class="todo-composer__input" type="text" name="text" required autocomplete="off" placeholder="Add a to-do…" value="${draft}">
+    </a11y-input>
+    <button class="button button--primary todo-composer__submit" type="submit" tabindex="0">Add<span class="a11y-visually-hidden">${' to-do'}</span></button>
+  </div>
+  <span class="todo-composer__hint" aria-hidden="true">Enter to add</span>
 </form>

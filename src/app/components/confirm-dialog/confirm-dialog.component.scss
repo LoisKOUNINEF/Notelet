@@ -1,6 +1,9 @@
 .confirm-dialog__title {
   margin-bottom: var(--space-2);
-  font-size: 1rem;
+  font-family: var(--font-display);
+  font-size: 1.1875rem;
+  font-weight: 700;
+  line-height: 1.25;
 }
 
 .confirm-dialog__message {
@@ -8,6 +11,13 @@
   font-size: var(--font-small);
 }
 
+// Not a11y-elements' .a11y-modal-buttons: its button rules (padding, font size, a grey hover)
+// would override the app's .button and .button--danger.
 .confirm-dialog__buttons {
+  display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--a11y-modal-footer-gap);
+  // Centered with the text (see .a11y-modal-content in _styles.scss).
+  margin-top: var(--a11y-modal-footer-margin-top);
 }
