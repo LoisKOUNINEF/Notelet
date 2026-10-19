@@ -275,9 +275,11 @@ describe('TodoListComponent - reordering', () => {
     now.restore();
     todos = (await scopeStoreService.load(KEYS)).page.todos;
     mount();
+    useFakeTimers();
   });
 
   afterEach(async () => {
+    useRealTimers();
     list.destroy();
     document.getElementById('app-announcer')?.remove();
     await panel.stop();

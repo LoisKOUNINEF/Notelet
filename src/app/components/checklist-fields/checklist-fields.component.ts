@@ -68,7 +68,7 @@ export class ChecklistFieldsComponent extends Component<HTMLElement, IChecklistF
   }
 
   public override registerChildren(): Nutin.ComponentConfig[] {
-    // Rebuilt from _fields on every render (each one's number changes as fields come and go).
+    // A field is kept until its text or its position (so its number) changes.
     return this.createCatalogComponents({
       items: this._fields,
       selector: 'fields',
@@ -76,6 +76,7 @@ export class ChecklistFieldsComponent extends Component<HTMLElement, IChecklistF
       elementTag: 'li',
       component: ChecklistFieldComponent,
       props: this._fieldOptions,
+      keepBy: (item: IChecklistItem, index: number) => `${item.id}:${index}`,
     });
   }
 

@@ -69,6 +69,22 @@ describe('ChecklistFieldsComponent', () => {
     expect(calls).toEqual(['change', 'change', 'last-removed']);
   });
 
+  it('keeps the fields that stay unchanged and in place', () => {
+    mount([{ id: 'a', text: 'A', done: false }, { id: 'b', text: 'B', done: false }]);
+    const [first, second] = fields();
+    list.add();
+    expect(fields()[0]).toBe(first);
+    expect(fields()[1]).toBe(second);
+  });
+
+  it('renumbers the fields that move', () => {
+    mount([{ id: 'a', text: 'A', done: false }, { id: 'b', text: 'B', done: false }]);
+    $$('.checklist-field__remove')[0].click();
+    expect(values()).toEqual(['B']);
+    expect($('.checklist-field a11y-label').textContent.trim()).toBe('Item 1');
+    expect($('.checklist-field__remove').getAttribute('aria-label')).toBe('Remove item 1');
+  });
+
   it('passes Escape on to the parent', () => {
     mount([{ id: 'a', text: 'A', done: true }]);
     keydown(fields()[0], 'Escape');

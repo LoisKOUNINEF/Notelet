@@ -2,9 +2,13 @@ import { announce } from '#root/dist/src/app/lib/announce.js';
 
 describe('announce', () => {
   const region = () => document.getElementById('app-announcer');
-  const later = () => new Promise((resolve) => setTimeout(resolve, 60));
+  const later = () => advanceTimersByTime(50);
 
-  afterEach(() => region()?.remove());
+  beforeEach(() => useFakeTimers());
+  afterEach(() => {
+    useRealTimers();
+    region()?.remove();
+  });
 
   it('reads messages out through one polite, visually hidden live region', async () => {
     announce('Picked up Milk.');

@@ -33,9 +33,11 @@ describe('NoteListComponent - reordering', () => {
     now.restore();
     notes = (await scopeStoreService.load(KEYS)).page.notes;
     mount();
+    useFakeTimers();
   });
 
   afterEach(async () => {
+    useRealTimers();
     list.destroy();
     document.getElementById('app-announcer')?.remove();
     await panel.stop();

@@ -96,8 +96,9 @@ export function layOut(selector, height) {
 }
 
 // What the panel's live region (lib/announce.ts) says, once its delayed update has run.
+// Needs the suite to use fake timers (useFakeTimers()): the delay is skipped, not waited for.
 export async function spoken() {
-  await new Promise((resolve) => setTimeout(resolve, 60));
+  advanceTimersByTime(50);
   return document.getElementById('app-announcer').textContent;
 }
 
