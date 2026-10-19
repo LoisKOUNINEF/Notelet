@@ -78,3 +78,29 @@ export function storageKey(kind: ScopeContentKind, scope: NoteScope, key: string
 export function isScopeContentKey(key: string): boolean {
   return key.startsWith('notes:') || key.startsWith('todos:');
 }
+
+// A page key's host (already without `www.`), or null for a malformed key.
+export function hostOf(pageKey: string): string | null {
+  try {
+    return new URL(pageKey).hostname;
+  } catch {
+    return null;
+  }
+}
+
+// The site a storage item belongs to: its key for a site's list, its page's host for a page's.
+export function siteOf(storageItem: string): string | null {
+  const [, scope, ...rest] = storageItem.split(':');
+  const key = rest.join(':');
+  return scope === 'site' ? key : scope === 'page' ? hostOf(key) : null;
+}
+
+// Whether a storage item is one of `site`'s pages' lists (what its "This site" tab lists).
+export function isSitePageKey(storageItem: string, site: string): boolean {
+  return isScopeContentKey(storageItem) && storageItem.split(':')[1] === 'page' && siteOf(storageItem) === site;
+}
+
+// Which kind a storage item holds (`notes:…` or `todos:…`).
+export function kindOf(key: string): ScopeContentKind {
+  return key.startsWith('todos:') ? 'todos' : 'notes';
+}

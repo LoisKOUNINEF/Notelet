@@ -1,4 +1,4 @@
-import { getScopeKeys, pageLabelOf, storageKey, isScopeContentKey } from '#root/dist/src/app/lib/scope-keys.js';
+import { getScopeKeys, pageLabelOf, storageKey, isScopeContentKey, isSitePageKey } from '#root/dist/src/app/lib/scope-keys.js';
 
 describe('getScopeKeys', () => {
   it('keys a page by its URL and a site by its host', () => {
@@ -97,5 +97,16 @@ describe('storageKey', () => {
     expect(isScopeContentKey(storageKey('notes', 'site', 'example.com'))).toBe(true);
     expect(isScopeContentKey(storageKey('todos', 'page', 'https://example.com/a'))).toBe(true);
     expect(isScopeContentKey('settings')).toBe(false);
+  });
+});
+
+describe('isSitePageKey', () => {
+  it('matches the lists of a site\'s pages only', () => {
+    expect(isSitePageKey('notes:page:https://example.com/docs', 'example.com')).toBe(true);
+    expect(isSitePageKey('todos:page:https://example.com', 'example.com')).toBe(true);
+    expect(isSitePageKey('notes:site:example.com', 'example.com')).toBe(false);
+    expect(isSitePageKey('notes:page:https://other.org/x', 'example.com')).toBe(false);
+    expect(isSitePageKey('notes:page:not a url', 'example.com')).toBe(false);
+    expect(isSitePageKey('settings', 'example.com')).toBe(false);
   });
 });

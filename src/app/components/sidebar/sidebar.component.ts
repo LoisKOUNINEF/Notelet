@@ -2,6 +2,7 @@ import { Component, html } from '../../../core/index.js';
 import { applyRequestedFocus, clearRequestedFocus, hasRequestedFocus, requestFocus } from '../../lib/focus.js';
 import { errorMessage } from '../../lib/errors.js';
 import { countList } from '../../lib/plural.js';
+import { isSitePageKey, storageKey } from '../../lib/scope-keys.js';
 import { activeTabService } from '../../services/active-tab/active-tab.service.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
 import { settingsService } from '../../services/settings/settings.service.js';
@@ -31,6 +32,9 @@ const templateFn = ({ keys, scope, kind, loaded, settingsPage, location }: ISide
 
 const PANEL_ID = 'sidebar-panel';
 const KIND_PANEL_ID = 'sidebar-kind-panel';
+
+const SCOPES: NoteScope[] = ['page', 'site'];
+const KINDS: ScopeContentKind[] = ['notes', 'todos'];
 
 const SCOPE_LABELS: Record<NoteScope, string> = { page: 'This page', site: 'This site' };
 const KIND_LABELS: Record<ScopeContentKind, string> = { todos: 'To-dos', notes: 'Notes' };
@@ -75,8 +79,8 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
       void this.load();
       void this.loadSitePages();
     });
-    this.listen('scope-content-changed', () => this.reload());
-    this.listen('storage-area-changed', () => this.reload());
+    this.listen('scope-content-changed', ({ keys }) => this.reload(keys));
+    this.listen('storage-area-changed', () => this.reload(null));
     // The To-dos / Notes tab picked in another window.
     this.listen('settings-changed', () => {
       if (settingsService.contentKind === this._kind) return;
@@ -189,10 +193,15 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
     if (this._sitePages === null) void this.loadSitePages();
   }
 
-  // Something changed (here, in another window, or the storage area): the shown lists reload.
-  // The site's pages too if that tab shows (keeping the previous list meanwhile), else later.
-  private reload(): void {
-    void this.load();
+  // Something changed (here, in another window, or the storage area: `changed` null): the shown
+  // lists reload if theirs did, the site's pages if one of its pages' did: the tab showing (keeping
+  // the previous list meanwhile), else later. Other sites' changes cost nothing.
+  private reload(changed: string[] | null): void {
+    const keys = this._keys;
+    if (!keys) return;
+    const shown = SCOPES.flatMap((scope) => KINDS.map((kind) => storageKey(kind, scope, keys[scope])));
+    if (!changed || changed.some((key) => shown.includes(key))) void this.load();
+    if (changed && !changed.some((key) => isSitePageKey(key, keys.site))) return;
     if (this._scope === 'site') void this.loadSitePages();
     else this._sitePages = null;
   }

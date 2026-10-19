@@ -59,6 +59,25 @@ describe('TodoListComponent', () => {
     typeInto($('.todo-composer__input'), '');
   });
 
+  it('keeps lists and reordered to-dos when reloaded unchanged', () => {
+    const load = () => [
+      { ...todo('list', 'Groceries'), items: [{ id: 'i', text: 'Milk', done: false }] },
+      { ...todo('moved', 'Moved'), position: 0 },
+      todo('edited', 'Before'),
+    ];
+    mount(load());
+    const [list0, moved, edited] = ['list', 'moved', 'edited'].map((id) => $(`[data-todo-id="${id}"]`));
+
+    // As read back from storage: new objects, a new items array, one position changed, one edit.
+    const [listAgain, movedAgain] = load();
+    list.update([listAgain, { ...movedAgain, position: 3 }, { ...todo('edited', 'After'), updatedAt: 2 }]);
+
+    expect($('[data-todo-id="list"]')).toBe(list0);
+    expect($('[data-todo-id="moved"]')).toBe(moved);
+    expect($('[data-todo-id="edited"]')).not.toBe(edited);
+    expect(labels()).toEqual(['Moved', 'After']);
+  });
+
   it('does nothing when handed the same to-dos', () => {
     const todos = [todo('a', 'Same')];
     mount(todos);

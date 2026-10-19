@@ -2,6 +2,7 @@ import { Component, html, raw } from '../../../core/index.js';
 import { errorMessage } from '../../lib/errors.js';
 import { ListReorder } from '../../lib/list-reorder.js';
 import { plural } from '../../lib/plural.js';
+import { keepUnchanged } from '../../lib/unchanged.js';
 import { applyRequestedFocus, byData, clearRequestedFocus, requestFocus } from '../../lib/focus.js';
 import { confirmService } from '../../services/confirm/confirm.service.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
@@ -132,7 +133,7 @@ export class TodoListComponent extends Component<HTMLElement, ITodoListView> {
       return;
     }
     if (todos === this._todos) return;
-    this._todos = todos;
+    this._todos = keepUnchanged(this._todos, todos);
     this.refresh();
   }
 

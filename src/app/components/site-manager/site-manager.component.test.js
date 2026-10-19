@@ -141,7 +141,7 @@ describe('SiteManagerComponent', () => {
     expect(panel.toasts.at(-1).message).toBe('Couldn\'t delete this site\'s notes. Nope.');
 
     const get = spyOn(panel.fake.storage.local, 'get').andCallFake(async () => { throw new Error('Gone.'); });
-    panel.bus.emit('scope-content-changed');
+    panel.bus.emit('scope-content-changed', { keys: ['notes:site:beta.org'] });
     await settle();
     get.restore();
     expect(panel.toasts.at(-1).message).toBe('Couldn\'t list your sites. Gone.');

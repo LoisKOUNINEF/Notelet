@@ -1,5 +1,5 @@
 import { AppEventBus, Service } from '../../../core/index.js';
-import { isScopeContentKey, pageLabelOf, storageKey } from '../../lib/scope-keys.js';
+import { hostOf, isScopeContentKey, kindOf, pageLabelOf, siteOf, storageKey } from '../../lib/scope-keys.js';
 import { chromeApiService } from '../chrome-api/chrome-api.service.js';
 import { settingsService } from '../settings/settings.service.js';
 
@@ -83,9 +83,8 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
   // Every change, made here or in another window, ends up in `scope-content-changed`.
   public init(): void {
     this.registerCleanup(chromeApiService.onStorageChanged((changes, area) => {
-      if (area === this.area && Object.keys(changes).some(isScopeContentKey)) {
-        AppEventBus.emit('scope-content-changed');
-      }
+      const keys = Object.keys(changes).filter(isScopeContentKey);
+      if (area === this.area && keys.length > 0) AppEventBus.emit('scope-content-changed', { keys });
     }));
   }
 
@@ -532,27 +531,6 @@ function isItem(value: unknown): boolean {
   if (!value || typeof value !== 'object') return false;
   const item = value as Partial<IScopeItem>;
   return typeof item.id === 'string' && typeof item.createdAt === 'number';
-}
-
-// A page key's host (already without `www.`), or null for a malformed key.
-function hostOf(pageKey: string): string | null {
-  try {
-    return new URL(pageKey).hostname;
-  } catch {
-    return null;
-  }
-}
-
-// The site a storage item belongs to: its key for a site's list, its page's host for a page's.
-function siteOf(storageItem: string): string | null {
-  const [, scope, ...rest] = storageItem.split(':');
-  const key = rest.join(':');
-  return scope === 'site' ? key : scope === 'page' ? hostOf(key) : null;
-}
-
-// Which kind a storage item holds (`notes:…` or `todos:…`).
-function kindOf(key: string): ScopeContentKind {
-  return key.startsWith('todos:') ? 'todos' : 'notes';
 }
 
 // The notes and to-dos items of a storage area (leaving `settings` and anything else out).

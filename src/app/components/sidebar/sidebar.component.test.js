@@ -310,6 +310,28 @@ describe('SidebarComponent', () => {
     expect(texts('.site-pages__label')).toEqual(['/blog', '/docs', '/new']);
   });
 
+  it('reads nothing again for changes it doesn\'t show', async () => {
+    await mount();
+    tab('site').click();
+    await settle();
+    const get = spyOn(panel.fake.storage.local, 'get');
+
+    // Another site, in another window: neither the lists nor this site's pages.
+    await panel.fake.storage.local.set({ 'notes:page:https://other.org/x': [] });
+    await panel.fake.storage.local.set({ 'notes:site:other.org': [] });
+    await settle();
+    expect(get.callCount).toBe(0);
+
+    // This site's own notes: shown, but not one of its pages.
+    await scopeStoreService.addNote('site', KEYS.site, 'Site note');
+    await settle();
+    const reads = get.calls.slice(1).map(([keys]) => keys);
+    get.restore();
+    expect(reads.length).toBe(1);
+    expect(reads[0].length).toBe(4);
+    expect(texts('.note-item__text')).toEqual(['Site note']);
+  });
+
   it('shows a spinner while first listing the site\'s pages, not when listing them again', async () => {
     await scopeStoreService.addNote('page', KEYS.page, 'A note');
     await mount();
@@ -449,7 +471,7 @@ describe('SidebarComponent', () => {
       return realGet(keys);
     });
 
-    panel.bus.emit('scope-content-changed');
+    panel.bus.emit('scope-content-changed', { keys: [`notes:page:${KEYS.page}`] });
     panel.fake.activateTab('https://other.org/x');
     await settle();
     releaseOld();
@@ -571,7 +593,7 @@ describe('SidebarComponent', () => {
     await mount();
     const get = spyOn(panel.fake.storage.local, 'get').andCallFake(async () => { throw new Error('Extension context invalidated.'); });
     await scopeStoreService.addNote('site', KEYS.site, 'Triggers a reload').catch(() => {});
-    panel.bus.emit('scope-content-changed');
+    panel.bus.emit('scope-content-changed', { keys: [`notes:page:${KEYS.page}`] });
     await settle();
     get.restore();
 
@@ -601,7 +623,7 @@ describe('SidebarComponent', () => {
       return realGet(keys);
     });
 
-    panel.bus.emit('scope-content-changed');
+    panel.bus.emit('scope-content-changed', { keys: [`notes:page:${KEYS.page}`] });
     panel.fake.activateTab('https://other.org/x');
     await settle();
     failOld();

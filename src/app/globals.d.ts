@@ -90,8 +90,9 @@ declare namespace Nutin {
   interface AppEventMap {
     // The active tab's notes keys changed (tab switch, navigation); null on pages that can't have notes.
     'active-scope-changed': { keys: IScopeKeys | null };
-    // Notes or to-dos were added, edited, moved or removed, here or in another window.
-    'scope-content-changed': undefined;
+    // Notes or to-dos were added, edited, moved or removed, here or in another window: the
+    // storage items that changed (`notes:page:<url>`...).
+    'scope-content-changed': { keys: string[] };
     'storage-area-changed': { area: StorageAreaName };
     // Any setting saved, here or in another window (see services/settings).
     'settings-changed': undefined;

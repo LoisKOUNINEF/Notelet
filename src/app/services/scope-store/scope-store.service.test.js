@@ -304,6 +304,13 @@ describe('ScopeStoreService', () => {
     expect(changes).toBe(2);
   });
 
+  it('says which notes and to-dos changed, leaving the settings out', async () => {
+    const changed = [];
+    bus.subscribe('scope-content-changed', ({ keys }) => changed.push(keys));
+    await fake.storage.local.set({ settings: {}, 'notes:site:other.com': [], 'todos:page:https://other.com/a': [] });
+    expect(changed).toEqual([['notes:site:other.com', 'todos:page:https://other.com/a']]);
+  });
+
   it('does not emit scope-content-changed for settings or for the area not in use', async () => {
     await fake.storage.local.set({ settings: { storageArea: 'local' } });
     await fake.storage.sync.set({ 'notes:site:example.com': [] });
