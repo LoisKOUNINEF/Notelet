@@ -2,7 +2,7 @@ import { NoteListComponent } from '#root/dist/src/app/components/note-list/note-
 import { hasRequestedFocus } from '#root/dist/src/app/lib/focus.js';
 import { confirmService } from '#root/dist/src/app/services/confirm/confirm.service.js';
 import { scopeStoreService } from '#root/dist/src/app/services/scope-store/scope-store.service.js';
-import { KEYS, keydown, settle, startPanel } from '../../testing/panel.js';
+import { busListenerCounts, deferred, keydown, KEYS, layOut as layOutItems, pointer, settle, spoken, startPanel } from '../../testing/panel.js';
 
 // The gestures themselves are covered with the to-dos (TodoListComponent - reordering):
 // this checks the notes list wires them up the same way.
@@ -14,26 +14,13 @@ describe('NoteListComponent - reordering', () => {
   const handle = (note) => $(`[data-note-id="${note.id}"] .note-item__handle`);
   const shown = () => $$('[data-catalog="notes"] .note-item__text').map((el) => el.textContent);
   const stored = async () => (await scopeStoreService.load(KEYS)).page.notes.map((n) => n.text);
-  const spoken = async () => {
-    await new Promise((resolve) => setTimeout(resolve, 60));
-    return document.getElementById('app-announcer').textContent;
-  };
   const mount = (items = notes) => {
     const placeholder = document.getElementById('app').appendChild(document.createElement('div'));
     list = new NoteListComponent(placeholder, { scope: 'page', keys: KEYS, notes: items });
     list.render();
   };
-  // jsdom has no layout: each note is 80px tall, stacked from y = 0.
-  const layOut = () => $$('[data-catalog="notes"] > li').forEach((li, i) => {
-    li.getBoundingClientRect = () => ({ top: i * 80, height: 80, bottom: i * 80 + 80, left: 0, right: 300, width: 300 });
-  });
-  const pointer = (type, target, clientY) => {
-    const Ctor = window.PointerEvent ?? window.MouseEvent;
-    const event = new Ctor(type, { bubbles: true, cancelable: true, clientY, button: 0, pointerId: 1, isPrimary: true });
-    if (!('pointerId' in event) || event.pointerId === undefined) Object.defineProperty(event, 'pointerId', { value: 1 });
-    if (!('isPrimary' in event) || event.isPrimary === undefined) Object.defineProperty(event, 'isPrimary', { value: true });
-    target.dispatchEvent(event);
-  };
+  // Each note is 80px tall.
+  const layOut = () => layOutItems('[data-catalog="notes"] > li', 80);
 
   beforeEach(async () => {
     panel = await startPanel();
@@ -120,6 +107,26 @@ describe('NoteListComponent - reordering', () => {
 
     keydown(handle(notes[0]), 'Escape');
     expect(shown()).toEqual(['D', 'C', 'B', 'A']);
+  });
+
+  it('stays gone when a save fails after the list went away', async () => {
+    const held = deferred();
+    const set = spyOn(panel.fake.storage.local, 'set').andCallFake(() => held.promise);
+    handle(notes[0]).focus();
+    keydown(handle(notes[0]), ' ');
+    keydown(handle(notes[0]), 'ArrowDown');
+    keydown(handle(notes[0]), ' ');
+    await settle();
+
+    list.destroy();
+    const left = busListenerCounts();
+    held.reject(new Error('Quota exceeded.'));
+    await settle();
+    set.restore();
+
+    // Re-rendering the destroyed list would recreate its notes, each listening for minute ticks.
+    expect(busListenerCounts()).toEqual(left);
+    mount();
   });
 
   it('reports a failed save and shows the order as it still is', async () => {

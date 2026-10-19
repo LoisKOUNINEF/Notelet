@@ -1,7 +1,7 @@
 import { AppEventBus } from '#root/dist/src/core/index.js';
 import { SidebarComponent } from '#root/dist/src/app/components/sidebar/sidebar.component.js';
 import { scopeStoreService } from '#root/dist/src/app/services/scope-store/scope-store.service.js';
-import { KEYS, keydown, settle, startPanel, typeInto } from '../../testing/panel.js';
+import { busListenerCounts, deferred, KEYS, keydown, settle, startPanel, typeInto } from '../../testing/panel.js';
 
 describe('SidebarComponent', () => {
   let panel;
@@ -161,14 +161,16 @@ describe('SidebarComponent', () => {
     expect(document.activeElement).toBe($('.todo-composer__input'));
   });
 
-  it('switches to the site notes from its tab, without reading storage again', async () => {
+  it('switches to the site notes from its tab, reading only the site\'s pages list', async () => {
     await scopeStoreService.addNote('site', KEYS.site, 'About the site');
     await mount();
     const get = spyOn(panel.fake.storage.local, 'get');
 
     tab('site').click();
+    await settle();
 
-    expect(get.callCount).toBe(0);
+    // The notes were loaded with the page's: only the "Pages on this site" list is read (all of it).
+    expect(get.calls).toEqual([[null]]);
     get.restore();
     expect(tab('site').getAttribute('aria-selected')).toBe('true');
     expect($('.sidebar__location-text').textContent).toBe('example.com');
@@ -273,6 +275,7 @@ describe('SidebarComponent', () => {
     expect($('.site-pages')).toBeFalsy();
 
     tab('site').click();
+    await settle();
     $('.site-pages__toggle').click();
     expect(texts('.site-pages__label')).toEqual(['/blog', '/docs']);
     expect($('.site-pages__page--current .site-pages__label').textContent).toBe('/docs');
@@ -287,9 +290,78 @@ describe('SidebarComponent', () => {
     expect($('.site-pages__page--current .site-pages__label').textContent).toBe('/blog');
   });
 
+  it('only lists the site\'s pages (a read of all storage) on the site tab', async () => {
+    await scopeStoreService.addNote('page', 'https://example.com/blog', 'Another page');
+    const get = spyOn(panel.fake.storage.local, 'get');
+    const wholeReads = () => get.calls.filter(([keys]) => keys === null).length;
+    await mount();
+    await scopeStoreService.addNote('page', KEYS.page, 'Changes on the page tab');
+    await settle();
+    expect(wholeReads()).toBe(0);
+
+    tab('site').click();
+    await settle();
+    expect(wholeReads()).toBe(1);
+    // A change while it shows: listed again.
+    await scopeStoreService.addNote('page', 'https://example.com/new', 'New page');
+    await settle();
+    expect(wholeReads()).toBe(2);
+    get.restore();
+    $('.site-pages__toggle').click();
+    expect(texts('.site-pages__label')).toEqual(['/blog', '/docs', '/new']);
+  });
+
+  it('shows a spinner while first listing the site\'s pages, not when listing them again', async () => {
+    await scopeStoreService.addNote('page', KEYS.page, 'A note');
+    await mount();
+    const storage = panel.fake.storage.local;
+    const realGet = storage.get.bind(storage);
+    let held = null;
+    const get = spyOn(storage, 'get').andCallFake((keys) => {
+      if (keys !== null) return realGet(keys);
+      held = deferred();
+      return held.promise.then(() => realGet(keys));
+    });
+
+    tab('site').click();
+    await settle();
+    expect($('.site-pages__loading a11y-spinner').getAttribute('label')).toBe('Loading this site\'s pages');
+    expect($('.site-pages__toggle')).toBeFalsy();
+    held.resolve();
+    await settle();
+    expect($('.site-pages__loading')).toBeFalsy();
+    expect($('.site-pages__toggle').textContent.trim()).toBe('Pages on this site (1)');
+
+    // Listed again after a change: the list stays meanwhile.
+    await scopeStoreService.addNote('page', 'https://example.com/b', 'B');
+    await settle();
+    expect($('.site-pages__loading')).toBeFalsy();
+    expect($('.site-pages__toggle')).toBeTruthy();
+    held.resolve();
+    await settle();
+    get.restore();
+    expect($('.site-pages__toggle').textContent.trim()).toBe('Pages on this site (2)');
+  });
+
+  it('says so when the site\'s pages can\'t be listed, without a spinner left turning', async () => {
+    await mount();
+    const storage = panel.fake.storage.local;
+    const realGet = storage.get.bind(storage);
+    const get = spyOn(storage, 'get').andCallFake(async (keys) => {
+      if (keys === null) throw new Error('Nope.');
+      return realGet(keys);
+    });
+    tab('site').click();
+    await settle();
+    get.restore();
+    expect(panel.toasts.at(-1).message).toBe('Couldn\'t list this site\'s pages. Nope.');
+    expect($('.site-pages__loading')).toBeFalsy();
+  });
+
   it('adds a page to the site\'s list once it has notes', async () => {
     await mount();
     tab('site').click();
+    await settle();
     expect($('.site-pages')).toBeFalsy();
 
     await scopeStoreService.addTodo('page', KEYS.page, 'First to-do');
@@ -526,5 +598,38 @@ describe('SidebarComponent', () => {
     tab('site').click();
     tab('page').click();
     expect($('.note-editor')).toBeFalsy();
+  });
+
+  it('leaves nothing behind once destroyed, however it was used', async () => {
+    await scopeStoreService.addNote('page', 'https://example.com/other', 'Elsewhere on the site');
+    await scopeStoreService.addTodo('page', KEYS.page, 'First');
+    await scopeStoreService.addTodo('page', KEYS.page, 'Second');
+    const baseline = busListenerCounts();
+    await mount();
+
+    // Notes: write one. To-dos: add one, pick one up and put it back.
+    typeInto($('.note-composer__input'), 'A note');
+    keydown($('.note-composer__input'), 'Enter', { ctrlKey: true });
+    await settle();
+    kindTab('todos').click();
+    typeInto($('.todo-composer__input'), 'Third');
+    $('.todo-composer').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+    await settle();
+    $('.todo-item__handle').focus();
+    keydown($('.todo-item__handle'), ' ');
+    keydown($('.todo-item__handle'), 'Escape');
+    // The site, its pages list, then Settings open and closed.
+    tab('site').click();
+    await settle();
+    $('.site-pages__toggle').click();
+    $('.sidebar__settings-toggle').click();
+    await settle();
+    $('.sidebar__settings-toggle').click();
+    await settle();
+
+    sidebar.destroy();
+    sidebar = null;
+    await settle();
+    expect(busListenerCounts()).toEqual(baseline);
   });
 });

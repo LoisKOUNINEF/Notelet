@@ -1,4 +1,7 @@
+// The title and message centered in the space above the buttons: auto margins above and below
+// them share it, and shrink to nothing when a long message needs the room (it then scrolls).
 .confirm-dialog__title {
+  margin-top: auto;
   margin-bottom: var(--space-2);
   font-family: var(--font-display);
   font-size: 1.1875rem;
@@ -7,6 +10,7 @@
 }
 
 .confirm-dialog__message {
+  margin-bottom: auto;
   color: var(--color-text-muted);
   font-size: var(--font-small);
 }
@@ -18,6 +22,6 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: var(--a11y-modal-footer-gap);
-  // Centered with the text (see .a11y-modal-content in _styles.scss).
-  margin-top: var(--a11y-modal-footer-margin-top);
+  // At the bottom right, at least this far below the message.
+  padding-top: var(--a11y-modal-footer-margin-top);
 }

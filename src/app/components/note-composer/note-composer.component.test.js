@@ -1,3 +1,4 @@
+import { hasRequestedFocus } from '#root/dist/src/app/lib/focus.js';
 import { NoteComposerComponent } from '#root/dist/src/app/components/note-composer/note-composer.component.js';
 import { scopeStoreService } from '#root/dist/src/app/services/scope-store/scope-store.service.js';
 import { setDraft } from '#root/dist/src/app/lib/drafts.js';
@@ -47,6 +48,8 @@ describe('NoteComposerComponent', () => {
 
     expect(input().value).toBe('Keep me');
     expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t add the note. Quota exceeded.', type: 'error', duration: 6000 });
+    // Nothing left asking for the focus: a later re-render won't pull it back to this field.
+    expect(hasRequestedFocus()).toBe(false);
   });
 
   it('starts from the draft left on the same scope and page', () => {

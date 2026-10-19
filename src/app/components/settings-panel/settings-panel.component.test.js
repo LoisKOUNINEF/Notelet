@@ -1,7 +1,7 @@
 import { SettingsPanelComponent } from '#root/dist/src/app/components/settings-panel/settings-panel.component.js';
 import { scopeStoreService } from '#root/dist/src/app/services/scope-store/scope-store.service.js';
 import { settingsService } from '#root/dist/src/app/services/settings/settings.service.js';
-import { KEYS, settle, startPanel } from '../../testing/panel.js';
+import { busListenerCounts, deferred, KEYS, settle, startPanel } from '../../testing/panel.js';
 
 describe('SettingsPanelComponent', () => {
   let panel;
@@ -126,6 +126,28 @@ describe('SettingsPanelComponent', () => {
     expect(radio('sync').checked).toBe(true);
     expect($('.settings-panel__confirm')).toBeFalsy();
     expect(document.activeElement).toBe(radio('sync'));
+  });
+
+  it('leaves nothing behind when closed while the notes are still moving', async () => {
+    settings.destroy();
+    const baseline = busListenerCounts();
+    settings = new SettingsPanelComponent(document.getElementById('app').appendChild(document.createElement('div')));
+    settings.render();
+    await settle();
+
+    const held = deferred();
+    const set = spyOn(panel.fake.storage.sync, 'set').andCallFake(() => held.promise);
+    await choose('sync');
+    // Settings closed before the move ends.
+    settings.destroy();
+    held.resolve();
+    await settle();
+    set.restore();
+
+    // Its end used to re-render the closed panel, creating a delete section nobody would destroy.
+    expect(busListenerCounts()).toEqual(baseline);
+    settings = new SettingsPanelComponent(document.getElementById('app').appendChild(document.createElement('div')));
+    settings.render();
   });
 
   it('explains when Chrome\'s settings can\'t be opened', async () => {

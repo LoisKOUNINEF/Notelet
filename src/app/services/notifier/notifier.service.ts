@@ -1,5 +1,6 @@
 import { notify, type NotifyOptions } from 'a11y-elements/overlays/snackbar';
 import { Service } from '../../../core/index.js';
+import { errorMessage } from '../../lib/errors.js';
 
 export interface INotifyAction {
   label: string;
@@ -24,6 +25,17 @@ export class NotifierService extends Service<NotifierService> {
 
   public success(message: string, action?: INotifyAction): void {
     this.show(message, { type: 'success' }, action);
+  }
+
+  /**
+   * What was just done, with an "Undo" running `undo`. If that fails, an error says so:
+   * `failure` ("Couldn't restore the note.") followed by the reason.
+   */
+  public undoable(message: string, undo: () => Promise<unknown>, failure: string, type: 'info' | 'success' = 'info'): void {
+    this.show(message, { type }, {
+      label: 'Undo',
+      run: () => void undo().catch((error: unknown) => this.error(`${failure} ${errorMessage(error)}`)),
+    });
   }
 
   public error(message: string): void {

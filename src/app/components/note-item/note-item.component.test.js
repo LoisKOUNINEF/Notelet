@@ -289,10 +289,28 @@ describe('NoteItemComponent - checklist', () => {
     expect(item(note).querySelector('.note-item__add-item-input')).toBeTruthy();
   });
 
-  it('hides the empty text of an items-only note', async () => {
+  it('hides the empty text of an items-only note, naming it by its first item instead', async () => {
     const note = await scopeStoreService.addNote('page', KEYS.page, '', [{ id: 'a', text: 'Only', done: false }]);
     await mount();
     expect(item(note).querySelector('.note-item__text')).toBeFalsy();
+
+    // Edit and Delete are still described by something that exists.
+    const describedBy = item(note).querySelector('.note-item__edit').getAttribute('aria-describedby');
+    expect(document.getElementById(describedBy).textContent).toBe('Only');
+    expect(item(note).querySelector('.note-item__delete').getAttribute('aria-describedby')).toBe(describedBy);
+  });
+
+  it('names a long note by its first line, cut to a readable length', async () => {
+    const long = `${'A very long first line '.repeat(5)}\nSecond line`;
+    const note = await scopeStoreService.addNote('page', KEYS.page, long);
+    await scopeStoreService.addNote('page', KEYS.page, '\n  Starts after a blank line\nMore');
+    await mount();
+
+    const label = item(note).querySelector('.note-item__more').getAttribute('aria-label');
+    expect(label.startsWith('More actions for: A very long first line')).toBe(true);
+    expect(label.endsWith('…')).toBe(true);
+    expect(label.length).toBe('More actions for: '.length + 60);
+    expect($$('.note-item__more').map((b) => b.getAttribute('aria-label'))).toContain('More actions for: Starts after a blank line');
   });
 
   it('shows notes saved before checklists as plain notes', async () => {

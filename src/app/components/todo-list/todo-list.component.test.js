@@ -3,7 +3,7 @@ import { TodoListComponent } from '#root/dist/src/app/components/todo-list/todo-
 import { confirmService } from '#root/dist/src/app/services/confirm/confirm.service.js';
 import { scopeStoreService } from '#root/dist/src/app/services/scope-store/scope-store.service.js';
 import { settingsService } from '#root/dist/src/app/services/settings/settings.service.js';
-import { KEYS, keydown, settle, startPanel, typeInto } from '../../testing/panel.js';
+import { keydown, KEYS, layOut as layOutItems, pointer, settle, spoken, startPanel, typeInto } from '../../testing/panel.js';
 
 describe('TodoListComponent', () => {
   let panel;
@@ -250,26 +250,13 @@ describe('TodoListComponent - reordering', () => {
   const handle = (todo) => $(`[data-todo-id="${todo.id}"] .todo-item__handle`);
   const shown = () => $$('[data-catalog="open-todos"] a11y-checkbox').map((el) => el.getAttribute('label'));
   const stored = async () => (await scopeStoreService.load(KEYS)).page.todos.map((t) => t.text);
-  const spoken = async () => {
-    await new Promise((resolve) => setTimeout(resolve, 60));
-    return document.getElementById('app-announcer').textContent;
-  };
   const mount = (items = todos) => {
     const placeholder = document.getElementById('app').appendChild(document.createElement('div'));
     list = new TodoListComponent(placeholder, { scope: 'page', keys: KEYS, todos: items });
     list.render();
   };
-  // jsdom has no layout: each open to-do is 40px tall, stacked from y = 0.
-  const layOut = () => $$('[data-catalog="open-todos"] > li').forEach((li, i) => {
-    li.getBoundingClientRect = () => ({ top: i * 40, height: 40, bottom: i * 40 + 40, left: 0, right: 300, width: 300 });
-  });
-  const pointer = (type, target, clientY, extra = {}) => {
-    const Ctor = window.PointerEvent ?? window.MouseEvent;
-    const event = new Ctor(type, { bubbles: true, cancelable: true, clientY, button: 0, pointerId: 1, isPrimary: true, ...extra });
-    if (!('pointerId' in event) || event.pointerId === undefined) Object.defineProperty(event, 'pointerId', { value: extra.pointerId ?? 1 });
-    if (!('isPrimary' in event) || event.isPrimary === undefined) Object.defineProperty(event, 'isPrimary', { value: extra.isPrimary ?? true });
-    target.dispatchEvent(event);
-  };
+  // Each open to-do is 40px tall.
+  const layOut = () => layOutItems('[data-catalog="open-todos"] > li', 40);
 
   beforeEach(async () => {
     panel = await startPanel();
@@ -476,6 +463,26 @@ describe('TodoListComponent - reordering', () => {
     handle(todos[0]).blur();
     await settle();
     expect(await stored()).toEqual(['B', 'A', 'C']);
+  });
+
+  it('lets go of a drag when the list goes away mid-drag', async () => {
+    layOut();
+    const removed = spyOn(window, 'removeEventListener');
+    const set = spyOn(panel.fake.storage.local, 'set');
+    pointer('pointerdown', handle(todos[0]), 20);
+    pointer('pointermove', handle(todos[0]), 105);
+
+    // E.g. the user switched browser tab with the keyboard: the panel shows another list.
+    list.destroy();
+    expect(removed.calls.some(([type]) => type === 'blur')).toBe(true);
+    removed.restore();
+
+    // The window losing focus later doesn't drop the to-do into a list that's gone.
+    window.dispatchEvent(new window.Event('blur'));
+    await settle();
+    expect(set.callCount).toBe(0);
+    set.restore();
+    mount();
   });
 
   it('ignores a pointer cancel with no drag going on', () => {

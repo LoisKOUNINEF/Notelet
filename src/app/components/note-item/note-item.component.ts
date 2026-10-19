@@ -1,7 +1,7 @@
-import { removeOverlaysWithin } from 'a11y-elements/core';
 import { Component, html } from '../../../core/index.js';
 import { byData, clearRequestedFocus, requestFocus } from '../../lib/focus.js';
 import { errorMessage } from '../../lib/errors.js';
+import { delegateActions, removeOverlays } from '../../lib/overlays.js';
 import { formatTimeAgo } from '../../lib/pipes.js';
 import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
@@ -43,7 +43,6 @@ const templateFn = ({ note, items, editing, addingItem, edited, moveTarget, reor
 export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
   private _note: INote;
   private _index: number;
-  private _keys: IScopeKeys;
   private _options: INoteItemOptions;
   private _editor: NoteEditorComponent | null = null;
 
@@ -62,7 +61,6 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
     this.element.dataset.noteId = note.id;
     this._note = note;
     this._index = index;
-    this._keys = options.keys;
     this._options = options;
     // Only its own <time> changes: an edit in progress isn't re-rendered away.
     this.listen('minute-tick', () => {
@@ -107,35 +105,24 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
     });
   }
 
-  // The "⋯" menu is an a11y-elements dropdown: it moves itself to <body> once connected (see the
-  // a11y-elements guide). It's removed with this item's own wrapper, found again by id, and its
-  // clicks are delegated from it.
+  // The "⋯" menu is an overlay on <body> (see lib/overlays.ts).
   protected override onBeforeRender(): void {
-    this.removeOwnOverlays();
+    removeOverlays(this.element, '.note-item__overlays');
     super.onBeforeRender();
   }
 
   protected override onAfterRender(): void {
     super.onAfterRender();
-    const menu = document.getElementById(`note-${this._note.id}-menu`);
-    if (!menu) return;
-    const onClick = (event: Event) => {
-      const action = (event.target as Element).closest<HTMLElement>('[data-action]')?.dataset.action;
+    const menu = delegateActions(`note-${this._note.id}-menu`, (action) => {
       if (action === 'move') void this.move();
       else if (action === 'add-checklist') this.addChecklist();
-    };
-    menu.addEventListener('click', onClick);
-    this.eventListeners.push([menu, 'click', onClick]);
+    });
+    if (menu) this.eventListeners.push(menu);
   }
 
   protected override onBeforeDestroy(): void {
-    this.removeOwnOverlays();
+    removeOverlays(this.element, '.note-item__overlays');
     super.onBeforeDestroy();
-  }
-
-  private removeOwnOverlays(): void {
-    const own = this.element.querySelector('.note-item__overlays');
-    if (own) removeOverlaysWithin(own);
   }
 
   private _edit(): void {
@@ -194,7 +181,7 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
     const target = this._note.scope === 'page' ? 'site' : 'page';
     this.requestFocusAfterLeaving();
     try {
-      await scopeStoreService.move('notes', this._note, this._keys);
+      await scopeStoreService.move('notes', this._note, this._options.keys);
       notifierService.success(`Moved to this ${target}'s notes.`);
     } catch (error) {
       clearRequestedFocus();
@@ -207,19 +194,15 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
     this.requestFocusAfterLeaving();
     try {
       await scopeStoreService.remove('notes', note);
-      notifierService.info('Note deleted.', {
-        label: 'Undo',
-        run: () => void scopeStoreService.restore('notes', note).catch((error) => {
-          notifierService.error(`Couldn't restore the note. ${errorMessage(error)}`);
-        }),
-      });
+      notifierService.undoable('Note deleted.', () => scopeStoreService.restore('notes', note), `Couldn't restore the note.`);
     } catch (error) {
       clearRequestedFocus();
       notifierService.error(`Couldn't delete the note. ${errorMessage(error)}`);
     }
   }
 
-  // Once this note leaves the list, the next one takes its index (applied once the list has re-rendered); else the previous one, else the composer.
+  // Once this note leaves the list, the next one takes its index (applied once the list has
+  // re-rendered); else the previous one, else the composer.
   private requestFocusAfterLeaving(): void {
     requestFocus(
       `[data-index="${this._index}"] .note-item__edit`,
@@ -239,7 +222,14 @@ function sameItems(a: IChecklistItem[], b: IChecklistItem[]): boolean {
   return a.length === b.length && a.every((item, i) => item.id === b[i]!.id && item.text === b[i]!.text && item.done === b[i]!.done);
 }
 
-// How a note is named by its handle, its "⋯" trigger, and while it's moved: its text, else its first item.
+// Longest name read out for a note: a long note would otherwise be read in full on every control.
+const LABEL_LENGTH = 60;
+
+/**
+ * How a note is named by its controls (Edit/Delete descriptions, the handle, the "⋯" trigger)
+ * and while it's moved: its text's first line, else its first item, cut to a readable length.
+ */
 export function noteLabel(note: INote): string {
-  return note.text || note.items?.[0]?.text || 'Note';
+  const label = ((note.text ?? '').split('\n').find((line) => line.trim()) ?? note.items?.[0]?.text ?? '').trim() || 'Note';
+  return label.length > LABEL_LENGTH ? `${label.slice(0, LABEL_LENGTH - 1).trimEnd()}…` : label;
 }

@@ -56,6 +56,8 @@ export class ListReorder {
   private _previewing = false;
   // While dragging: the panel losing focus (another window, an OS gesture) cancels the drag.
   private readonly _onWindowBlur = () => this.endDrag(false);
+  // The host list was destroyed: nothing reaches it any more (see dispose()).
+  private _disposed = false;
 
   constructor(private readonly host: IReorderHost) {}
 
@@ -69,6 +71,17 @@ export class ListReorder {
 
   public get previewOrder(): string[] | null {
     return this._grab?.order ?? null;
+  }
+
+  /**
+   * For the host's onBeforeDestroy(): drops a grab or drag in progress without calling the host
+   * back, and releases the window listener a drag holds (which would otherwise keep the destroyed
+   * list alive, and later drop into it). A save already sent finishes, but isn't reported back.
+   */
+  public dispose(): void {
+    this._disposed = true;
+    this._grab = null;
+    this.releaseDrag();
   }
 
   // The listeners, for the host to bind on its root (and unbind with its own).
@@ -153,11 +166,11 @@ export class ListReorder {
     if (order.join() === original.join()) {
       this.preview(id);
       announce(`Dropped ${text}.`);
-      this.host.settle(false);
+      this.settle(false);
       return;
     }
     announce(`Dropped ${text} at position ${order.indexOf(id) + 1} of ${order.length}.`);
-    this.host.settle(await this.host.commit(order, id));
+    this.settle(await this.host.commit(order, id));
   }
 
   private cancel(): void {
@@ -165,7 +178,7 @@ export class ListReorder {
     this._grab = null;
     this.preview(id);
     announce('Reorder cancelled.');
-    this.host.settle(false);
+    this.settle(false);
   }
 
   // Re-renders the list with the current grab (if any), focus back on `focusId`'s handle.
@@ -227,24 +240,35 @@ export class ListReorder {
   }
 
   private endDrag(keep: boolean): void {
-    const drag = this._drag;
+    const drag = this.releaseDrag();
     if (!drag) return;
+
+    const order = this.host.ids();
+    if (keep && drag.to !== drag.from) {
+      const next = moveId(order, drag.id, drag.to);
+      announce(`Moved ${this.host.textOf(drag.id)} to position ${drag.to + 1} of ${order.length}.`);
+      void this.host.commit(next, drag.id).then((saved) => this.settle(saved));
+      return;
+    }
+    this.focusHandle(drag.id);
+    this.settle(false);
+  }
+
+  // Ends the pointer drag in progress, if any: its window listener and the items' drag styles.
+  private releaseDrag(): IPointerDrag | null {
+    const drag = this._drag;
+    if (!drag) return null;
     this._drag = null;
     window.removeEventListener('blur', this._onWindowBlur);
     drag.items.forEach((item) => {
       item.style.transform = '';
       item.classList.remove(this.host.draggingClass);
     });
+    return drag;
+  }
 
-    const order = this.host.ids();
-    if (keep && drag.to !== drag.from) {
-      const next = moveId(order, drag.id, drag.to);
-      announce(`Moved ${this.host.textOf(drag.id)} to position ${drag.to + 1} of ${order.length}.`);
-      void this.host.commit(next, drag.id).then((saved) => this.host.settle(saved));
-      return;
-    }
-    this.focusHandle(drag.id);
-    this.host.settle(false);
+  private settle(saved: boolean): void {
+    if (!this._disposed) this.host.settle(saved);
   }
 
   // The item whose handle a keyboard or pointer event started on (their targets are elements).

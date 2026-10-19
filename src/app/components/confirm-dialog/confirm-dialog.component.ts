@@ -1,5 +1,5 @@
-import { removeOverlaysWithin } from 'a11y-elements/core';
 import { Component, html } from '../../../core/index.js';
+import { delegateActions, removeOverlays } from '../../lib/overlays.js';
 import { confirmService, type IConfirmDialog, type IConfirmOptions } from '../../services/confirm/confirm.service.js';
 
 const templateFn = ({ title, message, confirmLabel }: IConfirmOptions) => html`__TEMPLATE_PLACEHOLDER__`;
@@ -11,8 +11,7 @@ const MODAL_ID = 'confirm-dialog';
  * first, so a stray Enter cancels) and a confirm button. Closing it any other way (Escape, a click
  * outside, its ×) is a Cancel too.
  *
- * Like the "⋯" menus, the modal moves itself to <body> once connected: it's removed with this
- * component's own wrapper, found again by id, and its clicks are delegated from it.
+ * Like the "⋯" menus, the modal is an overlay on <body> (see lib/overlays.ts).
  */
 export class ConfirmDialogComponent extends Component<HTMLElement, IConfirmOptions> implements IConfirmDialog {
   // The answer of the question being asked, if one is.
@@ -38,32 +37,30 @@ export class ConfirmDialogComponent extends Component<HTMLElement, IConfirmOptio
   }
 
   protected override onBeforeRender(): void {
-    this.removeOwnOverlays();
+    removeOverlays(this.element, '.confirm-dialog__overlays');
     super.onBeforeRender();
   }
 
   protected override onAfterRender(): void {
     super.onAfterRender();
     const modal = this.modal;
-    if (!modal) return;
-    const onClick = (event: Event) => {
-      const action = (event.target as Element).closest<HTMLElement>('[data-action]')?.dataset.action;
+    const buttons = delegateActions(MODAL_ID, (action) => {
       if (action === 'confirm') this.close(true);
       else if (action === 'cancel') this.close(false);
-    };
+    });
+    if (!modal || !buttons) return;
     // Escape, the backdrop, the ×: the modal closed itself, without an answer.
     const onOverlayClose = () => {
       if (!modal.open) this.answer(false);
     };
-    modal.addEventListener('click', onClick);
     document.addEventListener('a11y-overlay-close', onOverlayClose);
-    this.eventListeners.push([modal, 'click', onClick], [document, 'a11y-overlay-close', onOverlayClose]);
+    this.eventListeners.push(buttons, [document, 'a11y-overlay-close', onOverlayClose]);
   }
 
   protected override onBeforeDestroy(): void {
     this.answer(false);
     this._detach();
-    this.removeOwnOverlays();
+    removeOverlays(this.element, '.confirm-dialog__overlays');
     super.onBeforeDestroy();
   }
 
@@ -82,10 +79,5 @@ export class ConfirmDialogComponent extends Component<HTMLElement, IConfirmOptio
     const answer = this._answer;
     this._answer = null;
     answer?.(confirmed);
-  }
-
-  private removeOwnOverlays(): void {
-    const own = this.element.querySelector('.confirm-dialog__overlays');
-    if (own) removeOverlaysWithin(own);
   }
 }

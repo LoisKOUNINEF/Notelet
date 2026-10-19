@@ -1,6 +1,7 @@
 import { Component, html } from '../../../core/index.js';
 import { applyRequestedFocus, clearRequestedFocus, hasRequestedFocus, requestFocus } from '../../lib/focus.js';
 import { errorMessage } from '../../lib/errors.js';
+import { countList } from '../../lib/plural.js';
 import { activeTabService } from '../../services/active-tab/active-tab.service.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
 import { settingsService } from '../../services/settings/settings.service.js';
@@ -30,6 +31,11 @@ const KIND_PANEL_ID = 'sidebar-kind-panel';
 const SCOPE_LABELS: Record<NoteScope, string> = { page: 'This page', site: 'This site' };
 const KIND_LABELS: Record<ScopeContentKind, string> = { todos: 'To-dos', notes: 'Notes' };
 
+// Before the first load (or after a failed one): empty lists rather than a panel stuck loading.
+function emptyContent(): IScopedContent {
+  return { page: { notes: [], todos: [] }, site: { notes: [], todos: [] } };
+}
+
 /**
  * The side panel's root: the active tab's page and site to-dos and notes, behind "This page" /
  * "This site" tabs, then "To-dos" / "Notes" tabs (the last one picked is a setting), or the
@@ -40,14 +46,16 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
   private _scope: NoteScope = 'page';
   private _kind: ScopeContentKind;
   private _content: IScopedContent | null = null;
-  // The site's pages that have notes or to-dos, for the "This site" tab.
-  private _sitePages: ISitePage[] = [];
+  // The site's pages that have notes or to-dos, for the "This site" tab. Listing them reads the
+  // whole storage area, so only while that tab shows; null: not loaded for this site yet.
+  private _sitePages: ISitePage[] | null = null;
   private _settingsOpen = false;
   private _noteList: NoteListComponent | null = null;
   private _todoList: TodoListComponent | null = null;
   private _sitePagesList: SitePagesComponent | null = null;
   // Only the latest load's result is shown, however the requests resolve.
   private _loadId = 0;
+  private _sitePagesLoadId = 0;
 
   constructor(mountTarget: string | HTMLElement) {
     super({ templateFn, mountTarget });
@@ -58,12 +66,13 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
     this.listen('active-scope-changed', ({ keys }) => {
       this._keys = keys;
       this._content = null;
-      this._sitePages = [];
+      this._sitePages = null;
       this.refresh();
       void this.load();
+      void this.loadSitePages();
     });
-    this.listen('scope-content-changed', () => void this.load());
-    this.listen('storage-area-changed', () => void this.load());
+    this.listen('scope-content-changed', () => this.reload());
+    this.listen('storage-area-changed', () => this.reload());
     // The To-dos / Notes tab picked in another window.
     this.listen('settings-changed', () => {
       if (settingsService.contentKind === this._kind) return;
@@ -85,8 +94,7 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
     const scope = this._scope;
     const kind = this._kind;
     const scopeKey = `${scope}|${keys[scope]}`;
-    const empty = { notes: [], todos: [] };
-    const content = this._content ?? { page: empty, site: empty };
+    const content = this._content ?? emptyContent();
     const shown = counts(content[scope]);
 
     return [
@@ -165,6 +173,15 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
     this._scope = scope;
     requestFocus(`#scope-tab-${scope}`);
     this.refresh();
+    if (this._sitePages === null) void this.loadSitePages();
+  }
+
+  // Something changed (here, in another window, or the storage area): the shown lists reload.
+  // The site's pages too if that tab shows (keeping the previous list meanwhile), else later.
+  private reload(): void {
+    void this.load();
+    if (this._scope === 'site') void this.loadSitePages();
+    else this._sitePages = null;
   }
 
   // Shown at once; saved for the next time the panel opens (and for other windows).
@@ -192,19 +209,36 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
     if (!keys) return;
 
     let content: IScopedContent;
-    let sitePages: ISitePage[];
     try {
-      [content, sitePages] = await Promise.all([scopeStoreService.load(keys), scopeStoreService.listSitePages(keys.site)]);
+      content = await scopeStoreService.load(keys);
     } catch (error) {
       if (loadId !== this._loadId) return;
       // What was shown stays (or empty lists), rather than a panel stuck loading.
       notifierService.error(`Couldn't load your notes. ${errorMessage(error)}`);
-      content = this._content ?? { page: { notes: [], todos: [] }, site: { notes: [], todos: [] } };
-      sitePages = this._sitePages;
+      content = this._content ?? emptyContent();
     }
     if (loadId !== this._loadId) return;
     this._content = content;
-    this._sitePages = sitePages;
+    this.refresh();
+  }
+
+  // Only on the "This site" tab: it reads every note and to-do of the storage area.
+  private async loadSitePages(): Promise<void> {
+    const keys = this._keys;
+    const loadId = ++this._sitePagesLoadId;
+    if (!keys || this._scope !== 'site') return;
+
+    let pages: ISitePage[];
+    try {
+      pages = await scopeStoreService.listSitePages(keys.site);
+    } catch (error) {
+      if (loadId !== this._sitePagesLoadId) return;
+      notifierService.error(`Couldn't list this site's pages. ${errorMessage(error)}`);
+      // The list goes (no spinner left turning), unless one was shown already.
+      pages = this._sitePages ?? [];
+    }
+    if (loadId !== this._sitePagesLoadId) return;
+    this._sitePages = pages;
     this.refresh();
   }
 
@@ -234,6 +268,7 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
 
   private view(): ISidebarView {
     const keys = this._keys;
+    const onPage = this._scope === 'page';
     return {
       keys,
       scope: this._scope,
@@ -241,7 +276,7 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
       loaded: this._content !== null,
       settingsOpen: this._settingsOpen,
       location: keys
-        ? { text: this._scope === 'page' ? keys.pageLabel : keys.siteLabel, full: this._scope === 'page' ? keys.page : keys.site }
+        ? { text: onPage ? keys.pageLabel : keys.siteLabel, full: onPage ? keys.page : keys.site }
         : { text: '', full: '' },
     };
   }
@@ -254,11 +289,7 @@ function counts({ notes, todos }: IScopedContent[NoteScope]): Record<ScopeConten
 
 // How a scope tab's count is read out, e.g. ", 2 notes, 1 to-do".
 function scopeCountText(notes: number, todos: number): string {
-  const parts = [
-    notes > 0 ? `${notes} ${notes === 1 ? 'note' : 'notes'}` : '',
-    todos > 0 ? `${todos} ${todos === 1 ? 'to-do' : 'to-dos'}` : '',
-  ].filter(Boolean);
-  return `, ${parts.length > 0 ? parts.join(', ') : 'no items'}`;
+  return `, ${countList([[notes, 'note'], [todos, 'to-do']], ', ') || 'no items'}`;
 }
 
 // How a kind tab's count is read out: ", 2" alone would be unclear next to "To-dos".

@@ -1,7 +1,7 @@
 import { Component, html } from '../../../core/index.js';
 import { getDraft, setDraft } from '../../lib/drafts.js';
 import { errorMessage } from '../../lib/errors.js';
-import { requestFocus } from '../../lib/focus.js';
+import { clearRequestedFocus, requestFocus } from '../../lib/focus.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
 import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
 
@@ -60,6 +60,8 @@ export class TodoComposerComponent extends Component<HTMLElement, ITodoComposerV
     try {
       await scopeStoreService.addTodo(this._scope, this._key, text);
     } catch (error) {
+      // The focus stays here; a later re-render mustn't bring it back here from elsewhere.
+      clearRequestedFocus();
       input.value = text;
       setDraft(draftId(this._scope, this._key), text);
       notifierService.error(`Couldn't add the to-do. ${errorMessage(error)}`);

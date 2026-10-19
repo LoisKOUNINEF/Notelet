@@ -1,5 +1,5 @@
 ${editing ? html`<div data-component="note-editor"></div>` : html`
-<p class="note-item__text" id="note-${note.id}-text" data-optional>${note.text}</p>
+${note.text ? html`<p class="note-item__text" id="note-${note.id}-text">${note.text}</p>` : html`<span class="a11y-visually-hidden" id="note-${note.id}-text">${name}</span>`}
 ${items.length > 0 ? html`<ul class="note-item__checklist" data-catalog="checklist" aria-label="Checklist"></ul>` : ''}
 ${items.length > 0 || addingItem ? html`
 <form class="note-item__add-item" data-event="submit:_addItem">

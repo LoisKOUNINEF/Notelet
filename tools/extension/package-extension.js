@@ -69,8 +69,8 @@ function removeCompressedFiles() {
 
 // The archive the Chrome Web Store takes: dist/src's content at the zip's root.
 function zipForStore() {
-  const { version } = JSON.parse(fs.readFileSync(path.resolve('package.json'), 'utf-8'));
-  const archive = path.resolve('dist', `ticknote-${version}.zip`);
+  const { name, version } = JSON.parse(fs.readFileSync(path.resolve('package.json'), 'utf-8'));
+  const archive = path.resolve('dist', `${name}-${version}.zip`);
   fs.rmSync(archive, { force: true });
   const result = spawnSync('zip', ['-r', '-X', '-q', archive, '.', '-x', '*.map', '.DS_Store'], { cwd: OUTPUT, stdio: 'inherit' });
   if (result.error || result.status !== 0) {

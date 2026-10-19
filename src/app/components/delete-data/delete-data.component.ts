@@ -1,6 +1,7 @@
 import { Component, html, raw } from '../../../core/index.js';
 import { AGES, DEFAULT_AGE, ageOption, cutoff, isAge, type Age } from '../../lib/ages.js';
 import { errorMessage } from '../../lib/errors.js';
+import { countList } from '../../lib/plural.js';
 import { confirmService } from '../../services/confirm/confirm.service.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
 import { scopeStoreService, type IStoredItem } from '../../services/scope-store/scope-store.service.js';
@@ -39,14 +40,18 @@ export class DeleteDataComponent extends Component<HTMLElement, IDeleteDataView>
   private _busy = false;
   // Only the latest load's result is shown.
   private _loadId = 0;
+  private _destroyed = false;
 
   constructor(mountTarget: HTMLElement) {
     super({ templateFn, mountTarget, config: DeleteDataComponent.emptyView() });
     this.config = this.view();
     this.listen('scope-content-changed', () => void this.load());
     this.listen('storage-area-changed', () => void this.load());
-    // An item can cross the cutoff while Settings stays open.
-    this.listen('minute-tick', () => this.refresh());
+    // An item can cross the cutoff while Settings stays open. Only re-rendered when a count
+    // changed: a re-render rebuilds the <select>, which would close its popup if it's open.
+    this.listen('minute-tick', () => {
+      if (JSON.stringify(this.view()) !== JSON.stringify(this.config)) this.refresh();
+    });
     void this.load();
   }
 
@@ -102,12 +107,7 @@ export class DeleteDataComponent extends Component<HTMLElement, IDeleteDataView>
       }
       const todoKeys = Object.keys(removed).filter((key) => key.startsWith('todos:'));
       const todos = todoKeys.reduce((sum, key) => sum + removed[key]!.length, 0);
-      notifierService.info(`${countText({ notes: items.length - todos, todos })} deleted.`, {
-        label: 'Undo',
-        run: () => void scopeStoreService.restoreRemoved(removed).catch((error) => {
-          notifierService.error(`Couldn't restore them. ${errorMessage(error)}`);
-        }),
-      });
+      notifierService.undoable(`${countText({ notes: items.length - todos, todos })} deleted.`, () => scopeStoreService.restoreRemoved(removed), `Couldn't restore them.`);
     } catch (error) {
       notifierService.error(`Couldn't delete the older notes. ${errorMessage(error)}`);
     }
@@ -158,9 +158,16 @@ export class DeleteDataComponent extends Component<HTMLElement, IDeleteDataView>
     };
   }
 
+  protected override onBeforeDestroy(): void {
+    this._destroyed = true;
+    super.onBeforeDestroy();
+  }
+
   // Re-renders with fresh counts, keeping keyboard focus on the control that had it (or the
   // next one still usable: a button just disabled can't keep it).
   private refresh(): void {
+    // Settings closed while counting: nothing left to show the counts in.
+    if (this._destroyed) return;
     const active = document.activeElement;
     const focused = active instanceof HTMLElement && this.element.contains(active)
       ? FOCUSABLE.findIndex((selector) => active.matches(selector))
@@ -182,9 +189,5 @@ function counts(items: IStoredItem[]): ICounts {
 
 // "2 notes and 1 to-do", "3 to-dos"...: a kind with none isn't named.
 export function countText({ notes, todos }: ICounts): string {
-  const parts = [
-    notes > 0 ? `${notes} ${notes === 1 ? 'note' : 'notes'}` : '',
-    todos > 0 ? `${todos} ${todos === 1 ? 'to-do' : 'to-dos'}` : '',
-  ].filter(Boolean);
-  return parts.join(' and ') || 'No notes or to-dos';
+  return countList([[notes, 'note'], [todos, 'to-do']]) || 'No notes or to-dos';
 }

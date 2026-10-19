@@ -34,6 +34,8 @@ const SUCCESS: Record<StorageAreaName, string> = {
 
 export class SettingsPanelComponent extends Component<HTMLElement, ISettingsPanelView> {
   private _deleteData: DeleteDataComponent | null = null;
+  // Closed (destroyed): a move between storage areas ending later mustn't re-render it.
+  private _destroyed = false;
 
   constructor(mountTarget: HTMLElement) {
     super({ templateFn, mountTarget, config: SettingsPanelComponent.view(false, false) });
@@ -104,7 +106,14 @@ export class SettingsPanelComponent extends Component<HTMLElement, ISettingsPane
     }
   }
 
+  protected override onBeforeDestroy(): void {
+    this._destroyed = true;
+    super.onBeforeDestroy();
+  }
+
+  // A destroyed panel would recreate its delete section, which nothing would then ever destroy.
   private setBusy(busy: boolean): void {
+    if (this._destroyed) return;
     this.config = SettingsPanelComponent.view(busy, false);
     this.render();
   }

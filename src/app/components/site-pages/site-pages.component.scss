@@ -1,3 +1,17 @@
+// Shown only if listing the pages takes a moment: a quick read never flashes it.
+.site-pages__loading {
+  display: flex;
+  align-items: center;
+  min-height: 1.75rem;
+  padding: 0 var(--space-1);
+  opacity: 0;
+  animation: site-pages-reveal 0s linear 200ms forwards;
+}
+
+@keyframes site-pages-reveal {
+  to { opacity: 1; }
+}
+
 .site-pages__toggle {
   display: inline-flex;
   align-items: center;

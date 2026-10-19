@@ -1,4 +1,7 @@
-${pages.length > 0 ? html`
+${loading ? html`
+<div class="site-pages__loading">
+  <a11y-spinner class="a11y-spinner--sm" label="Loading this site's pages"></a11y-spinner>
+</div>` : pages.length > 0 ? html`
 <div class="site-pages">
   <button class="site-pages__toggle" type="button" tabindex="0" aria-expanded="${expanded ? 'true' : 'false'}" aria-controls="site-pages-list" data-event="click:_toggle">
     <span class="site-pages__chevron" aria-hidden="true"></span>Pages on this site (${pages.length})

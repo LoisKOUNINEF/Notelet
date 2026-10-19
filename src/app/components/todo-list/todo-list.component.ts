@@ -1,6 +1,7 @@
 import { Component, html, raw } from '../../../core/index.js';
 import { errorMessage } from '../../lib/errors.js';
 import { ListReorder } from '../../lib/list-reorder.js';
+import { plural } from '../../lib/plural.js';
 import { applyRequestedFocus, byData, clearRequestedFocus, requestFocus } from '../../lib/focus.js';
 import { confirmService } from '../../services/confirm/confirm.service.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
@@ -42,6 +43,8 @@ export class TodoListComponent extends Component<HTMLElement, ITodoListView> {
   private readonly _itemOptions = new Map<string, ITodoItemOptions>();
   // Handed over by update() while a reorder gesture runs, applied once it ends.
   private _held: ITodo[] | null = null;
+  // Destroyed: async work finishing later (a save, a held update) mustn't re-render it.
+  private _destroyed = false;
   private readonly _reorder = new ListReorder({
     root: this.element,
     listSelector: '[data-catalog="open-todos"]',
@@ -180,12 +183,7 @@ export class TodoListComponent extends Component<HTMLElement, ITodoListView> {
     requestFocus('.todo-composer__input');
     try {
       await scopeStoreService.removeMany('todos', done);
-      notifierService.info(`${done.length} done ${done.length === 1 ? 'to-do' : 'to-dos'} deleted.`, {
-        label: 'Undo',
-        run: () => void scopeStoreService.restoreMany('todos', done).catch((error) => {
-          notifierService.error(`Couldn't restore the to-dos. ${errorMessage(error)}`);
-        }),
-      });
+      notifierService.undoable(`${plural(done.length, 'done to-do')} deleted.`, () => scopeStoreService.restoreMany('todos', done), `Couldn't restore the to-dos.`);
     } catch (error) {
       clearRequestedFocus();
       notifierService.error(`Couldn't delete the done to-dos. ${errorMessage(error)}`);
@@ -196,7 +194,7 @@ export class TodoListComponent extends Component<HTMLElement, ITodoListView> {
     const count = this._todos.length;
     const confirmed = await confirmService.ask({
       title: `Delete all to-dos for this ${this._scope}?`,
-      message: `${count} ${count === 1 ? 'to-do' : 'to-dos'}, done ones included.`,
+      message: `${plural(count, 'to-do')}, done ones included.`,
       confirmLabel: 'Delete all',
     });
     if (!confirmed) return;
@@ -204,19 +202,22 @@ export class TodoListComponent extends Component<HTMLElement, ITodoListView> {
     requestFocus('.todo-composer__input');
     try {
       const removed = await scopeStoreService.removeAll('todos', this._scope, this._key);
-      notifierService.info(`${removed.length} ${removed.length === 1 ? 'to-do' : 'to-dos'} deleted.`, {
-        label: 'Undo',
-        run: () => void scopeStoreService.restoreMany('todos', removed).catch((error) => {
-          notifierService.error(`Couldn't restore the to-dos. ${errorMessage(error)}`);
-        }),
-      });
+      notifierService.undoable(`${plural(removed.length, 'to-do')} deleted.`, () => scopeStoreService.restoreMany('todos', removed), `Couldn't restore the to-dos.`);
     } catch (error) {
       clearRequestedFocus();
       notifierService.error(`Couldn't delete the to-dos. ${errorMessage(error)}`);
     }
   }
 
+  protected override onBeforeDestroy(): void {
+    this._destroyed = true;
+    this._reorder.dispose();
+    super.onBeforeDestroy();
+  }
+
+  // A destroyed component would rebuild its items, which nothing would then ever destroy.
   private refresh(): void {
+    if (this._destroyed) return;
     this.config = TodoListComponent.view(this._scope, this._todos, this._reorder.previewOrder);
     this.render();
   }

@@ -51,6 +51,12 @@
   gap: var(--space-3);
 }
 
+// On "This page" the content comes first in the panel: the same space below the tabs as on
+// "This site", where "Pages on this site" (shown or empty) sits before it with the panel's gap.
+.sidebar__panel > .sidebar__kind-panel:first-child {
+  margin-top: var(--space-4);
+}
+
 .sidebar__unavailable {
   display: grid;
   gap: var(--space-1);

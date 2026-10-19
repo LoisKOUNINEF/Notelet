@@ -2,6 +2,7 @@ import { Component, html } from '../../../core/index.js';
 import { errorMessage } from '../../lib/errors.js';
 import { applyRequestedFocus, byData, clearRequestedFocus, requestFocus } from '../../lib/focus.js';
 import { ListReorder } from '../../lib/list-reorder.js';
+import { plural } from '../../lib/plural.js';
 import { confirmService } from '../../services/confirm/confirm.service.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
 import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
@@ -43,6 +44,8 @@ export class NoteListComponent extends Component<HTMLElement, INoteListView> {
   private readonly _itemOptions = new Map<string, INoteItemOptions>();
   // Handed over by update() while a reorder gesture runs, applied once it ends.
   private _held: INote[] | null = null;
+  // Destroyed: async work finishing later (a save, a held update) mustn't re-render it.
+  private _destroyed = false;
   private readonly _reorder = new ListReorder({
     root: this.element,
     listSelector: '[data-catalog="notes"]',
@@ -133,7 +136,7 @@ export class NoteListComponent extends Component<HTMLElement, INoteListView> {
     const count = this._notes.length;
     const confirmed = await confirmService.ask({
       title: `Delete all notes for this ${this._scope}?`,
-      message: `${count} ${count === 1 ? 'note' : 'notes'}, checklists included.`,
+      message: `${plural(count, 'note')}, checklists included.`,
       confirmLabel: 'Delete all',
     });
     if (!confirmed) return;
@@ -141,12 +144,7 @@ export class NoteListComponent extends Component<HTMLElement, INoteListView> {
     requestFocus('.note-composer__input');
     try {
       const removed = await scopeStoreService.removeAll('notes', this._scope, this._key);
-      notifierService.info(`${removed.length} ${removed.length === 1 ? 'note' : 'notes'} deleted.`, {
-        label: 'Undo',
-        run: () => void scopeStoreService.restoreMany('notes', removed).catch((error) => {
-          notifierService.error(`Couldn't restore the notes. ${errorMessage(error)}`);
-        }),
-      });
+      notifierService.undoable(`${plural(removed.length, 'note')} deleted.`, () => scopeStoreService.restoreMany('notes', removed), `Couldn't restore the notes.`);
     } catch (error) {
       clearRequestedFocus();
       notifierService.error(`Couldn't delete the notes. ${errorMessage(error)}`);
@@ -178,7 +176,15 @@ export class NoteListComponent extends Component<HTMLElement, INoteListView> {
     if (held && !saved) this.update(held);
   }
 
+  protected override onBeforeDestroy(): void {
+    this._destroyed = true;
+    this._reorder.dispose();
+    super.onBeforeDestroy();
+  }
+
+  // A destroyed component would rebuild its items, which nothing would then ever destroy.
   private refresh(): void {
+    if (this._destroyed) return;
     this.config = NoteListComponent.view(this._scope, this._notes, this._reorder.previewOrder);
     this.render();
   }

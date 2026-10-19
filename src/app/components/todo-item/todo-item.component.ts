@@ -1,9 +1,9 @@
-import { removeOverlaysWithin } from 'a11y-elements/core';
 import { Component, html, raw } from '../../../core/index.js';
 import { announce } from '../../lib/announce.js';
 import { getEditDraft, setEditDraft } from '../../lib/drafts.js';
 import { errorMessage } from '../../lib/errors.js';
 import { byData, clearRequestedFocus, requestFocus } from '../../lib/focus.js';
+import { delegateActions, removeOverlays } from '../../lib/overlays.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
 import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
 import { settingsService } from '../../services/settings/settings.service.js';
@@ -72,11 +72,9 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
     this._keys = options.keys;
   }
 
-  // The "⋯" menu is an a11y-elements dropdown: it moves itself to <body> once connected (see the
-  // a11y-elements guide). It's removed with this item's own wrapper, found again by id, and its
-  // clicks are delegated from it.
+  // The "⋯" menu is an overlay on <body> (see lib/overlays.ts).
   protected override onBeforeRender(): void {
-    this.removeOwnOverlays();
+    removeOverlays(this.element, '.todo-item__overlays');
     super.onBeforeRender();
   }
 
@@ -86,28 +84,20 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
       this._announced = true;
       announce('Unsaved changes restored.');
     }
-    const menu = document.getElementById(`todo-${this._todo.id}-menu`);
-    if (!menu) return;
-    const onClick = (event: Event) => {
-      if ((event.target as Element).closest('[data-action="move"]')) void this.move();
-    };
-    menu.addEventListener('click', onClick);
-    this.eventListeners.push([menu, 'click', onClick]);
+    const menu = delegateActions(`todo-${this._todo.id}-menu`, (action) => {
+      if (action === 'move') void this.move();
+    });
+    if (menu) this.eventListeners.push(menu);
   }
 
   protected override onBeforeDestroy(): void {
-    this.removeOwnOverlays();
+    removeOverlays(this.element, '.todo-item__overlays');
     // Going away mid-edit (tab switch, navigation, another window saving it): keep what was typed.
     if (this.config.editing && !this._closing) {
       const text = this.element.querySelector<HTMLInputElement>('.todo-item__input')!.value;
       setEditDraft('todo', this._todo.id, text === this._todo.text ? null : text);
     }
     super.onBeforeDestroy();
-  }
-
-  private removeOwnOverlays(): void {
-    const own = this.element.querySelector('.todo-item__overlays');
-    if (own) removeOverlaysWithin(own);
   }
 
   private async _toggle(done: boolean): Promise<void> {
@@ -118,12 +108,7 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
     try {
       const updated = await scopeStoreService.update('todos', this._todo, { done });
       if (hidden) {
-        notifierService.success('Marked as done.', {
-          label: 'Undo',
-          run: () => void scopeStoreService.update('todos', updated, { done: false }).catch((error) => {
-            notifierService.error(`Couldn't update the to-do. ${errorMessage(error)}`);
-          }),
-        });
+        notifierService.undoable('Marked as done.', () => scopeStoreService.update('todos', updated, { done: false }), `Couldn't update the to-do.`, 'success');
       }
     } catch (error) {
       clearRequestedFocus();
@@ -179,12 +164,7 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
     this.requestFocusAfterLeaving();
     try {
       await scopeStoreService.remove('todos', todo);
-      notifierService.info('To-do deleted.', {
-        label: 'Undo',
-        run: () => void scopeStoreService.restore('todos', todo).catch((error) => {
-          notifierService.error(`Couldn't restore the to-do. ${errorMessage(error)}`);
-        }),
-      });
+      notifierService.undoable('To-do deleted.', () => scopeStoreService.restore('todos', todo), `Couldn't restore the to-do.`);
     } catch (error) {
       clearRequestedFocus();
       notifierService.error(`Couldn't delete the to-do. ${errorMessage(error)}`);

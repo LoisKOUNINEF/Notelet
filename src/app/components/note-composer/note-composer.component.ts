@@ -1,5 +1,5 @@
 import { Component, html, raw } from '../../../core/index.js';
-import { requestFocus } from '../../lib/focus.js';
+import { clearRequestedFocus, requestFocus } from '../../lib/focus.js';
 import { parseChecklist, withIds } from '../../lib/checklist.js';
 import { getDraft, getJsonDraft, setDraft, setJsonDraft } from '../../lib/drafts.js';
 import { errorMessage } from '../../lib/errors.js';
@@ -115,6 +115,8 @@ export class NoteComposerComponent extends Component<HTMLElement, INoteComposerV
     try {
       await scopeStoreService.addNote(this._scope, this._key, text, items);
     } catch (error) {
+      // The focus stays here; a later re-render mustn't bring it back here from elsewhere.
+      clearRequestedFocus();
       input.value = typed;
       setDraft(draftId(this._scope, this._key), typed);
       this._checklist!.reset(fields);

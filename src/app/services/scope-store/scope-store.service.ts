@@ -174,12 +174,20 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
     return this.restoreMany(kind, [item]);
   }
 
-  // Removes several items of one list (one scope key) in a single write, e.g. "Clear completed".
+  // Removes several items of one list (one scope key) in a single write, e.g. "Delete all done".
   public removeMany<K extends ScopeContentKind>(kind: K, items: IScopeItemKinds[K][]): Promise<void> {
     const [first] = items;
     if (!first) return Promise.resolve();
     const ids = new Set(items.map((item) => item.id));
     return this.enqueue(() => this.write(kind, first.scope, first.key, (list) => list.filter((i) => !ids.has(i.id))));
+  }
+
+  // Undoes removeMany(), in a single write.
+  public restoreMany<K extends ScopeContentKind>(kind: K, items: IScopeItemKinds[K][]): Promise<void> {
+    const [first] = items;
+    if (!first) return Promise.resolve();
+    const ids = new Set(items.map((item) => item.id));
+    return this.enqueue(() => this.write(kind, first.scope, first.key, (list) => [...list.filter((i) => !ids.has(i.id)), ...items]));
   }
 
   // Empties one list (a scope's notes, or its to-dos) in a single write. Resolves to what was in
@@ -193,6 +201,55 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
       });
       return removed;
     });
+  }
+
+  // Moves an item to the other scope of the same tab (page ↔ site), in a single write.
+  // It lands at the top of the other list: a note as one not reordered yet, a to-do at the top
+  // of the open ones (see topPosition).
+  public move<K extends ScopeContentKind>(kind: K, item: IScopeItemKinds[K], keys: IScopeKeys): Promise<IScopeItemKinds[K]> {
+    const scope: NoteScope = item.scope === 'page' ? 'site' : 'page';
+    const from = storageKey(kind, item.scope, item.key);
+    const to = storageKey(kind, scope, keys[scope]);
+
+    return this.enqueue(async () => {
+      const stored = await chromeApiService.storageGet(this.area, [from, to]);
+      const source = sortItems(kind, stored[from]);
+      // The stored version: fields changed elsewhere since the caller's copy are kept.
+      const current = source.find((i) => i.id === item.id);
+      if (!current) return item;
+      const target = sortItems(kind, stored[to]);
+      const moved = { ...current, scope, key: keys[scope], updatedAt: Date.now() };
+      if (kind === 'todos') moved.position = topPosition(target as ITodo[]);
+      else delete moved.position;
+
+      const rest = source.filter((i) => i.id !== item.id);
+      // Both lists in one write; an emptied one is removed, like write() does (sync allows 512 items).
+      await chromeApiService.storageSet(this.area, {
+        [to]: sortItems(kind, [...target, moved]),
+        ...(rest.length > 0 ? { [from]: rest } : {}),
+      });
+      if (rest.length === 0) await chromeApiService.storageRemove(this.area, [from]);
+      return moved;
+    });
+  }
+
+  /**
+   * Saves the order the user gave a list, in one write: all of a scope's notes, or its open
+   * to-dos (done ones keep their place). Items missing from `ids` (added in another window
+   * meanwhile) keep theirs too: new notes stay on top, new to-dos after the ordered ones.
+   */
+  public reorder(kind: ScopeContentKind, scope: NoteScope, key: string, ids: string[]): Promise<void> {
+    return this.enqueue(() => this.write(kind, scope, key, (items: IScopeItem[]) => {
+      const reorderable = (item: IScopeItem) => kind === 'notes' || !(item as ITodo).done;
+      const listed = ids.map((id) => items.find((item) => item.id === id && reorderable(item))).filter((item): item is IScopeItem => !!item);
+      const positioned = listed.map((item, index) => ({ ...item, position: index }));
+      if (kind === 'notes') return [...items.filter((item) => !ids.includes(item.id)), ...positioned];
+      return [
+        ...positioned,
+        ...items.filter((item) => reorderable(item) && !ids.includes(item.id)),
+        ...items.filter((item) => !reorderable(item)),
+      ];
+    }));
   }
 
   // Every note and to-do of the storage area in use, on every page and site, in one read.
@@ -254,63 +311,6 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
       const content = scopeContent(await chromeApiService.storageGet(this.area, null));
       await chromeApiService.storageRemove(this.area, Object.keys(content));
     });
-  }
-
-  // Undoes removeMany(), in a single write.
-  public restoreMany<K extends ScopeContentKind>(kind: K, items: IScopeItemKinds[K][]): Promise<void> {
-    const [first] = items;
-    if (!first) return Promise.resolve();
-    const ids = new Set(items.map((item) => item.id));
-    return this.enqueue(() => this.write(kind, first.scope, first.key, (list) => [...list.filter((i) => !ids.has(i.id)), ...items]));
-  }
-
-  // Moves an item to the other scope of the same tab (page ↔ site), in a single write.
-  // It lands at the top of the other list: a note as one not reordered yet, a to-do at the top
-  // of the open ones (see topPosition).
-  public move<K extends ScopeContentKind>(kind: K, item: IScopeItemKinds[K], keys: IScopeKeys): Promise<IScopeItemKinds[K]> {
-    const scope: NoteScope = item.scope === 'page' ? 'site' : 'page';
-    const from = storageKey(kind, item.scope, item.key);
-    const to = storageKey(kind, scope, keys[scope]);
-
-    return this.enqueue(async () => {
-      const stored = await chromeApiService.storageGet(this.area, [from, to]);
-      const source = sortItems(kind, stored[from]);
-      // The stored version: fields changed elsewhere since the caller's copy are kept.
-      const current = source.find((i) => i.id === item.id);
-      if (!current) return item;
-      const target = sortItems(kind, stored[to]);
-      const moved = { ...current, scope, key: keys[scope], updatedAt: Date.now() };
-      if (kind === 'todos') moved.position = topPosition(target as ITodo[]);
-      else delete moved.position;
-
-      const rest = source.filter((i) => i.id !== item.id);
-      // Both lists in one write; an emptied one is removed, like write() does (sync allows 512 items).
-      await chromeApiService.storageSet(this.area, {
-        [to]: sortItems(kind, [...target, moved]),
-        ...(rest.length > 0 ? { [from]: rest } : {}),
-      });
-      if (rest.length === 0) await chromeApiService.storageRemove(this.area, [from]);
-      return moved;
-    });
-  }
-
-  /**
-   * Saves the order the user gave a list, in one write: all of a scope's notes, or its open
-   * to-dos (done ones keep their place). Items missing from `ids` (added in another window
-   * meanwhile) keep theirs too: new notes stay on top, new to-dos after the ordered ones.
-   */
-  public reorder(kind: ScopeContentKind, scope: NoteScope, key: string, ids: string[]): Promise<void> {
-    return this.enqueue(() => this.write(kind, scope, key, (items: IScopeItem[]) => {
-      const reorderable = (item: IScopeItem) => kind === 'notes' || !(item as ITodo).done;
-      const listed = ids.map((id) => items.find((item) => item.id === id && reorderable(item))).filter((item): item is IScopeItem => !!item);
-      const positioned = listed.map((item, index) => ({ ...item, position: index }));
-      if (kind === 'notes') return [...items.filter((item) => !ids.includes(item.id)), ...positioned];
-      return [
-        ...positioned,
-        ...items.filter((item) => reorderable(item) && !ids.includes(item.id)),
-        ...items.filter((item) => !reorderable(item)),
-      ];
-    }));
   }
 
   /**

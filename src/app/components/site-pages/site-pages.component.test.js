@@ -94,4 +94,14 @@ describe('SitePagesComponent', () => {
     list.update(pages.slice(2), 'https://example.com/docs');
     expect(document.activeElement).toBe(toggle());
   });
+
+  it('shows a spinner while the pages are being listed, then the list', () => {
+    mount({ pages: null, currentPage: 'https://example.com/docs' });
+    expect($('.site-pages__loading a11y-spinner').classList.contains('a11y-spinner--sm')).toBe(true);
+    expect(toggle()).toBeFalsy();
+
+    list.update(pages, 'https://example.com/docs');
+    expect($('.site-pages__loading')).toBeFalsy();
+    expect(toggle().textContent.trim()).toBe('Pages on this site (3)');
+  });
 });

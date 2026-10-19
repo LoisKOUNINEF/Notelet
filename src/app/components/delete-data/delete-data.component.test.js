@@ -166,6 +166,25 @@ describe('DeleteDataComponent', () => {
     expect(document.activeElement).toBe(allButton());
   });
 
+  it('only re-renders on a minute tick when a count changes', async () => {
+    await addOld(40, () => scopeStoreService.addNote('page', KEYS.page, 'Old note'));
+    await mount();
+    const select = $('.delete-data__select');
+    AppEventBus.emit('minute-tick');
+    // The same element: an open dropdown isn't closed under the user.
+    expect($('.delete-data__select')).toBe(select);
+
+    // A to-do turning one week old during the minute changes the 1-week count: re-rendered.
+    pickAge('1w');
+    const now = Date.now();
+    await addOld(7 - 30 / (24 * 60 * 60), () => scopeStoreService.addTodo('site', KEYS.site, 'Almost a week old'));
+    expect(olderText()).toBe('1 note not edited in the last week.');
+    const clock = spyOn(Date, 'now').andReturn(now + 60_000);
+    AppEventBus.emit('minute-tick');
+    clock.restore();
+    expect(olderText()).toBe('1 note and 1 to-do not edited in the last week.');
+  });
+
   it('reports a failed count, keeping both buttons usable', async () => {
     const get = spyOn(panel.fake.storage.local, 'get').andCallFake(async () => { throw new Error('Nope.'); });
     await mount();
