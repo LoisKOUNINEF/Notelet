@@ -1,22 +1,22 @@
-# Ticknote privacy policy
+# Quicklet privacy policy
 
 _Last updated: 18 October 2026_
 
-Ticknote is a browser extension that keeps notes and to-dos for the web pages and sites you visit, in Chrome's side panel.
+Quicklet is a browser extension that keeps notes and to-dos for the web pages and sites you visit, in Chrome's side panel.
 
-## What Ticknote reads
+## What Quicklet reads
 
-- **The address (URL) of the active tab**, while the side panel is open, to show the notes and to-dos of that page and of its site. Ticknote reads it through Chrome's `tabs` permission. It doesn't read page contents.
+- **The address (URL) of the active tab**, while the side panel is open, to show the notes and to-dos of that page and of its site. Quicklet reads it through Chrome's `tabs` permission. It doesn't read page contents.
 
-## What Ticknote stores, and where
+## What Quicklet stores, and where
 
 - **Your notes and to-dos**, the addresses (without their `#` fragment and tracking parameters such as `utm_*`) and site names they belong to, and your settings.
 - They are stored with Chrome's extension storage:
   - **on this device** (`chrome.storage.local`), by default;
-  - or, if you choose "Synced with your Chrome profile" in Ticknote's settings, in **Chrome sync** (`chrome.storage.sync`), which Google stores and syncs to the browsers where you're signed in to your Chrome profile, under [Google's privacy policy](https://policies.google.com/privacy).
-- If you allow Ticknote in incognito windows (it isn't allowed by default), notes written there are stored in the same place as the others.
+  - or, if you choose "Synced with your Chrome profile" in Quicklet's settings, in **Chrome sync** (`chrome.storage.sync`), which Google stores and syncs to the browsers where you're signed in to your Chrome profile, under [Google's privacy policy](https://policies.google.com/privacy).
+- If you allow Quicklet in incognito windows (it isn't allowed by default), notes written there are stored in the same place as the others.
 
-## What Ticknote doesn't do
+## What Quicklet doesn't do
 
 - It doesn't send your data anywhere: it makes no network requests, has no servers, and no analytics or tracking.
 - It doesn't sell, share or transfer your data to anyone.
@@ -24,7 +24,7 @@ Ticknote is a browser extension that keeps notes and to-dos for the web pages an
 
 ## Deleting your data
 
-- Delete notes and to-dos from Ticknote itself.
+- Delete notes and to-dos from Quicklet itself.
 - Removing the extension deletes everything stored on this device. Data in Chrome sync is removed when you remove the extension from a synced browser, or with Chrome's "Clear data" for synced data.
 
 ## Contact

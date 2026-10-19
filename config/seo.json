@@ -4,7 +4,7 @@
   "routes": [
     {
       "path": "/",
-      "title": "Ticknote",
+      "title": "Quicklet",
       "description": "Notes and to-dos for each page and each site, in Chrome's side panel.",
       "ogImage": "/assets/images/og-cover.jpg"
     }

@@ -1,4 +1,4 @@
-# Ticknote - Built with Nutin
+# Quicklet - Built with Nutin
 
 Notes and to-dos for each page and each site, in Chrome's side panel.
 
@@ -26,7 +26,7 @@ After a rebuild, click the reload button on the extension's card. Its sources ar
 
 ## Release
 
-- `npm run package:extension`: production build, then `dist/ticknote-<version>.zip` for the Chrome Web Store (needs the `zip` command).
+- `npm run package:extension`: production build, then `dist/quicklet-<version>.zip` for the Chrome Web Store (needs the `zip` command).
 - Store listing drafts, permission justifications and image requirements: [docs/store-listing.md](docs/store-listing.md). Privacy policy: [PRIVACY.md](PRIVACY.md).
 
 ## Known limitations
