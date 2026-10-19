@@ -4,7 +4,7 @@ import { settingsService } from '#root/dist/src/app/services/settings/settings.s
 import { KEYS, keydown, settle, startPanel } from '../../testing/panel.js';
 
 // Items are tested in their list, in the panel: their actions go through the store and come back as a new list.
-// <a11y-checkbox> isn't upgraded in jsdom: its text is checked through its `label` attribute.
+// A to-do's text is beside its checkbox, which it labels (aria-labelledby).
 describe('TodoItemComponent', () => {
   let panel;
   let sidebar;
@@ -12,7 +12,7 @@ describe('TodoItemComponent', () => {
 
   const item = (todo) => $(`[data-todo-id="${todo.id}"]`);
   const checkbox = (todo) => item(todo).querySelector('.todo-item__checkbox');
-  const labels = () => $$('.todo-item a11y-checkbox').map((el) => el.getAttribute('label'));
+  const labels = () => $$('.todo-item__text').map((el) => el.textContent);
   const stored = async () => (await scopeStoreService.load(KEYS)).page.todos;
   const check = async (todo, checked = true) => {
     checkbox(todo).checked = checked;
@@ -46,7 +46,8 @@ describe('TodoItemComponent', () => {
     expect(el.parentElement.tagName).toBe('LI');
     expect(checkbox(todos[0]).checked).toBe(false);
 
-    const checkId = el.querySelector('a11y-checkbox').id;
+    const checkId = el.querySelector('.todo-item__text').id;
+    expect(checkbox(todos[0]).getAttribute('aria-labelledby')).toBe(checkId);
     // The reorder handle is described by the reorder help, and "⋯" names the to-do in its label.
     el.querySelectorAll('button:not(.todo-item__handle):not(.todo-item__more)').forEach((button) => expect(button.getAttribute('aria-describedby')).toBe(checkId));
   });
@@ -99,7 +100,7 @@ describe('TodoItemComponent', () => {
     await settle();
 
     expect((await stored()).find((t) => t.id === todos[1].id).text).toBe('Second, revised');
-    expect(item(todos[1]).querySelector('a11y-checkbox').getAttribute('label')).toBe('Second, revised');
+    expect(item(todos[1]).querySelector('.todo-item__text').textContent).toBe('Second, revised');
     expect(document.activeElement).toBe(item(todos[1]).querySelector('.todo-item__edit'));
   });
 
@@ -252,6 +253,32 @@ describe('TodoItemComponent', () => {
     await settle();
     expect(document.activeElement).toBe(checkbox(todos[1]));
   });
+
+  it('opens the editor on a click on its text or its card, without checking it', async () => {
+    item(todos[1]).querySelector('.todo-item__text').click();
+    await settle();
+    expect(item(todos[1]).querySelector('.list-editor')).toBeTruthy();
+    expect(document.activeElement).toBe(item(todos[1]).querySelector('.list-editor__input'));
+    expect((await stored()).find((t) => t.id === todos[1].id).done).toBe(false);
+
+    item(todos[0]).click();
+    expect(item(todos[0]).querySelector('.list-editor')).toBeTruthy();
+  });
+
+  it('checks a to-do from its checkbox only, without opening the editor', async () => {
+    await check(todos[0]);
+    expect((await stored()).find((t) => t.id === todos[0].id).done).toBe(true);
+    expect($('.list-editor')).toBeFalsy();
+  });
+
+  it('does nothing on a click on a done to-do', async () => {
+    await settingsService.setDoneExpanded(true);
+    await check(todos[0]);
+    item(todos[0]).querySelector('.todo-item__text').click();
+    item(todos[0]).click();
+    expect(item(todos[0]).querySelector('.list-editor')).toBeFalsy();
+    expect((await stored()).find((t) => t.id === todos[0].id).done).toBe(true);
+  });
 });
 
 describe('TodoItemComponent - actions menu', () => {
@@ -373,7 +400,7 @@ describe('TodoItemComponent - lists', () => {
 
   const item = (todo) => $(`[data-todo-id="${todo.id}"]`);
   const stored = async (id) => (await scopeStoreService.load(KEYS)).page.todos.find((t) => t.id === id);
-  const itemLabels = (todo) => [...item(todo).querySelectorAll('.checklist-item a11y-checkbox')].map((el) => el.getAttribute('label'));
+  const itemLabels = (todo) => [...item(todo).querySelectorAll('.checklist-item__text')].map((el) => el.textContent);
   const checkItem = async (todo, id) => {
     const box = item(todo).querySelector(`[data-item-id="${id}"] .checklist-item__checkbox`);
     box.checked = true;
@@ -479,9 +506,13 @@ describe('TodoItemComponent - lists', () => {
     item(single).querySelector('.todo-item__edit').click();
     const editor = () => item(single).querySelector('.list-editor');
     expect(editor().querySelectorAll('.checklist-field__input').length).toBe(0);
-    expect(editor().querySelector('.list-editor__field .a11y-visually-hidden').textContent).toBe('To-do name');
+    expect(editor().querySelector('.list-editor__field a11y-label').textContent).toBe('To-do');
+    expect(editor().querySelector('.checklist-fields__caption')).toBeFalsy();
     editor().querySelector('.list-editor__add-item').click();
-    expect(editor().querySelector('.list-editor__field .a11y-visually-hidden').textContent).toBe('List name');
+    expect(editor().querySelector('.list-editor__field a11y-label').textContent).toBe('List name');
+    const caption = editor().querySelector('.checklist-fields__caption');
+    expect(caption.textContent).toBe('Items');
+    expect(editor().querySelector('.list-editor__items').getAttribute('aria-labelledby')).toBe(caption.id);
     editor().querySelector('.checklist-field__input').value = 'Ask about the invoice';
     await submit(editor().querySelector('form'));
 
@@ -570,5 +601,79 @@ describe('TodoItemComponent - lists', () => {
     $('#confirm-dialog .confirm-dialog__cancel').click();
     await settle();
     expect((await scopeStoreService.load(KEYS)).page.todos.length).toBe(2);
+  });
+
+  it('opens the list\'s editor on a click on an item\'s text; its checkbox and the add field don\'t', async () => {
+    item(list).querySelector('.todo-item__add-item-input').click();
+    await checkItem(list, 'b');
+    expect(item(list).querySelector('.list-editor')).toBeFalsy();
+
+    const box = item(list).querySelector('[data-item-id="b"] .checklist-item__checkbox');
+    box.checked = false;
+    box.dispatchEvent(new window.Event('change', { bubbles: true }));
+    await settle();
+    expect(item(list).querySelector('[data-item-id="a"] .checklist-item__checkbox').getAttribute('aria-labelledby')).toBe('item-a-text');
+    item(list).querySelector('[data-item-id="a"] .checklist-item__text').click();
+    expect(item(list).querySelector('.list-editor')).toBeTruthy();
+    expect((await stored(list.id)).items.map((i) => i.done)).toEqual([true, false]);
+  });
+
+  it('focuses the clicked item\'s field in the editor, caret at the end', () => {
+    item(list).querySelector('[data-item-id="b"] .checklist-item__text').click();
+    const field = item(list).querySelector('.list-editor [data-item-id="b"] .checklist-field__input');
+    expect(document.activeElement).toBe(field);
+    expect(field.value).toBe('Eggs');
+    expect(field.selectionStart).toBe('Eggs'.length);
+  });
+
+  it('focuses the name when the click is outside the items, as Edit does', () => {
+    item(list).querySelector('.todo-item__title').click();
+    expect(document.activeElement).toBe(item(list).querySelector('.list-editor__input'));
+    item(list).querySelector('.list-editor__cancel').click();
+
+    item(list).querySelector('.todo-item__checklist').click();
+    expect(document.activeElement).toBe(item(list).querySelector('.list-editor__input'));
+    item(list).querySelector('.list-editor__cancel').click();
+
+    item(list).querySelector('.todo-item__edit').click();
+    expect(document.activeElement).toBe(item(list).querySelector('.list-editor__input'));
+  });
+
+  it('folds a list down to its name and progress, not a single to-do', async () => {
+    expect(item(single).querySelector('.todo-item__toggle')).toBeFalsy();
+    const toggle = () => item(list).querySelector('.todo-item__toggle');
+    expect(toggle().getAttribute('aria-expanded')).toBe('true');
+    expect(toggle().getAttribute('aria-controls')).toBe(item(list).querySelector('.todo-item__checklist').id);
+
+    toggle().click();
+    expect(document.activeElement).toBe(toggle());
+    await settle();
+    expect(toggle().getAttribute('aria-expanded')).toBe('false');
+    expect(item(list).querySelector('.todo-item__checklist')).toBeFalsy();
+    expect(item(list).querySelector('.todo-item__add-item')).toBeFalsy();
+    expect(item(list).querySelector('.todo-item__title').textContent).toBe('Groceries · 1 of 2 done');
+    expect(document.activeElement).toBe(toggle());
+    const saved = await stored(list.id);
+    expect(saved.collapsed).toBe(true);
+    expect(saved.updatedAt).toBe(list.updatedAt);
+
+    // A click on it still opens the editor, with every item.
+    item(list).querySelector('.todo-item__title').click();
+    expect(item(list).querySelectorAll('.checklist-field__input').length).toBe(2);
+    item(list).querySelector('.list-editor__cancel').click();
+
+    toggle().click();
+    await settle();
+    expect(itemLabels(list)).toEqual(['Milk', 'Eggs']);
+    expect((await stored(list.id)).collapsed).toBeUndefined();
+  });
+
+  it('folds a done list too', async () => {
+    await settingsService.setDoneExpanded(true);
+    await checkItem(list, 'b');
+    item(list).querySelector('.todo-item__toggle').click();
+    await settle();
+    expect(item(list).closest('[data-catalog="done-todos"]')).toBeTruthy();
+    expect(item(list).querySelector('.todo-item__checklist')).toBeFalsy();
   });
 });

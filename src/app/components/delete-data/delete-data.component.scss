@@ -16,3 +16,10 @@
   align-items: flex-end;
   gap: var(--space-2);
 }
+
+// Like a11y-select's label ("Delete all older than"): the same rule, through its tokens.
+.delete-data__label {
+  color: var(--a11y-select-color-text-muted);
+  font-size: var(--a11y-select-label-font-size);
+  font-weight: var(--a11y-select-label-font-weight, 600);
+}

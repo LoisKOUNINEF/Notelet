@@ -111,13 +111,13 @@ export class NoteListComponent extends Component<HTMLElement, INoteListView> {
       return;
     }
     if (notes === this._notes) return;
-    // Every change to a note gives it a new updatedAt. An unchanged one keeps its previous object, so
-    // the catalog (which compares items shallowly) keeps it.
+    // Every change to a note gives it a new updatedAt (folding it aside). An unchanged one keeps its
+    // previous object, so the catalog (which compares items shallowly) keeps it.
     // Its position doesn't count: reordering alone keeps every item (and an edit in progress).
     const previous = new Map(this._notes.map((note) => [note.id, note]));
     this._notes = notes.map((note) => {
       const kept = previous.get(note.id);
-      return kept && kept.updatedAt === note.updatedAt ? kept : note;
+      return kept && kept.updatedAt === note.updatedAt && kept.collapsed === note.collapsed ? kept : note;
     });
     this.refresh();
   }

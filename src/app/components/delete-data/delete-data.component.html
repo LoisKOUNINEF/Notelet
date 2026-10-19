@@ -9,7 +9,8 @@
       <button class="button button--danger delete-data__older-button" id="delete-data-older-button" type="button" tabindex="0" ${olderNothing ? raw('aria-disabled="true"') : ''} ${olderDisabled ? raw('disabled') : ''} data-event="click:_deleteOlder">Delete<span class="a11y-visually-hidden">${' older notes and to-dos'}</span></button>
     </div>
   </div>
-  <div class="delete-data__group">
+  <div class="delete-data__group" role="group" aria-labelledby="delete-data-all-label">
+    <p class="delete-data__label" id="delete-data-all-label">Delete all</p>
     <button class="button button--danger delete-data__all-button" id="delete-data-all-button" type="button" tabindex="0" ${allNothing ? raw('aria-disabled="true"') : ''} ${allDisabled ? raw('disabled') : ''} data-event="click:_deleteEverything">Delete all notes and to-dos</button>
   </div>
   <div class="delete-data__overlays">

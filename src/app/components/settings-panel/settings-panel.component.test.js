@@ -13,6 +13,12 @@ describe('SettingsPanelComponent', () => {
     radio(value).dispatchEvent(new window.Event('change', { bubbles: true }));
     await settle();
   };
+  // Picks an area and applies it ("Apply", or "Remove synced copy" when leaving sync).
+  const switchTo = async (value) => {
+    await choose(value);
+    $('.settings-panel__confirm-apply, .settings-panel__confirm-remove').click();
+    await settle();
+  };
 
   beforeEach(async () => {
     panel = await startPanel();
@@ -28,14 +34,16 @@ describe('SettingsPanelComponent', () => {
   });
 
   it('shows where notes are kept, in a labelled group', () => {
-    expect($('a11y-radio-group').getAttribute('legend')).toBe('Where to keep your notes');
+    expect($('.settings-panel__subtitle').textContent).toBe('Where to keep your notes');
+    expect($('a11y-radio-group').getAttribute('aria-label')).toBe('Where to keep your notes');
+    expect($('a11y-radio-group').hasAttribute('legend')).toBe(false);
     expect(radio('local').checked).toBe(true);
     expect(radio('sync').checked).toBe(false);
   });
 
   it('moves the notes to sync, confirms it, and keeps the choice focused', async () => {
     await scopeStoreService.addNote('page', KEYS.page, 'A');
-    await choose('sync');
+    await switchTo('sync');
 
     expect(settingsService.storageArea).toBe('sync');
     expect(panel.fake.storage.sync.data.size).toBe(1);
@@ -46,7 +54,7 @@ describe('SettingsPanelComponent', () => {
 
   it('explains a refusal and goes back to the area in use', async () => {
     await scopeStoreService.addNote('page', KEYS.page, 'x'.repeat(9000));
-    await choose('sync');
+    await switchTo('sync');
 
     expect(settingsService.storageArea).toBe('local');
     expect(radio('local').checked).toBe(true);
@@ -55,8 +63,8 @@ describe('SettingsPanelComponent', () => {
   });
 
   it('disables the choice while the notes are moving', async () => {
-    radio('sync').checked = true;
-    radio('sync').dispatchEvent(new window.Event('change', { bubbles: true }));
+    await choose('sync');
+    $('.settings-panel__confirm-apply').click();
     expect($('a11y-radio-group').hasAttribute('disabled')).toBe(true);
     await settle();
     expect($('a11y-radio-group').hasAttribute('disabled')).toBe(false);
@@ -88,7 +96,7 @@ describe('SettingsPanelComponent', () => {
   });
 
   it('asks before leaving sync, since that removes the synced notes on every device', async () => {
-    await choose('sync');
+    await switchTo('sync');
     await scopeStoreService.addNote('page', KEYS.page, 'Synced note');
     const set = spyOn(panel.fake.storage.local, 'set');
 
@@ -101,11 +109,37 @@ describe('SettingsPanelComponent', () => {
     expect(confirm.getAttribute('role')).toBe('group');
     expect($('#settings-confirm-text').textContent).toContain('from all your devices');
     expect(confirm.getAttribute('aria-labelledby')).toBe('settings-confirm-text');
-    expect(document.activeElement).toBe(confirm);
+    // Focus stays on the choice: the arrow keys go on moving between the options.
+    expect(document.activeElement).toBe(radio('local'));
+  });
+
+  it('only previews an option picked (with the arrows too) until it\'s applied', async () => {
+    await scopeStoreService.addNote('page', KEYS.page, 'A');
+    await choose('sync');
+    expect(settingsService.storageArea).toBe('local');
+    expect(panel.fake.storage.sync.data.size).toBe(0);
+    expect(radio('sync').checked).toBe(true);
+    expect(document.activeElement).toBe(radio('sync'));
+    expect($('#settings-confirm-text').textContent).toContain('will sync with your Chrome profile');
+    expect($('.settings-panel__confirm-apply').textContent).toBe('Apply');
+
+    // Back to the area in use: nothing left to apply.
+    await choose('local');
+    expect($('.settings-panel__confirm')).toBeFalsy();
+    expect(document.activeElement).toBe(radio('local'));
+  });
+
+  it('cancels an option picked, back to the area in use', async () => {
+    await choose('sync');
+    $('.settings-panel__confirm-cancel').click();
+    expect(settingsService.storageArea).toBe('local');
+    expect(radio('local').checked).toBe(true);
+    expect(document.activeElement).toBe(radio('local'));
+    expect($('.settings-panel__confirm')).toBeFalsy();
   });
 
   it('leaves sync once confirmed', async () => {
-    await choose('sync');
+    await switchTo('sync');
     await scopeStoreService.addNote('page', KEYS.page, 'Synced note');
     await choose('local');
     $('.settings-panel__confirm-remove').click();
@@ -118,7 +152,7 @@ describe('SettingsPanelComponent', () => {
   });
 
   it('stays on sync when cancelled, with focus back on its choice', async () => {
-    await choose('sync');
+    await switchTo('sync');
     await choose('local');
     $('.settings-panel__confirm-cancel').click();
 
@@ -137,7 +171,7 @@ describe('SettingsPanelComponent', () => {
 
     const held = deferred();
     const set = spyOn(panel.fake.storage.sync, 'set').andCallFake(() => held.promise);
-    await choose('sync');
+    await switchTo('sync');
     // Settings closed before the move ends.
     settings.destroy();
     held.resolve();
@@ -185,9 +219,14 @@ describe('SettingsPanelComponent - notes by site', () => {
     await panel.stop();
   });
 
-  it('leads to "Manage by site", in a section before "Delete everything"', () => {
+  it('leads to "Manage by site", first in "Manage notes and to-dos", labelled "Notes by site"', () => {
     const titles = $$('.settings-panel__subtitle').map((h) => h.textContent);
-    expect(titles.indexOf('Notes by site')).toBe(titles.indexOf('Delete everything') - 1);
+    expect(titles).toContain('Manage notes and to-dos');
+    expect(titles).not.toContain('Notes by site');
+    expect(titles).not.toContain('Delete everything');
+    const row = $('.settings-panel__manage-sites').closest('[role="group"]');
+    expect(document.getElementById(row.getAttribute('aria-labelledby')).textContent).toBe('Notes by site');
+    expect(row.compareDocumentPosition($('.delete-data')) & window.Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     $('.settings-panel__manage-sites').click();
     expect(opened).toBe(1);
   });
@@ -213,9 +252,11 @@ describe('SettingsPanelComponent - delete everything', () => {
 
   it('comes right before the help, with both ways to delete', () => {
     const titles = $$('.settings-panel__subtitle').map((h) => h.textContent);
-    expect(titles.indexOf('Delete everything')).toBe(titles.indexOf('Help') - 1);
+    expect(titles.indexOf('Manage notes and to-dos')).toBe(titles.indexOf('Help') - 1);
     expect($('.delete-data__select')).toBeTruthy();
     expect($('.delete-data__all-button').textContent).toBe('Delete all notes and to-dos');
+    const group = $('.delete-data__all-button').closest('[role="group"]');
+    expect(document.getElementById(group.getAttribute('aria-labelledby')).textContent).toBe('Delete all');
   });
 
   it('disables them while the notes move to another storage area, keeping the age picked', async () => {
@@ -227,6 +268,7 @@ describe('SettingsPanelComponent - delete everything', () => {
     const radio = $('input[name="storage-area"][value="sync"]');
     radio.checked = true;
     radio.dispatchEvent(new window.Event('change', { bubbles: true }));
+    $('.settings-panel__confirm-apply').click();
     expect($('.delete-data__all-button').disabled).toBe(true);
     expect($('.delete-data__select').disabled).toBe(true);
     await settle();

@@ -1,0 +1,35 @@
+// The arrow that folds a note or a to-do list down to its name (and unfolds it), shared by both.
+
+@mixin toggle {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-small);
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--color-surface-muted);
+    color: var(--color-text);
+  }
+}
+
+// A right-pointing triangle, turned down while unfolded.
+@mixin chevron {
+  width: 0;
+  height: 0;
+  border-top: 0.3rem solid transparent;
+  border-bottom: 0.3rem solid transparent;
+  border-left: 0.4rem solid currentColor;
+  transition: transform var(--transition);
+
+  [aria-expanded='true'] > & {
+    transform: rotate(90deg);
+  }
+}

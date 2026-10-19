@@ -1,13 +1,19 @@
 .checklist-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   padding: 2px 0;
+}
 
-  .a11y-checkbox__label {
-    overflow-wrap: anywhere;
-  }
+// Not part of the checkbox's <label>: a click on it opens the list's editor (see lib/card-click.ts).
+.checklist-item__text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 // Muted text keeps a 4.5:1 contrast in both themes; the strike says "done" without color.
-.checklist-item--done .a11y-checkbox__label {
+.checklist-item--done .checklist-item__text {
   color: var(--color-text-muted);
   text-decoration: line-through;
 }

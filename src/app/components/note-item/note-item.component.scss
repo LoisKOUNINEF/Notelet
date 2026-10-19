@@ -1,4 +1,5 @@
 @use "reorder";
+@use "disclosure";
 
 .note-item {
   display: grid;
@@ -12,6 +13,11 @@
   &:hover,
   &:focus-within {
     border-color: var(--color-border-strong);
+  }
+
+  // A click opens it for editing (see lib/card-click.ts).
+  &:not(:has(.note-editor)) {
+    cursor: pointer;
   }
 }
 
@@ -56,4 +62,42 @@
   justify-content: center;
   font-weight: 700;
   letter-spacing: 0.05em;
+}
+
+// An optional name, set in the editor.
+.note-item__name {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+// The arrow (when folding would hide something) beside the name and text.
+.note-item__main {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+.note-item__content {
+  display: grid;
+  flex: 1;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.note-item__toggle {
+  @include disclosure.toggle;
+}
+
+.note-item__chevron {
+  @include disclosure.chevron;
+}
+
+// A folded, unnamed note: its first line, cut with an ellipsis.
+.note-item__summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

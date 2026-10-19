@@ -1,4 +1,5 @@
 @use "reorder";
+@use "disclosure";
 
 .todo-item {
   display: flex;
@@ -14,23 +15,23 @@
   &:focus-within {
     background: var(--color-surface-muted);
   }
+
+  // A click opens it for editing (see lib/card-click.ts).
+  &:not(.todo-item--done):not(:has(.list-editor)) {
+    cursor: pointer;
+  }
 }
 
-// <a11y-checkbox> is `display: contents`: its generated <label class="a11y-checkbox"> is the
-// row's flex item, so that's what takes the free space.
-.todo-item__check {
-  > .a11y-checkbox {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .a11y-checkbox__label {
-    overflow-wrap: anywhere;
-  }
+// The checkbox's <label> holds only the box: the text beside it takes the free space, and a click
+// on it opens the editor instead of checking the to-do.
+.todo-item__text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 // Muted text keeps a 4.5:1 contrast in both themes; the strike says "done" without color.
-.todo-item--done .a11y-checkbox__label {
+.todo-item--done .todo-item__text {
   color: var(--color-text-muted);
   text-decoration: line-through;
 }
@@ -109,4 +110,13 @@
   justify-content: center;
   font-weight: 700;
   letter-spacing: 0.05em;
+}
+
+// A list's arrow, before its name: folds it down to its name and progress.
+.todo-item__toggle {
+  @include disclosure.toggle;
+}
+
+.todo-item__chevron {
+  @include disclosure.chevron;
 }

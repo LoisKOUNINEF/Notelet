@@ -16,11 +16,12 @@ interface IAreaOption {
 interface ISettingsPanelView {
   areas: IAreaOption[];
   busy: boolean;
-  // Leaving sync removes the synced copy on every device: asked first.
-  confirming: boolean;
+  // The option picked but not applied yet: the arrow keys check radios as they move, so picking
+  // only previews; Apply (or "Remove synced copy", when leaving sync) moves the notes.
+  pending: StorageAreaName | null;
 }
 
-const templateFn = ({ areas, busy, confirming }: ISettingsPanelView) => html`__TEMPLATE_PLACEHOLDER__`;
+const templateFn = ({ areas, busy, pending }: ISettingsPanelView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 const AREAS: Omit<IAreaOption, 'checked'>[] = [
   { value: 'local', label: 'On this device', hint: 'Up to 10 MB of notes.' },
@@ -44,7 +45,7 @@ export class SettingsPanelComponent extends Component<HTMLElement, ISettingsPane
   private _destroyed = false;
 
   constructor(mountTarget: HTMLElement, { onManageSites = () => {} }: ISettingsPanelOptions = {}) {
-    super({ templateFn, mountTarget, config: SettingsPanelComponent.view(false, false) });
+    super({ templateFn, mountTarget, config: SettingsPanelComponent.view(false, null) });
     this._onManageSites = onManageSites;
     // Also follows a change made in another window.
     this.listen('storage-area-changed', () => this.setBusy(false));
@@ -60,35 +61,33 @@ export class SettingsPanelComponent extends Component<HTMLElement, ISettingsPane
     this._deleteData?.update({ busy: this.config.busy });
   }
 
-  private static view(busy: boolean, confirming: boolean): ISettingsPanelView {
+  private static view(busy: boolean, pending: StorageAreaName | null): ISettingsPanelView {
     // While asking, the choice just made stays shown.
-    const selected = confirming ? 'local' : settingsService.storageArea;
+    const selected = pending ?? settingsService.storageArea;
     return {
       busy,
-      confirming,
+      pending,
       areas: AREAS.map((area) => ({ ...area, checked: area.value === selected })),
     };
   }
 
-  private async _setArea(value: string): Promise<void> {
+  // Picked (by click or with the arrows): shown, with the step that applies it below; focus stays
+  // on the radio so the arrows keep working. The area in use picked again: nothing pending.
+  private _setArea(value: string): void {
     const area = AREAS.find((option) => option.value === value)?.value;
-    if (!area || area === settingsService.storageArea) return;
-    if (area === 'local') {
-      this.config = SettingsPanelComponent.view(false, true);
-      this.render();
-      this.element.querySelector<HTMLElement>('.settings-panel__confirm')!.focus();
-      return;
-    }
-    await this.migrate(area);
+    if (!area) return;
+    this.config = SettingsPanelComponent.view(false, area === settingsService.storageArea ? null : area);
+    this.render();
+    this.element.querySelector<HTMLInputElement>(`input[value="${area}"]`)!.focus();
   }
 
-  private async _confirmLocal(): Promise<void> {
-    await this.migrate('local');
+  private async _apply(): Promise<void> {
+    if (this.config.pending) await this.migrate(this.config.pending);
   }
 
-  private _cancelLocal(): void {
+  private _cancel(): void {
     this.setBusy(false);
-    this.element.querySelector<HTMLInputElement>('input[value="sync"]')!.focus();
+    this.element.querySelector<HTMLInputElement>(`input[value="${settingsService.storageArea}"]`)!.focus();
   }
 
   private async migrate(area: StorageAreaName): Promise<void> {
@@ -125,7 +124,7 @@ export class SettingsPanelComponent extends Component<HTMLElement, ISettingsPane
   // A destroyed panel would recreate its delete section, which nothing would then ever destroy.
   private setBusy(busy: boolean): void {
     if (this._destroyed) return;
-    this.config = SettingsPanelComponent.view(busy, false);
+    this.config = SettingsPanelComponent.view(busy, null);
     this.render();
   }
 }

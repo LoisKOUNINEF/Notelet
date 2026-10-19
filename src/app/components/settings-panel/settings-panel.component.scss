@@ -26,6 +26,25 @@
   font-size: var(--font-small);
 }
 
+// "Manage notes and to-dos": labelled rows, spaced like delete-data's own (see its .scss).
+.settings-panel__rows {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.settings-panel__row {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-1);
+}
+
+// Like a11y-select's label ("Delete all older than"): the same rule, through its tokens.
+.settings-panel__label {
+  color: var(--a11y-select-color-text-muted);
+  font-size: var(--a11y-select-label-font-size);
+  font-weight: var(--a11y-select-label-font-weight, 600);
+}
+
 .settings-panel__section {
   display: grid;
   justify-items: start;
@@ -42,6 +61,8 @@
 
 .settings-panel__confirm {
   display: grid;
+  // Full width, in a section that otherwise sizes its items to their content.
+  justify-self: stretch;
   gap: var(--space-2);
   padding: var(--space-3);
   border: 1px solid var(--color-danger);

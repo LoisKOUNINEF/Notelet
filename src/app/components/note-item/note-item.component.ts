@@ -1,6 +1,7 @@
 import { Component, html } from '../../../core/index.js';
 import { byData, clearRequestedFocus, requestFocus } from '../../lib/focus.js';
 import { errorMessage } from '../../lib/errors.js';
+import { editOnClick } from '../../lib/card-click.js';
 import { delegateActions, removeOverlays } from '../../lib/overlays.js';
 import { formatTimeAgo } from '../../lib/pipes.js';
 import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
@@ -17,6 +18,11 @@ interface INoteItemView {
   grabbed: boolean;
   // How the handle and the "⋯" trigger name this note (see noteLabel).
   name: string;
+  // Folding would hide something (its text under a name, or lines after the first).
+  canCollapse: boolean;
+  collapsed: boolean;
+  // Its text's first line: all an unnamed note shows when folded.
+  summary: string;
 }
 
 // What the note list passes to each item, besides the note (see createCatalogComponents).
@@ -29,12 +35,13 @@ export interface INoteItemOptions {
   grabbedId: string | null;
 }
 
-const templateFn = ({ note, editing, edited, moveTarget, reorderable, grabbed, name }: INoteItemView) => html`__TEMPLATE_PLACEHOLDER__`;
+const templateFn = ({ note, editing, edited, moveTarget, reorderable, grabbed, name, canCollapse, collapsed, summary }: INoteItemView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 /**
- * One note: its text, when it was last edited, and its actions (Edit, Delete, and the rest in a
- * "⋯" menu). Edit mode swaps all that for the note editor in place; the list then keeps it as-is
- * while other notes change.
+ * One note: its name if it has one, its text, when it was last edited, and its actions (Edit,
+ * Delete, and the rest in a "⋯" menu). A click on it opens it for editing too, like Edit. Its arrow
+ * folds it down to its name, or its first line (saved on the note). Edit mode swaps all that for
+ * the note editor in place; the list then keeps it as-is while other notes change.
  */
 export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
   private _note: INote;
@@ -66,7 +73,12 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
   }
 
   private static view(note: INote, options: INoteItemOptions, editing: boolean): INoteItemView {
+    const lines = note.text.split('\n').filter((line) => line.trim());
+    const canCollapse = note.name ? lines.length > 0 : lines.length > 1;
     return {
+      canCollapse,
+      collapsed: canCollapse && !!note.collapsed,
+      summary: (lines[0] ?? '').trim(),
       note,
       editing,
       edited: note.updatedAt !== note.createdAt,
@@ -84,7 +96,7 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
         factory: (el) => (this._editor = new NoteEditorComponent(el, {
           note: this._note,
           draft: getEditDraft<INoteEditDraft>('note', this._note.id),
-          onSave: (text) => void this.save(text),
+          onSave: (text, name) => void this.save(text, name),
           onCancel: () => this.cancel(),
         })),
       }];
@@ -104,6 +116,7 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
       if (action === 'move') void this.move();
     });
     if (menu) this.eventListeners.push(menu);
+    if (!this.config.editing) this.eventListeners.push(editOnClick(this.element, () => this._edit()));
   }
 
   protected override onBeforeDestroy(): void {
@@ -122,8 +135,25 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
     this.element.querySelector<HTMLElement>('.note-item__edit')!.focus();
   }
 
-  private async save(text: string): Promise<void> {
-    if (text === this._note.text) {
+  // Folded right away; the stored note then comes back as a new list item, focus on its arrow.
+  private async _toggleCollapsed(): Promise<void> {
+    const collapsed = !this.config.collapsed;
+    this.config = { ...this.config, collapsed };
+    this.render();
+    this.element.querySelector<HTMLElement>('.note-item__toggle')?.focus();
+    requestFocus(`${byData('note-id', this._note.id)} .note-item__toggle`);
+    try {
+      await scopeStoreService.setCollapsed('notes', this._note, collapsed);
+    } catch (error) {
+      clearRequestedFocus();
+      this.config = { ...this.config, collapsed: !collapsed };
+      this.render();
+      notifierService.error(`Couldn't update the note. ${errorMessage(error)}`);
+    }
+  }
+
+  private async save(text: string, name: string): Promise<void> {
+    if (text === this._note.text && name === (this._note.name ?? '')) {
       this.cancel();
       return;
     }
@@ -133,7 +163,8 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
     this._editor?.close();
     requestFocus(`${byData('note-id', this._note.id)} .note-item__edit`);
     try {
-      await scopeStoreService.update('notes', this._note, { text });
+      // No name: none stored (storage drops `undefined`).
+      await scopeStoreService.update('notes', this._note, { text, name: name || undefined });
     } catch (error) {
       this._editor?.reopen();
       clearRequestedFocus();
@@ -187,9 +218,9 @@ const LABEL_LENGTH = 60;
 
 /**
  * How a note is named by its controls (Edit/Delete descriptions, the handle, the "⋯" trigger)
- * and while it's moved: its text's first line, else its first item, cut to a readable length.
+ * and while it's moved: its name if it has one, else its text's first line, cut to a readable length.
  */
 export function noteLabel(note: INote): string {
-  const label = ((note.text ?? '').split('\n').find((line) => line.trim()) ?? '').trim() || 'Note';
+  const label = note.name || ((note.text ?? '').split('\n').find((line) => line.trim()) ?? '').trim() || 'Note';
   return label.length > LABEL_LENGTH ? `${label.slice(0, LABEL_LENGTH - 1).trimEnd()}…` : label;
 }

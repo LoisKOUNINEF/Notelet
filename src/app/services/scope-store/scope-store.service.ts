@@ -172,6 +172,26 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
     });
   }
 
+  /**
+   * Folds or unfolds a note or a to-do list. Not an edit: its updatedAt (shown as "Edited", and
+   * counted by "Delete all older than") stays. Resolves to the item as stored, or the caller's
+   * copy if it's gone.
+   */
+  public setCollapsed<K extends ScopeContentKind>(kind: K, item: IScopeItemKinds[K], collapsed: boolean): Promise<IScopeItemKinds[K]> {
+    return this.enqueue(async () => {
+      let updated = item;
+      await this.write(kind, item.scope, item.key, (items) => items.map((current) => {
+        if (current.id !== item.id) return current;
+        const folded = { ...current } as IScopeItemKinds[K];
+        if (collapsed) folded.collapsed = true;
+        else delete folded.collapsed;
+        updated = folded;
+        return folded;
+      }));
+      return updated;
+    });
+  }
+
   public remove<K extends ScopeContentKind>(kind: K, item: IScopeItemKinds[K]): Promise<void> {
     return this.enqueue(() => this.write(kind, item.scope, item.key, (items) => items.filter((i) => i.id !== item.id)));
   }

@@ -1,24 +1,31 @@
 <section class="settings-panel" aria-labelledby="settings-title">
   <h2 class="settings-panel__title" id="settings-title" tabindex="-1">Settings</h2>
 
-  <a11y-radio-group class="settings-panel__group" legend="Where to keep your notes" ${busy ? raw('disabled') : ''}>
-    ${areas.map((area) => html`
-    <label class="settings-panel__option">
-      <input type="radio" tabindex="0" name="storage-area" value="${area.value}" ${area.checked ? raw('checked') : ''} data-event="change:_setArea:@value">
-      <span class="settings-panel__option-text">
-        <span class="settings-panel__option-label">${area.label}</span>
-        <span class="settings-panel__option-hint">${area.hint}</span>
-      </span>
-    </label>`)}
-  </a11y-radio-group>
-  ${confirming ? html`
-  <div class="settings-panel__confirm" role="group" aria-labelledby="settings-confirm-text" tabindex="-1">
-    <p class="settings-panel__confirm-text" id="settings-confirm-text">Remove your synced notes from all your devices? They'll be kept on this device only, and your other computers will lose them.</p>
-    <div class="settings-panel__confirm-actions">
-      <button class="button button--danger settings-panel__confirm-remove" type="button" tabindex="0" data-event="click:_confirmLocal">Remove synced copy</button>
-      <button class="button settings-panel__confirm-cancel" type="button" tabindex="0" data-event="click:_cancelLocal">Cancel</button>
-    </div>
-  </div>` : ''}
+  <div class="settings-panel__section">
+    <h3 class="settings-panel__subtitle" id="settings-storage-title">Where to keep your notes</h3>
+    <a11y-radio-group class="settings-panel__group" aria-label="Where to keep your notes" ${busy ? raw('disabled') : ''}>
+      ${areas.map((area) => html`
+      <label class="settings-panel__option">
+        <input type="radio" tabindex="0" name="storage-area" value="${area.value}" ${area.checked ? raw('checked') : ''} data-event="change:_setArea:@value">
+        <span class="settings-panel__option-text">
+          <span class="settings-panel__option-label">${area.label}</span>
+          <span class="settings-panel__option-hint">${area.hint}</span>
+        </span>
+      </label>`)}
+    </a11y-radio-group>
+    ${pending ? html`
+    <div class="settings-panel__confirm" role="group" aria-labelledby="settings-confirm-text">
+      ${pending === 'local'
+        ? html`<p class="settings-panel__confirm-text" id="settings-confirm-text">Remove your synced notes from all your devices? They'll be kept on this device only, and your other computers will lose them.</p>`
+        : html`<p class="settings-panel__confirm-text" id="settings-confirm-text">Your notes will sync with your Chrome profile: on every computer you sign in to, up to about 100 KB.</p>`}
+      <div class="settings-panel__confirm-actions">
+        ${pending === 'local'
+          ? html`<button class="button button--danger settings-panel__confirm-remove" type="button" tabindex="0" data-event="click:_apply">Remove synced copy</button>`
+          : html`<button class="button button--primary settings-panel__confirm-apply" type="button" tabindex="0" data-event="click:_apply">Apply</button>`}
+        <button class="button settings-panel__confirm-cancel" type="button" tabindex="0" data-event="click:_cancel">Cancel</button>
+      </div>
+    </div>` : ''}
+  </div>
 
   <div class="settings-panel__section">
     <h3 class="settings-panel__subtitle">Panel side</h3>
@@ -33,14 +40,14 @@
   </div>
 
   <div class="settings-panel__section">
-    <h3 class="settings-panel__subtitle">Notes by site</h3>
-    <p class="settings-panel__text">See which sites have notes or to-dos, and clean them up one site at a time.</p>
-    <button class="button settings-panel__manage-sites" type="button" tabindex="0" data-event="click:_manageSites">Manage by site</button>
-  </div>
-
-  <div class="settings-panel__section">
-    <h3 class="settings-panel__subtitle">Delete everything</h3>
-    <div data-component="delete-data"></div>
+    <h3 class="settings-panel__subtitle">Manage notes and to-dos</h3>
+    <div class="settings-panel__rows">
+      <div class="settings-panel__row" role="group" aria-labelledby="manage-sites-label">
+        <p class="settings-panel__label" id="manage-sites-label">Notes by site</p>
+        <button class="button settings-panel__manage-sites" type="button" tabindex="0" data-event="click:_manageSites">Manage by site</button>
+      </div>
+      <div data-component="delete-data"></div>
+    </div>
   </div>
 
   <div class="settings-panel__section">
@@ -49,6 +56,8 @@
       <details class="settings-panel__help-item">
         <summary>Page or site? Notes or to-dos?</summary>
         <p>The tabs on top pick the page or the whole site; the ones below pick its to-dos or its notes. The panel opens on the last To-dos or Notes tab you picked.</p>
+        <p>Click a note or a to-do to edit it (or use its "Edit"); only a to-do's checkbox checks it. In its editor, a note can also get a name, shown above its text.</p>
+        <p>The arrow beside a note folds it down to its name, or its first line; a to-do list's folds it down to its name and progress. It stays folded until you unfold it.</p>
         <p>Page notes and to-dos show on that page only. Site notes show on every page of the site (a subdomain like blog.example.com is a site of its own). "Move to this site" or "Move to this page", in a note's or to-do's "⋯" menu, switches it between the two.</p>
       </details>
       <details class="settings-panel__help-item">

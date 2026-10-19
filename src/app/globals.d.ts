@@ -31,12 +31,19 @@ declare interface IChecklistItem {
 }
 
 // A note: text only (lists of things to check off are to-do lists).
-declare interface INote extends IScopeItem {}
+declare interface INote extends IScopeItem {
+  // Optional, set in the note editor: shown above the text, and names the note in labels.
+  name?: string;
+  // Folded down to its name or first line (see NoteItemComponent). Not an edit: keeps updatedAt.
+  collapsed?: boolean;
+}
 
 declare interface ITodo extends IScopeItem {
   // A to-do list: its text is the list's name, and it's done once every item is (see ScopeStoreService).
   // Absent or empty: a single to-do.
   items?: IChecklistItem[];
+  // A list folded down to its name and progress. Not an edit: keeps updatedAt.
+  collapsed?: boolean;
   done: boolean;
   // When it was last checked (null while open): done to-dos are listed in the order they were done.
   doneAt: Timestamp | null;

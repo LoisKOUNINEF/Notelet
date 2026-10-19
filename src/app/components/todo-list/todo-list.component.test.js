@@ -15,7 +15,7 @@ describe('TodoListComponent', () => {
     list = new TodoListComponent(placeholder, { scope: 'page', keys: KEYS, todos });
     list.render();
   };
-  const labels = () => $$('.todo-item a11y-checkbox').map((el) => el.getAttribute('label'));
+  const labels = () => $$('.todo-item__text').map((el) => el.textContent);
 
   beforeEach(async () => {
     panel = await startPanel();
@@ -85,7 +85,7 @@ describe('TodoListComponent', () => {
     expect(toggle().getAttribute('aria-controls')).toBe('todo-done-items');
     expect(doneList().hidden).toBe(true);
     expect(doneList().getAttribute('aria-label')).toBe('Done to-dos for this page');
-    expect($$('[data-catalog="done-todos"] a11y-checkbox').map((el) => el.getAttribute('label'))).toEqual(['Done 1', 'Done 2']);
+    expect($$('[data-catalog="done-todos"] .todo-item__text').map((el) => el.textContent)).toEqual(['Done 1', 'Done 2']);
     expect($('.todo-composer').compareDocumentPosition($('[data-catalog="open-todos"]')) & window.Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect($('[data-catalog="open-todos"]').compareDocumentPosition(toggle()) & window.Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
@@ -255,7 +255,7 @@ describe('TodoListComponent - reordering', () => {
   let todos;
 
   const handle = (todo) => $(`[data-todo-id="${todo.id}"] .todo-item__handle`);
-  const shown = () => $$('[data-catalog="open-todos"] a11y-checkbox').map((el) => el.getAttribute('label'));
+  const shown = () => $$('[data-catalog="open-todos"] .todo-item__text').map((el) => el.textContent);
   const stored = async () => (await scopeStoreService.load(KEYS)).page.todos.map((t) => t.text);
   const mount = (items = todos) => {
     const placeholder = document.getElementById('app').appendChild(document.createElement('div'));
@@ -509,7 +509,7 @@ describe('TodoListComponent - reordering', () => {
     await settle();
 
     expect(shown()).toEqual(['C', 'A', 'B']);
-    expect($$('[data-catalog="done-todos"] a11y-checkbox').map((el) => el.getAttribute('label'))).toEqual(['Done one']);
+    expect($$('[data-catalog="done-todos"] .todo-item__text').map((el) => el.textContent)).toEqual(['Done one']);
     expect(await stored()).toEqual(['C', 'A', 'B', 'Done one']);
   });
 

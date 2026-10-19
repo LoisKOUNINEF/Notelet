@@ -397,6 +397,29 @@ describe('ScopeStoreService', () => {
       expect(settingsService.storageArea).toBe('local');
     });
   });
+
+  it('keeps a note\'s name through an edit and a move', async () => {
+    const note = await scopeStoreService.addNote('page', keys.page, 'Body');
+    const named = await scopeStoreService.update('notes', note, { name: 'Title' });
+    const edited = await scopeStoreService.update('notes', named, { text: 'New body' });
+    expect(edited.name).toBe('Title');
+    const moved = await scopeStoreService.move('notes', edited, keys);
+    expect(moved.name).toBe('Title');
+  });
+
+  it('folds and unfolds a note or a to-do without changing when it was edited', async () => {
+    const note = await scopeStoreService.addNote('page', keys.page, 'Body');
+    const folded = await scopeStoreService.setCollapsed('notes', note, true);
+    expect(folded.collapsed).toBe(true);
+    expect(folded.updatedAt).toBe(note.updatedAt);
+    const unfolded = await scopeStoreService.setCollapsed('notes', folded, false);
+    expect('collapsed' in unfolded).toBe(false);
+
+    const todo = await scopeStoreService.addTodo('page', keys.page, 'Trip', [{ id: 'a', text: 'Passport', done: false }]);
+    const foldedTodo = await scopeStoreService.setCollapsed('todos', todo, true);
+    expect(foldedTodo.collapsed).toBe(true);
+    expect(foldedTodo.updatedAt).toBe(todo.updatedAt);
+  });
 });
 
 // Not nested in the suite above: testin-nutin's describe() replaces the hooks of the suite it's in.

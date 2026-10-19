@@ -4,17 +4,21 @@ ${reorderable ? html`
   <span class="todo-item__grip" aria-hidden="true"></span>
 </button>` : ''}
 ${items.length > 0 ? html`
-<span class="todo-item__title" id="todo-${todo.id}-check">${todo.text}<span class="todo-item__progress">${' · '}${doneCount} of ${items.length} done</span></span>` : html`
-<a11y-checkbox class="todo-item__check" id="todo-${todo.id}-check" label="${todo.text}">
-  <input class="todo-item__checkbox" type="checkbox" tabindex="0" ${todo.done ? raw('checked') : ''} data-event="change:_toggle:@checked">
-</a11y-checkbox>`}
+<button class="todo-item__toggle" type="button" tabindex="0" aria-expanded="${collapsed ? 'false' : 'true'}" aria-controls="todo-${todo.id}-items" aria-label="Details: ${todo.text}" data-event="click:_toggleCollapsed">
+  <span class="todo-item__chevron" aria-hidden="true"></span>
+</button>
+<span class="todo-item__title" id="todo-${todo.id}-text">${todo.text}<span class="todo-item__progress">${' · '}${doneCount} of ${items.length} done</span></span>` : html`
+<a11y-checkbox class="todo-item__check">
+  <input class="todo-item__checkbox" type="checkbox" tabindex="0" aria-labelledby="todo-${todo.id}-text" ${todo.done ? raw('checked') : ''} data-event="change:_toggle:@checked">
+</a11y-checkbox>
+<span class="todo-item__text" id="todo-${todo.id}-text">${todo.text}</span>`}
 <div class="todo-item__actions">
-  ${todo.done ? '' : html`<button class="button button--small todo-item__edit" type="button" tabindex="0" aria-describedby="todo-${todo.id}-check" data-event="click:_edit">Edit</button>`}
-  <button class="button button--small button--danger todo-item__delete" type="button" tabindex="0" aria-describedby="todo-${todo.id}-check" data-event="click:_delete">Delete</button>
+  ${todo.done ? '' : html`<button class="button button--small todo-item__edit" type="button" tabindex="0" aria-describedby="todo-${todo.id}-text" data-event="click:_edit">Edit</button>`}
+  <button class="button button--small button--danger todo-item__delete" type="button" tabindex="0" aria-describedby="todo-${todo.id}-text" data-event="click:_delete">Delete</button>
   ${todo.done ? '' : html`<button class="button button--small todo-item__more" id="todo-${todo.id}-more" type="button" tabindex="0" aria-label="More actions for: ${todo.text}">⋯</button>`}
 </div>
-${items.length > 0 ? html`<ul class="todo-item__checklist" data-catalog="checklist" aria-label="${todo.text}"></ul>` : ''}
-${!todo.done && items.length > 0 ? html`
+${items.length > 0 && !collapsed ? html`<ul class="todo-item__checklist" id="todo-${todo.id}-items" data-catalog="checklist" aria-label="${todo.text}"></ul>` : ''}
+${!todo.done && items.length > 0 && !collapsed ? html`
 <form class="todo-item__add-item" data-event="submit:_addItem">
   <a11y-input class="todo-item__add-item-field">
     <a11y-label><span class="a11y-visually-hidden">Add an item to ${todo.text}</span></a11y-label>

@@ -58,4 +58,52 @@ describe('NoteEditorComponent', () => {
     expect(document.activeElement).toBe($(`[data-note-id="${note.id}"] .note-item__edit`));
     expect((await stored()).text).toBe('Trip');
   });
+
+  it('has an optional name field above the text, empty for an unnamed note', () => {
+    const nameField = $('.note-editor__name');
+    expect(nameField.value).toBe('');
+    expect($('.note-editor__name-field a11y-label').textContent).toBe('Name (optional)');
+    expect(nameField.compareDocumentPosition(textarea()) & window.Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('goes on to the text with Enter in the name, and saves both with Ctrl+Enter', async () => {
+    const nameField = $('.note-editor__name');
+    nameField.value = '  Packing  ';
+    keydown(nameField, 'Enter');
+    expect(document.activeElement).toBe(textarea());
+    expect(editor()).toBeTruthy();
+
+    keydown(nameField, 'Enter', { ctrlKey: true });
+    await settle();
+    const saved = await stored();
+    expect(saved.name).toBe('Packing');
+    expect(saved.text).toBe('Trip');
+  });
+
+  it('cancels with Escape in the name', async () => {
+    $('.note-editor__name').value = 'Discarded';
+    keydown($('.note-editor__name'), 'Escape');
+    await settle();
+    expect(editor()).toBeFalsy();
+    expect((await stored()).name).toBeUndefined();
+  });
+
+  it('removes the name when it\'s left blank', async () => {
+    await scopeStoreService.update('notes', note, { name: 'Packing' });
+    await settle();
+    $(`[data-note-id="${note.id}"] .note-item__edit`).click();
+    expect($('.note-editor__name').value).toBe('Packing');
+    $('.note-editor__name').value = '   ';
+    await save();
+    expect((await stored()).name).toBeFalsy();
+    expect($('.note-item__name')).toBeFalsy();
+  });
+
+  it('keeps an unsaved name as a draft across a tab switch', () => {
+    $('.note-editor__name').value = 'Half-named';
+    $('#scope-tab-site').click();
+    $('#scope-tab-page').click();
+    expect($('.note-editor__name').value).toBe('Half-named');
+    expect(textarea().value).toBe('Trip');
+  });
 });

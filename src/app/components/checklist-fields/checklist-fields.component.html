@@ -1,1 +1,3 @@
-${hasItems ? html`<ul class="checklist-fields ${className}" data-catalog="fields" aria-label="${label}"></ul>` : ''}
+${hasItems ? html`
+${caption ? html`<p class="checklist-fields__caption" id="${id}">${label}</p>` : ''}
+<ul class="checklist-fields ${className}" data-catalog="fields" ${caption ? html`aria-labelledby="${id}"` : html`aria-label="${label}"`}></ul>` : ''}

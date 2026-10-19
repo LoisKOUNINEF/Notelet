@@ -1,7 +1,7 @@
 <form class="list-editor__form" data-event="submit:_save">
   ${restored ? html`<p class="list-editor__restored">Unsaved changes restored.</p>` : ''}
   <a11y-input class="list-editor__field">
-    <a11y-label><span class="a11y-visually-hidden">${hasItems ? 'List name' : 'To-do name'}</span></a11y-label>
+    <a11y-label>${hasItems ? 'List name' : 'To-do'}</a11y-label>
     <input class="list-editor__input" type="text" name="text" required autocomplete="off" value="${text}" data-event="keydown:_onKeydown:@event">
   </a11y-input>
   <div data-component="checklist-fields"></div>

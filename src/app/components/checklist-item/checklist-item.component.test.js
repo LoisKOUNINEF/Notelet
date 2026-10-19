@@ -2,7 +2,7 @@ import { SidebarComponent } from '#root/dist/src/app/components/sidebar/sidebar.
 import { scopeStoreService } from '#root/dist/src/app/services/scope-store/scope-store.service.js';
 import { KEYS, settle, startPanel } from '../../testing/panel.js';
 
-// Checked from the to-do list, in the panel. <a11y-checkbox> isn't upgraded in jsdom: its text is its `label`.
+// Checked from the to-do list, in the panel. An item's text is beside its checkbox, which it labels.
 describe('ChecklistItemComponent', () => {
   let panel;
   let sidebar;
@@ -10,7 +10,7 @@ describe('ChecklistItemComponent', () => {
 
   const row = (id) => $(`[data-item-id="${id}"]`);
   const box = (id) => row(id).querySelector('.checklist-item__checkbox');
-  const labels = () => $$('.checklist-item a11y-checkbox').map((el) => el.getAttribute('label'));
+  const labels = () => $$('.checklist-item__text').map((el) => el.textContent);
   const check = async (id, checked = true) => {
     box(id).checked = checked;
     box(id).dispatchEvent(new window.Event('change', { bubbles: true }));

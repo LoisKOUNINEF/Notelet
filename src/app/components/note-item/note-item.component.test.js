@@ -247,6 +247,54 @@ describe('NoteItemComponent', () => {
     expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t restore the note. Quota exceeded.', type: 'error', duration: 6000 });
     expect(texts()).toEqual(['Third', 'First']);
   });
+
+  it('opens the editor on a click on the card or its text, focused in its field', () => {
+    item(notes[1]).querySelector('.note-item__text').click();
+    expect(item(notes[1]).querySelector('.note-editor')).toBeTruthy();
+    expect(document.activeElement).toBe(item(notes[1]).querySelector('.note-editor__input'));
+
+    item(notes[0]).querySelector('.note-item__footer').click();
+    expect(item(notes[0]).querySelector('.note-editor')).toBeTruthy();
+  });
+
+  it('doesn\'t open the editor from its buttons, nor when text in it is selected', async () => {
+    item(notes[1]).querySelector('.note-item__more').click();
+    item(notes[1]).querySelector('.note-item__handle').click();
+    expect(item(notes[1]).querySelector('.note-editor')).toBeFalsy();
+
+    const text = item(notes[1]).querySelector('.note-item__text');
+    document.getSelection().selectAllChildren(text);
+    text.click();
+    expect(item(notes[1]).querySelector('.note-editor')).toBeFalsy();
+    document.getSelection().removeAllRanges();
+  });
+
+  it('shows a name as a heading above the text, naming the note in its controls', async () => {
+    await scopeStoreService.update('notes', notes[1], { name: 'Ideas' });
+    await settle();
+    const el = item(notes[1]);
+    const heading = el.querySelector('.note-item__name');
+    expect(heading.tagName).toBe('H2');
+    expect(heading.textContent).toBe('Ideas');
+    expect(el.querySelector('.note-item__edit').getAttribute('aria-describedby')).toBe(heading.id);
+    expect(el.querySelector('.note-item__more').getAttribute('aria-label')).toBe('More actions for: Ideas');
+    expect(item(notes[0]).querySelector('.note-item__name')).toBeFalsy();
+
+    heading.click();
+    expect(item(notes[1]).querySelector('.note-editor')).toBeTruthy();
+  });
+
+  it('saves a name alone, the text unchanged', async () => {
+    item(notes[1]).querySelector('.note-item__edit').click();
+    item(notes[1]).querySelector('.note-editor__name').value = 'Ideas';
+    item(notes[1]).querySelector('button[type="submit"]').click();
+    await settle();
+    const saved = (await stored()).page.notes.find((n) => n.id === notes[1].id);
+    expect(saved.name).toBe('Ideas');
+    expect(saved.text).toBe('Second');
+    expect(item(notes[1]).querySelector('.note-item__name').textContent).toBe('Ideas');
+  });
+
 });
 
 describe('NoteItemComponent - naming and time', () => {
@@ -342,5 +390,89 @@ describe('NoteItemComponent - actions menu', () => {
     await settle();
     expect(set.callCount).toBe(0);
     set.restore();
+  });
+});
+
+describe('NoteItemComponent - folding', () => {
+  let panel;
+  let sidebar;
+  let oneLine;
+  let lines;
+  let named;
+
+  const item = (note) => $(`[data-note-id="${note.id}"]`);
+  const toggle = (note) => item(note).querySelector('.note-item__toggle');
+  const stored = async (note) => (await scopeStoreService.load(KEYS)).page.notes.find((n) => n.id === note.id);
+
+  beforeEach(async () => {
+    panel = await startPanel();
+    oneLine = await scopeStoreService.addNote('page', KEYS.page, 'Just this');
+    lines = await scopeStoreService.addNote('page', KEYS.page, '\nFirst line\nSecond line');
+    named = await scopeStoreService.update('notes', await scopeStoreService.addNote('page', KEYS.page, 'Body text'), { name: 'Ideas' });
+    sidebar = new SidebarComponent('#app');
+    sidebar.render();
+    await settle();
+  });
+
+  afterEach(async () => {
+    sidebar.destroy();
+    await panel.stop();
+  });
+
+  it('offers to fold only when it would hide something', () => {
+    expect(toggle(oneLine)).toBeFalsy();
+    expect(toggle(lines).getAttribute('aria-expanded')).toBe('true');
+    expect(toggle(lines).getAttribute('aria-label')).toBe('Details: First line');
+    expect(toggle(lines).getAttribute('aria-controls')).toBe(item(lines).querySelector('.note-item__content').id);
+    expect(toggle(named).getAttribute('aria-label')).toBe('Details: Ideas');
+  });
+
+  it('folds an unnamed note down to its first line, saved without counting as an edit', async () => {
+    toggle(lines).click();
+    expect(document.activeElement).toBe(toggle(lines));
+    await settle();
+
+    expect(toggle(lines).getAttribute('aria-expanded')).toBe('false');
+    expect(item(lines).querySelector('.note-item__text')).toBeFalsy();
+    const summary = item(lines).querySelector('.note-item__summary');
+    expect(summary.textContent).toBe('First line');
+    expect(item(lines).querySelector('.note-item__edit').getAttribute('aria-describedby')).toBe(summary.id);
+    expect(document.activeElement).toBe(toggle(lines));
+    const saved = await stored(lines);
+    expect(saved.collapsed).toBe(true);
+    expect(saved.updatedAt).toBe(lines.updatedAt);
+    expect(item(lines).querySelector('.note-item__meta').textContent).not.toContain('Edited');
+
+    toggle(lines).click();
+    await settle();
+    expect(item(lines).querySelector('.note-item__text').textContent).toBe('\nFirst line\nSecond line');
+    expect((await stored(lines)).collapsed).toBeUndefined();
+  });
+
+  it('folds a named note down to its name, its actions still there, a click still editing it', async () => {
+    toggle(named).click();
+    await settle();
+    expect(item(named).querySelector('.note-item__name').textContent).toBe('Ideas');
+    expect(item(named).querySelector('.note-item__text')).toBeFalsy();
+    expect(item(named).querySelector('.note-item__summary')).toBeFalsy();
+    expect(item(named).querySelector('.note-item__edit')).toBeTruthy();
+
+    item(named).querySelector('.note-item__name').click();
+    expect(item(named).querySelector('.note-editor__input').value).toBe('Body text');
+  });
+
+  it('shows a note folded in another window folded here too', async () => {
+    await scopeStoreService.setCollapsed('notes', named, true);
+    await settle();
+    expect(item(named).querySelector('.note-item__text')).toBeFalsy();
+  });
+
+  it('unfolds it again and reports a fold that couldn\'t be saved', async () => {
+    panel.fake.storage.local.failNextSet = new Error('Quota exceeded.');
+    toggle(named).click();
+    await settle();
+    expect(panel.toasts.at(-1).message).toBe('Couldn\'t update the note. Quota exceeded.');
+    expect(toggle(named).getAttribute('aria-expanded')).toBe('true');
+    expect(item(named).querySelector('.note-item__text')).toBeTruthy();
   });
 });

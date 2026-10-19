@@ -57,3 +57,15 @@
   min-width: 0;
   overflow-wrap: anywhere;
 }
+
+// The name, told apart from the items: labelled (like the quick add's field), and bold like the
+// list's name in view mode.
+.list-editor__input {
+  font-weight: 600;
+}
+
+// The items under the name, indented with a line, as in view mode.
+.list-editor__items {
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--color-border-strong);
+}

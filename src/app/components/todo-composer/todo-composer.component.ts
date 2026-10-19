@@ -88,10 +88,12 @@ export class TodoComposerComponent extends Component<HTMLElement, ITodoComposerV
     super.onBeforeDestroy();
   }
 
-  // "List", then "Add item": one more field, focused.
+  // "List", then "Add item": one more field, focused once the list has a name (else the name is).
   private _addListItem(): void {
     if (!this.config.listMode) this.setListMode(true);
-    this._checklist!.add();
+    const named = this.input.value.trim() !== '';
+    this._checklist!.add(undefined, named);
+    if (!named) this.input.focus();
   }
 
   private async _add(): Promise<void> {

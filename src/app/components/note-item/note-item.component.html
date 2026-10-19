@@ -1,5 +1,16 @@
 ${editing ? html`<div data-component="note-editor"></div>` : html`
-<p class="note-item__text" id="note-${note.id}-text">${note.text}</p>
+<div class="note-item__main">
+  ${canCollapse ? html`
+  <button class="note-item__toggle" type="button" tabindex="0" aria-expanded="${collapsed ? 'false' : 'true'}" aria-controls="note-${note.id}-content" aria-label="Details: ${name}" data-event="click:_toggleCollapsed">
+    <span class="note-item__chevron" aria-hidden="true"></span>
+  </button>` : ''}
+  <div class="note-item__content" id="note-${note.id}-content">
+    ${note.name ? html`<h2 class="note-item__name" id="note-${note.id}-name">${note.name}</h2>` : ''}
+    ${collapsed
+      ? (note.name ? '' : html`<p class="note-item__summary" id="note-${note.id}-summary">${summary}</p>`)
+      : html`<p class="note-item__text" id="note-${note.id}-text">${note.text}</p>`}
+  </div>
+</div>
 <div class="note-item__footer">
   ${reorderable ? html`
   <button class="note-item__handle" type="button" tabindex="0" aria-label="Reorder: ${name}" aria-describedby="note-reorder-help" aria-pressed="${grabbed ? 'true' : 'false'}">
@@ -7,8 +18,8 @@ ${editing ? html`<div data-component="note-editor"></div>` : html`
   </button>` : ''}
   <span class="note-item__meta">${edited ? 'Edited ' : ''}<time datetime="${new Date(note.updatedAt).toISOString()}" title="${new Date(note.updatedAt).toLocaleString()}" data-pipe="timeAgo">${note.updatedAt}</time></span>
   <div class="note-item__actions">
-    <button class="button button--small note-item__edit" type="button" tabindex="0" aria-describedby="note-${note.id}-text" data-event="click:_edit">Edit</button>
-    <button class="button button--small button--danger note-item__delete" type="button" tabindex="0" aria-describedby="note-${note.id}-text" data-event="click:_delete">Delete</button>
+    <button class="button button--small note-item__edit" type="button" tabindex="0" aria-describedby="note-${note.id}-${note.name ? 'name' : collapsed ? 'summary' : 'text'}" data-event="click:_edit">Edit</button>
+    <button class="button button--small button--danger note-item__delete" type="button" tabindex="0" aria-describedby="note-${note.id}-${note.name ? 'name' : collapsed ? 'summary' : 'text'}" data-event="click:_delete">Delete</button>
     <button class="button button--small note-item__more" id="note-${note.id}-more" type="button" tabindex="0" aria-label="More actions for: ${name}">⋯</button>
   </div>
 </div>

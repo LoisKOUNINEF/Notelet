@@ -7,6 +7,8 @@ export interface IChecklistFieldsConfig {
   // The list's accessible name, and its class in the parent's styles.
   label: string;
   className: string;
+  // Shows the name above the fields too (and labels them by it), e.g. "Items" under a list's name.
+  caption?: boolean;
   onEscape: () => void;
   // The last field was removed: the parent moves the focus (there's no previous field to take it).
   onLastRemoved: () => void;
@@ -20,9 +22,14 @@ interface IChecklistFieldsView {
   hasItems: boolean;
   label: string;
   className: string;
+  caption: boolean;
+  id: string;
 }
 
-const templateFn = ({ hasItems, label, className }: IChecklistFieldsView) => html`__TEMPLATE_PLACEHOLDER__`;
+// Unique ids for the captions (several editors may be open).
+let nextId = 0;
+
+const templateFn = ({ hasItems, label, className, caption, id }: IChecklistFieldsView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 /**
  * A checklist being written: one field per item (Enter adds the next one, Remove removes it).
@@ -35,7 +42,17 @@ export class ChecklistFieldsComponent extends Component<HTMLElement, IChecklistF
   private readonly _fieldOptions: IChecklistFieldOptions;
 
   constructor(mountTarget: HTMLElement, options: IChecklistFieldsConfig) {
-    super({ templateFn, mountTarget, config: { hasItems: options.items.length > 0, label: options.label, className: options.className } });
+    super({
+      templateFn,
+      mountTarget,
+      config: {
+        hasItems: options.items.length > 0,
+        label: options.label,
+        className: options.className,
+        caption: options.caption ?? false,
+        id: `checklist-fields-${++nextId}`,
+      },
+    });
     this._fields = options.items;
     this._fieldOptions = {
       onEnter: (id) => this.insertAfter(id),
@@ -68,13 +85,13 @@ export class ChecklistFieldsComponent extends Component<HTMLElement, IChecklistF
     return this._fields;
   }
 
-  // Adds a field at the end, focused: empty, or for an item given back (e.g. "Put back").
-  public add(item: IChecklistItem = newField()): void {
+  // Adds a field at the end, focused (unless `focus` is false): empty, or for an item given back
+  // (e.g. "Put back").
+  public add(item: IChecklistItem = newField(), focus = true): void {
     this.collect();
-    const field = item;
-    this._fields = [...this._fields, field];
+    this._fields = [...this._fields, item];
     this.refresh();
-    this.focusField(field.id);
+    if (focus) this.focusField(item.id);
   }
 
   public reset(items: IChecklistItem[]): void {
@@ -119,8 +136,13 @@ export class ChecklistFieldsComponent extends Component<HTMLElement, IChecklistF
     this._options.onChange?.();
   }
 
+  // An item's field, or null when it's not among them.
+  public fieldOf(id: string): HTMLInputElement | null {
+    return this.element.querySelector<HTMLInputElement>(`${byData('item-id', id)} .checklist-field__input`);
+  }
+
   private focusField(id: string): void {
-    this.element.querySelector<HTMLInputElement>(`${byData('item-id', id)} .checklist-field__input`)!.focus();
+    this.fieldOf(id)!.focus();
   }
 }
 

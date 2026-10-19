@@ -5,24 +5,27 @@ import { setEditDraft } from '../../lib/drafts.js';
 // What an edit in progress holds, kept as a draft if the editor goes away unsaved.
 export interface INoteEditDraft {
   text: string;
+  name: string;
 }
 
 export interface INoteEditorConfig {
   note: INote;
   // An earlier, unsaved edit of this note to start from.
   draft?: INoteEditDraft | null;
-  onSave: (text: string) => void;
+  // `name` is trimmed: '' for no name.
+  onSave: (text: string, name: string) => void;
   onCancel: () => void;
 }
 
 interface INoteEditorView {
   text: string;
+  name: string;
   restored: boolean;
 }
 
-const templateFn = ({ text, restored }: INoteEditorView) => html`__TEMPLATE_PLACEHOLDER__`;
+const templateFn = ({ text, name, restored }: INoteEditorView) => html`__TEMPLATE_PLACEHOLDER__`;
 
-// A note in edit mode: its text, in place of the note until saved or cancelled.
+// A note in edit mode: its optional name and its text, in place of the note until saved or cancelled.
 export class NoteEditorComponent extends Component<HTMLElement, INoteEditorView> {
   private _onSave: INoteEditorConfig['onSave'];
   private _onCancel: INoteEditorConfig['onCancel'];
@@ -34,7 +37,8 @@ export class NoteEditorComponent extends Component<HTMLElement, INoteEditorView>
 
   constructor(mountTarget: HTMLElement, { note, draft, onSave, onCancel }: INoteEditorConfig) {
     const text = draft?.text ?? note.text;
-    super({ templateFn, mountTarget, config: { text, restored: !!draft } });
+    const name = draft?.name ?? note.name ?? '';
+    super({ templateFn, mountTarget, config: { text, name, restored: !!draft } });
     this._note = note;
     this._restored = !!draft;
     this._onSave = onSave;
@@ -55,7 +59,9 @@ export class NoteEditorComponent extends Component<HTMLElement, INoteEditorView>
   protected override onBeforeDestroy(): void {
     if (!this._closed) {
       const text = this.textarea.value;
-      setEditDraft('note', this._note.id, text === this._note.text ? null : { text });
+      const name = this.nameInput.value;
+      const unchanged = text === this._note.text && name === (this._note.name ?? '');
+      setEditDraft('note', this._note.id, unchanged ? null : { text, name });
     }
     super.onBeforeDestroy();
   }
@@ -79,6 +85,20 @@ export class NoteEditorComponent extends Component<HTMLElement, INoteEditorView>
     return this.element.querySelector<HTMLTextAreaElement>('.note-editor__input')!;
   }
 
+  private get nameInput(): HTMLInputElement {
+    return this.element.querySelector<HTMLInputElement>('.note-editor__name')!;
+  }
+
+  // In the name, Enter goes on to the text; Ctrl+Enter and Escape work as in the text.
+  private _onNameKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Enter' && !event.ctrlKey && !event.metaKey) {
+      event.preventDefault();
+      this.focus();
+    } else {
+      this._onKeydown(event);
+    }
+  }
+
   private _onKeydown(event: KeyboardEvent): void {
     if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
       event.preventDefault();
@@ -94,7 +114,7 @@ export class NoteEditorComponent extends Component<HTMLElement, INoteEditorView>
     const text = this.textarea.value.trim();
     // Nothing left to keep: deleting a note is its own action.
     if (!text) return;
-    this._onSave(text);
+    this._onSave(text, this.nameInput.value.trim());
   }
 
   private _cancel(): void {

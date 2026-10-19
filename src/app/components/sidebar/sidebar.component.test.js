@@ -139,7 +139,7 @@ describe('SidebarComponent', () => {
     await scopeStoreService.addNote('site', KEYS.site, 'Site note');
     await mount();
     kindTab('todos').click();
-    const todoLabels = () => $$('.todo-item a11y-checkbox').map((el) => el.getAttribute('label'));
+    const todoLabels = () => $$('.todo-item__text').map((el) => el.textContent);
 
     expect(todoLabels()).toEqual(['Page task']);
     expect(tab('site').querySelector('.tabs__count').textContent).toBe('2');
@@ -156,7 +156,7 @@ describe('SidebarComponent', () => {
     $('.todo-composer').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
     await settle();
 
-    expect($$('.todo-item a11y-checkbox').map((el) => el.getAttribute('label'))).toEqual(['Ship it']);
+    expect($$('.todo-item__text').map((el) => el.textContent)).toEqual(['Ship it']);
     expect(document.activeElement).toBe($('.todo-composer__input'));
   });
 
@@ -425,6 +425,7 @@ describe('SidebarComponent', () => {
 
     $('input[value="sync"]').checked = true;
     $('input[value="sync"]').dispatchEvent(new window.Event('change', { bubbles: true }));
+    $('.settings-panel__confirm-apply').click();
     await settle();
     $('.sidebar__settings-toggle').click();
 

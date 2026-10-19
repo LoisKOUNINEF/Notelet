@@ -1,7 +1,11 @@
 <form class="note-editor" data-event="submit:_save">
   ${restored ? html`<p class="note-editor__restored">Unsaved changes restored.</p>` : ''}
+  <a11y-input class="note-editor__name-field">
+    <a11y-label>Name (optional)</a11y-label>
+    <input class="note-editor__name" type="text" name="name" autocomplete="off" maxlength="100" value="${name}" data-event="keydown:_onNameKeydown:@event">
+  </a11y-input>
   <a11y-textarea class="note-editor__field">
-    <a11y-label><span class="a11y-visually-hidden">Edit note</span></a11y-label>
+    <a11y-label>Note</a11y-label>
     <textarea class="note-editor__input" name="text" rows="4" data-event="keydown:_onKeydown:@event">${text}</textarea>
   </a11y-textarea>
   <div class="note-editor__actions">

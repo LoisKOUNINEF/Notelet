@@ -129,6 +129,7 @@ describe('TodoComposerComponent - lists', () => {
 
   it('adds the next item with Enter, and goes back to a single to-do once the last item is removed', () => {
     mount();
+    typeInto(input(), 'Groceries');
     listButton().click();
     fields()[0].value = 'Milk';
     keydown(fields()[0], 'Enter');
@@ -193,9 +194,26 @@ describe('TodoComposerComponent - lists', () => {
 
   it('goes back to the name with Escape from an item', () => {
     mount();
+    typeInto(input(), 'Groceries');
     listButton().click();
     keydown(fields()[0], 'Escape');
     expect(document.activeElement).toBe(input());
+  });
+
+  it('keeps the focus on an empty name with "List" or "Add item", the item field added all the same', () => {
+    mount();
+    listButton().click();
+    expect(input().getAttribute('placeholder')).toBe('List name…');
+    expect(fields().length).toBe(1);
+    expect(document.activeElement).toBe(input());
+
+    listButton().click();
+    expect(fields().length).toBe(2);
+    expect(document.activeElement).toBe(input());
+
+    typeInto(input(), 'Groceries');
+    listButton().click();
+    expect(document.activeElement).toBe(fields()[2]);
   });
 
   it('offers no "Take out" on its items (only the list editor does)', () => {

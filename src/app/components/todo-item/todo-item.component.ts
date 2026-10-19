@@ -1,4 +1,5 @@
 import { Component, html, raw } from '../../../core/index.js';
+import { editOnClick } from '../../lib/card-click.js';
 import { getEditDraft } from '../../lib/drafts.js';
 import { errorMessage } from '../../lib/errors.js';
 import { byData, clearRequestedFocus, requestFocus } from '../../lib/focus.js';
@@ -30,20 +31,24 @@ interface ITodoItemView {
   items: IChecklistItem[];
   doneCount: number;
   editing: boolean;
+  // A list folded down to its name and progress (see _toggleCollapsed).
+  collapsed: boolean;
   canMoveIntoList: boolean;
   reorderable: boolean;
   grabbed: boolean;
   moveTarget: string;
 }
 
-const templateFn = ({ todo, items, doneCount, editing, canMoveIntoList, reorderable, grabbed, moveTarget }: ITodoItemView) => html`__TEMPLATE_PLACEHOLDER__`;
+const templateFn = ({ todo, items, doneCount, editing, collapsed, canMoveIntoList, reorderable, grabbed, moveTarget }: ITodoItemView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 /**
  * One to-do: a checkbox labelled by its text, and its actions (a done one only offers Delete).
+ * Only the box checks it: a click on its text or elsewhere on it opens the editor, like Edit.
  * Checking it moves it below the open ones; focus follows it there.
  *
  * A to-do list has no checkbox of its own: its name, then its items, checked one by one; it's done
- * once they all are (see ScopeStoreService.updateWith).
+ * once they all are (see ScopeStoreService.updateWith). Its arrow folds it down to its name and
+ * progress (saved on the to-do).
  *
  * Every to-do is edited in the list editor, in place: adding items to a single one makes it a list,
  * removing them all makes a list single, and items taken out become single to-dos after it.
@@ -69,6 +74,7 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
         doneCount: items.filter((item) => item.done).length,
         // An edit left open when this to-do last went away comes back, still open.
         editing: getEditDraft<IListEditDraft>('todo', todo.id) !== null,
+        collapsed: items.length > 0 && !!todo.collapsed,
         canMoveIntoList: !todo.done && items.length === 0 && options.hasLists,
         reorderable: options.reorderable,
         grabbed: options.grabbedId === todo.id,
@@ -96,7 +102,7 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
       }];
     }
     return this.createCatalogComponents({
-      items: this.config.items,
+      items: this.config.collapsed ? [] : this.config.items,
       selector: 'checklist',
       elementName: 'checklist-item',
       elementTag: 'li',
@@ -118,6 +124,11 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
       else if (action === 'move-into-list') void this.moveIntoList();
     });
     if (menu) this.eventListeners.push(menu);
+    // A list's items are checked by their checkboxes only: their text opens the list's editor too,
+    // focused on that item's field (elsewhere on the list: on its name).
+    if (!this.config.editing && !this._todo.done) {
+      this.eventListeners.push(editOnClick(this.element, (target) => this.edit(target.closest<HTMLElement>('[data-item-id]')?.dataset.itemId)));
+    }
   }
 
   protected override onBeforeDestroy(): void {
@@ -142,9 +153,31 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
     }
   }
 
+  // Folded right away; the stored list then comes back as a new list item, focus on its arrow.
+  private async _toggleCollapsed(): Promise<void> {
+    const collapsed = !this.config.collapsed;
+    this.config = { ...this.config, collapsed };
+    this.render();
+    this.element.querySelector<HTMLElement>('.todo-item__toggle')?.focus();
+    requestFocus(`${byData('todo-id', this._todo.id)} .todo-item__toggle`);
+    try {
+      await scopeStoreService.setCollapsed('todos', this._todo, collapsed);
+    } catch (error) {
+      clearRequestedFocus();
+      this.config = { ...this.config, collapsed: !collapsed };
+      this.render();
+      notifierService.error(`Couldn't update the list. ${errorMessage(error)}`);
+    }
+  }
+
   private _edit(): void {
+    this.edit();
+  }
+
+  // Focused on that item's field, if given (and still in the list), else on the name.
+  private edit(itemId?: string): void {
     this.setEditing(true);
-    this._editor?.focus();
+    this._editor?.focus(itemId);
   }
 
   private async save(text: string, items: IChecklistItem[], takenOut: IChecklistItem[]): Promise<void> {

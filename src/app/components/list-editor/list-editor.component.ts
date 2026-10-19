@@ -80,8 +80,9 @@ export class ListEditorComponent extends Component<HTMLElement, IListEditorView>
   }
 
   // Focuses the name, caret at the end.
-  public focus(): void {
-    const input = this.input;
+  // On that item's field, if given and there, else on the name; the caret at the end.
+  public focus(itemId?: string): void {
+    const input = (itemId && this._checklist?.fieldOf(itemId)) || this.input;
     input.focus();
     input.setSelectionRange(input.value.length, input.value.length);
   }
@@ -108,7 +109,8 @@ export class ListEditorComponent extends Component<HTMLElement, IListEditorView>
       selector: 'checklist-fields',
       factory: (el) => (this._checklist = new ChecklistFieldsComponent(el, {
         items: this._fields,
-        label: 'List items',
+        label: 'Items',
+        caption: true,
         className: 'list-editor__items',
         onEscape: () => this._cancel(),
         onLastRemoved: () => this.element.querySelector<HTMLElement>('.list-editor__add-item')!.focus(),
