@@ -21,7 +21,7 @@ describe('TodoItemComponent', () => {
   };
 
   beforeEach(async () => {
-    panel = await startPanel();
+    panel = await startPanel({ settings: { contentKind: 'todos' } });
     const now = spyOn(Date, 'now');
     todos = [];
     for (const [i, text] of ['First', 'Second', 'Third'].entries()) {
@@ -269,7 +269,7 @@ describe('TodoItemComponent - actions menu', () => {
   };
 
   beforeEach(async () => {
-    panel = await startPanel();
+    panel = await startPanel({ settings: { contentKind: 'todos' } });
     const now = spyOn(Date, 'now');
     todos = [];
     for (const [i, text] of ['First', 'Second'].entries()) {

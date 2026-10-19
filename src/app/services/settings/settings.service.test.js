@@ -35,7 +35,7 @@ describe('SettingsService', () => {
     await settingsService.setStorageArea('sync');
 
     expect(settingsService.storageArea).toBe('sync');
-    expect(fake.storage.local.data.get('settings')).toEqual({ storageArea: 'sync', doneExpanded: false });
+    expect(fake.storage.local.data.get('settings')).toEqual({ storageArea: 'sync', doneExpanded: false, contentKind: 'notes' });
     expect(fake.storage.sync.data.size).toBe(0);
     expect(areaEvents).toEqual(['sync']);
   });
@@ -66,7 +66,7 @@ describe('SettingsService', () => {
 
     await settingsService.setDoneExpanded(true);
     expect(settingsService.doneExpanded).toBe(true);
-    expect(fake.storage.local.data.get('settings')).toEqual({ storageArea: 'local', doneExpanded: true });
+    expect(fake.storage.local.data.get('settings')).toEqual({ storageArea: 'local', doneExpanded: true, contentKind: 'notes' });
     expect(areaEvents).toEqual([]);
 
     settingsService.dispose();
@@ -79,5 +79,30 @@ describe('SettingsService', () => {
     await settingsService.init();
     expect(settingsService.doneExpanded).toBe(false);
     expect(settingsService.storageArea).toBe('sync');
+  });
+
+  it('shows notes first by default, and remembers the tab last picked', async () => {
+    await settingsService.init();
+    expect(settingsService.contentKind).toBe('notes');
+
+    await settingsService.setContentKind('todos');
+    expect(fake.storage.local.data.get('settings').contentKind).toBe('todos');
+
+    settingsService.dispose();
+    await settingsService.init();
+    expect(settingsService.contentKind).toBe('todos');
+  });
+
+  it('follows the tab picked in another window', async () => {
+    await settingsService.init();
+    let changes = 0;
+    const onChange = () => changes++;
+    AppEventBus.subscribe('settings-changed', onChange);
+    await fake.storage.local.set({ settings: { storageArea: 'local', doneExpanded: false, contentKind: 'todos' } });
+    AppEventBus.off('settings-changed', onChange);
+
+    expect(settingsService.contentKind).toBe('todos');
+    expect(changes).toBe(1);
+    expect(areaEvents).toEqual([]);
   });
 });

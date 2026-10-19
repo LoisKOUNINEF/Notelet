@@ -21,10 +21,4 @@
 
 .note-composer__checklist {
   margin-right: auto;
-
-  &[aria-pressed='true'] {
-    border-color: var(--color-primary);
-    color: var(--color-primary);
-    font-weight: 600;
-  }
 }

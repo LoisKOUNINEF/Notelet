@@ -1,5 +1,5 @@
 import { AppEventBus, Service } from '../../../core/index.js';
-import { isScopeContentKey, storageKey } from '../../lib/scope-keys.js';
+import { isScopeContentKey, pageLabelOf, storageKey } from '../../lib/scope-keys.js';
 import { chromeApiService } from '../chrome-api/chrome-api.service.js';
 import { settingsService } from '../settings/settings.service.js';
 
@@ -24,17 +24,20 @@ export class QuotaExceededError extends Error {
 const KINDS: ScopeContentKind[] = ['notes', 'todos'];
 const SCOPES: NoteScope[] = ['page', 'site'];
 
-// Notes: newest first. To-dos: a checklist, the open ones in the order the user arranged them
-// (oldest first until then, new ones last), then the done ones in the order they were checked,
-// so the one just checked is always last.
+// Notes: newest first, or in the order the user arranged them, notes written since on top.
+// To-dos: a checklist, the open ones in the order the user arranged them (oldest first until
+// then, new ones last), then the done ones in the order they were checked, so the one just
+// checked is always last.
 const SORTERS: { [K in ScopeContentKind]: (a: IScopeItemKinds[K], b: IScopeItemKinds[K]) => number } = {
-  notes: (a, b) => b.createdAt - a.createdAt,
+  notes: (a, b) => Number(a.position !== undefined) - Number(b.position !== undefined)
+    || (a.position ?? 0) - (b.position ?? 0)
+    || b.createdAt - a.createdAt,
   todos: (a, b) => Number(a.done) - Number(b.done)
     || (a.done ? doneTime(a) - doneTime(b) : position(a) - position(b))
     || a.createdAt - b.createdAt,
 };
 
-// Not reordered yet: after the ones that were.
+// A to-do not reordered yet: after the ones that were.
 function position(todo: ITodo): number {
   return todo.position ?? Number.MAX_SAFE_INTEGER;
 }
@@ -85,6 +88,33 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
       todos: sortItems('todos', stored[storageKey('todos', scope, keys[scope])]),
     });
     return { page: content('page'), site: content('site') };
+  }
+
+  // Every page of a site that has notes or to-dos (done ones included), by path. Reads the whole area:
+  // page items are keyed by URL, so a site's pages can't be listed from their keys alone.
+  public async listSitePages(site: string): Promise<ISitePage[]> {
+    const stored = await chromeApiService.storageGet(this.area, null);
+    const pages = new Map<string, ISitePage>();
+
+    for (const kind of KINDS) {
+      const prefix = storageKey(kind, 'page', '');
+      for (const [item, value] of Object.entries(stored)) {
+        if (!item.startsWith(prefix)) continue;
+        const key = item.slice(prefix.length);
+        if (hostOf(key) !== site) continue;
+        const items = sortItems(kind, value);
+        if (items.length === 0) continue;
+
+        const page = pages.get(key) ?? { key, label: pageLabelOf(key), notes: 0, todos: 0, openTodos: 0 };
+        if (kind === 'notes') page.notes = items.length;
+        else {
+          page.todos = items.length;
+          page.openTodos = (items as ITodo[]).filter((todo) => !todo.done).length;
+        }
+        pages.set(key, page);
+      }
+    }
+    return [...pages.values()].sort((a, b) => a.label.localeCompare(b.label));
   }
 
   public addNote(scope: NoteScope, key: string, text: string, items: IChecklistItem[] = []): Promise<INote> {
@@ -143,6 +173,27 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
     return this.enqueue(() => this.write(kind, first.scope, first.key, (list) => list.filter((i) => !ids.has(i.id))));
   }
 
+  // Empties one list (a scope's notes, or its to-dos) in a single write. Resolves to what was in
+  // it, as stored at that moment, for an Undo (restoreMany).
+  public removeAll<K extends ScopeContentKind>(kind: K, scope: NoteScope, key: string): Promise<IScopeItemKinds[K][]> {
+    return this.enqueue(async () => {
+      let removed: IScopeItemKinds[K][] = [];
+      await this.write(kind, scope, key, (items) => {
+        removed = items;
+        return [];
+      });
+      return removed;
+    });
+  }
+
+  // Deletes every note and to-do of the storage area in use, on every page and site (settings stay).
+  public clearEverything(): Promise<void> {
+    return this.enqueue(async () => {
+      const content = scopeContent(await chromeApiService.storageGet(this.area, null));
+      await chromeApiService.storageRemove(this.area, Object.keys(content));
+    });
+  }
+
   // Undoes removeMany(), in a single write.
   public restoreMany<K extends ScopeContentKind>(kind: K, items: IScopeItemKinds[K][]): Promise<void> {
     const [first] = items;
@@ -152,7 +203,8 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
   }
 
   // Moves an item to the other scope of the same tab (page ↔ site), in a single write.
-  // A to-do lands at the top of the other list's open ones (see topPosition).
+  // It lands at the top of the other list: a note as one not reordered yet, a to-do at the top
+  // of the open ones (see topPosition).
   public move<K extends ScopeContentKind>(kind: K, item: IScopeItemKinds[K], keys: IScopeKeys): Promise<IScopeItemKinds[K]> {
     const scope: NoteScope = item.scope === 'page' ? 'site' : 'page';
     const from = storageKey(kind, item.scope, item.key);
@@ -165,8 +217,9 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
       const current = source.find((i) => i.id === item.id);
       if (!current) return item;
       const target = sortItems(kind, stored[to]);
-      let moved = { ...current, scope, key: keys[scope], updatedAt: Date.now() };
-      if (kind === 'todos') moved = { ...moved, position: topPosition(target as ITodo[]) };
+      const moved = { ...current, scope, key: keys[scope], updatedAt: Date.now() };
+      if (kind === 'todos') moved.position = topPosition(target as ITodo[]);
+      else delete moved.position;
 
       const rest = source.filter((i) => i.id !== item.id);
       // Both lists in one write; an emptied one is removed, like write() does (sync allows 512 items).
@@ -180,19 +233,20 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
   }
 
   /**
-   * Saves the order the user gave a list's open to-dos, in one write. Open to-dos missing from
-   * `openIds` (added in another window meanwhile) keep their place after them; done ones keep theirs.
+   * Saves the order the user gave a list, in one write: all of a scope's notes, or its open
+   * to-dos (done ones keep their place). Items missing from `ids` (added in another window
+   * meanwhile) keep theirs too: new notes stay on top, new to-dos after the ordered ones.
    */
-  public reorderTodos(scope: NoteScope, key: string, openIds: string[]): Promise<void> {
-    return this.enqueue(() => this.write('todos', scope, key, (todos) => {
-      const open = todos.filter((todo) => !todo.done);
-      const ordered = [
-        ...openIds.map((id) => open.find((todo) => todo.id === id)).filter((todo): todo is ITodo => !!todo),
-        ...open.filter((todo) => !openIds.includes(todo.id)),
-      ];
+  public reorder(kind: ScopeContentKind, scope: NoteScope, key: string, ids: string[]): Promise<void> {
+    return this.enqueue(() => this.write(kind, scope, key, (items: IScopeItem[]) => {
+      const reorderable = (item: IScopeItem) => kind === 'notes' || !(item as ITodo).done;
+      const listed = ids.map((id) => items.find((item) => item.id === id && reorderable(item))).filter((item): item is IScopeItem => !!item);
+      const positioned = listed.map((item, index) => ({ ...item, position: index }));
+      if (kind === 'notes') return [...items.filter((item) => !ids.includes(item.id)), ...positioned];
       return [
-        ...ordered.map((todo, index) => ({ ...todo, position: index })),
-        ...todos.filter((todo) => todo.done),
+        ...positioned,
+        ...items.filter((item) => reorderable(item) && !ids.includes(item.id)),
+        ...items.filter((item) => !reorderable(item)),
       ];
     }));
   }
@@ -290,6 +344,15 @@ function isItem(value: unknown): boolean {
   if (!value || typeof value !== 'object') return false;
   const item = value as Partial<IScopeItem>;
   return typeof item.id === 'string' && typeof item.createdAt === 'number';
+}
+
+// A page key's host (already without `www.`), or null for a malformed key.
+function hostOf(pageKey: string): string | null {
+  try {
+    return new URL(pageKey).hostname;
+  } catch {
+    return null;
+  }
 }
 
 // The notes and to-dos items of a storage area (leaving `settings` and anything else out).

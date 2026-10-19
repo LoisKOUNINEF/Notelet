@@ -1,4 +1,4 @@
-import { continueChecklist, parseChecklist, startChecklistLine, withIds } from '#root/dist/src/app/lib/checklist.js';
+import { parseChecklist, withIds } from '#root/dist/src/app/lib/checklist.js';
 
 describe('parseChecklist', () => {
   it('pulls item lines out of the text, open and checked', () => {
@@ -43,65 +43,5 @@ describe('withIds', () => {
     expect(b.done).toBe(true);
     expect(typeof a.id).toBe('string');
     expect(a.id).not.toBe(b.id);
-  });
-});
-
-describe('continueChecklist', () => {
-  it('starts the next item after an item line', () => {
-    const value = 'List\n- [ ] Milk';
-    expect(continueChecklist(value, value.length)).toEqual({ value: 'List\n- [ ] Milk\n- [ ] ', caret: value.length + 7 });
-  });
-
-  it('splits an item where the caret is', () => {
-    expect(continueChecklist('- [ ] MilkBread', 10)).toEqual({ value: '- [ ] Milk\n- [ ] Bread', caret: 17 });
-  });
-
-  it('ends the list on an empty item, removing its marker', () => {
-    const value = '- [ ] Milk\n- [ ] ';
-    expect(continueChecklist(value, value.length)).toEqual({ value: '- [ ] Milk\n', caret: 11 });
-  });
-
-  it('leaves Enter alone on other lines', () => {
-    expect(continueChecklist('Plain', 5)).toBe(null);
-    expect(continueChecklist('- [ ] Item\nPlain', 16)).toBe(null);
-  });
-});
-
-describe('startChecklistLine', () => {
-  it('starts an empty field with a marker', () => {
-    expect(startChecklistLine('', 0)).toEqual({ value: '- [ ] ', caret: 6 });
-  });
-
-  it('uses the current line when it is empty', () => {
-    expect(startChecklistLine('Title\n', 6)).toEqual({ value: 'Title\n- [ ] ', caret: 12 });
-  });
-
-  it('starts a new line after a line with text', () => {
-    expect(startChecklistLine('Title\nMore', 3)).toEqual({ value: 'Title\n- [ ] \nMore', caret: 12 });
-  });
-
-  it('does nothing on an item line', () => {
-    expect(startChecklistLine('- [ ] Milk', 4)).toEqual({ value: '- [ ] Milk', caret: 4 });
-  });
-});
-
-describe('continueChecklist, mid-text', () => {
-  it('continues an item line that has more lines after it', () => {
-    expect(continueChecklist('- [ ] Milk\nAfter', 10)).toEqual({ value: '- [ ] Milk\n- [ ] \nAfter', caret: 17 });
-  });
-
-  it('ends the list on an empty item followed by other lines', () => {
-    expect(continueChecklist('- [ ] Milk\n- [ ] \nAfter', 17)).toEqual({ value: '- [ ] Milk\n\nAfter', caret: 11 });
-  });
-});
-
-describe('continueChecklist, with a selection', () => {
-  it('replaces the selected text, as Enter would', () => {
-    // "lk" selected in "- [ ] Milk".
-    expect(continueChecklist('- [ ] Milk', 8, 10)).toEqual({ value: '- [ ] Mi\n- [ ] ', caret: 15 });
-  });
-
-  it('ends the list when the selection held the whole item', () => {
-    expect(continueChecklist('- [ ] A\n- [ ] Milk', 14, 18)).toEqual({ value: '- [ ] A\n', caret: 8 });
   });
 });

@@ -5,12 +5,14 @@ interface ISettings {
   storageArea: StorageAreaName;
   // Whether the to-do lists' "Done (n)" group is open, for every page.
   doneExpanded: boolean;
+  // The To-dos / Notes tab last picked, shown when the panel opens.
+  contentKind: ScopeContentKind;
 }
 
 // Settings always live on this device: they say where the notes are.
 const SETTINGS_AREA: StorageAreaName = 'local';
 const SETTINGS_KEY = 'settings';
-const DEFAULTS: ISettings = { storageArea: 'local', doneExpanded: false };
+const DEFAULTS: ISettings = { storageArea: 'local', doneExpanded: false, contentKind: 'notes' };
 
 export class SettingsService extends Service<SettingsService> {
   private _settings: ISettings = { ...DEFAULTS };
@@ -25,6 +27,10 @@ export class SettingsService extends Service<SettingsService> {
 
   public get doneExpanded(): boolean {
     return this._settings.doneExpanded;
+  }
+
+  public get contentKind(): ScopeContentKind {
+    return this._settings.contentKind;
   }
 
   public async init(): Promise<void> {
@@ -45,6 +51,10 @@ export class SettingsService extends Service<SettingsService> {
 
   public setDoneExpanded(doneExpanded: boolean): Promise<void> {
     return this.save({ doneExpanded });
+  }
+
+  public setContentKind(contentKind: ScopeContentKind): Promise<void> {
+    return this.save({ contentKind });
   }
 
   private async save(changes: Partial<ISettings>): Promise<void> {

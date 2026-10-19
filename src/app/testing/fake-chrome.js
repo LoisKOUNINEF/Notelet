@@ -71,12 +71,19 @@ export function createFakeChrome({ url = 'https://example.com/' } = {}) {
       onActivated: createEvent(),
       onUpdated: createEvent(),
       created: [],
+      updated: [],
       async query() {
         return [{ ...activeTab }];
       },
       async create(props) {
         fake.tabs.created.push(props);
         return { id: 2, ...props };
+      },
+      // Records the call, then navigates like Chrome would.
+      async update(tabId, props) {
+        fake.tabs.updated.push({ tabId, ...props });
+        if (props.url) fake.navigate(props.url);
+        return { ...activeTab };
       },
     },
     // Test helpers: what Chrome does when the user acts.

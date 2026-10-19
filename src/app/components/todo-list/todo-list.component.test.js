@@ -1,5 +1,6 @@
 import { hasRequestedFocus } from '#root/dist/src/app/lib/focus.js';
 import { TodoListComponent } from '#root/dist/src/app/components/todo-list/todo-list.component.js';
+import { confirmService } from '#root/dist/src/app/services/confirm/confirm.service.js';
 import { scopeStoreService } from '#root/dist/src/app/services/scope-store/scope-store.service.js';
 import { settingsService } from '#root/dist/src/app/services/settings/settings.service.js';
 import { KEYS, keydown, settle, startPanel, typeInto } from '../../testing/panel.js';
@@ -66,7 +67,7 @@ describe('TodoListComponent', () => {
   it('has no "Done" group while nothing is done', () => {
     mount([todo('a', 'Open')]);
     expect(toggle()).toBeFalsy();
-    expect($('.todo-list__clear')).toBeFalsy();
+    expect($('.todo-list__delete-done')).toBeFalsy();
   });
 
   it('puts done to-dos in a collapsed "Done (n)" group under the quick add', () => {
@@ -105,7 +106,7 @@ describe('TodoListComponent', () => {
     expect(doneList().hidden).toBe(false);
   });
 
-  it('clears the completed to-dos at once, offers to undo it, and moves focus to the quick add', async () => {
+  it('deletes the done to-dos at once, without asking, offers to undo it, and moves focus to the quick add', async () => {
     const open = await scopeStoreService.addTodo('page', KEYS.page, 'Open');
     const done = [];
     for (const text of ['Done 1', 'Done 2']) {
@@ -114,7 +115,7 @@ describe('TodoListComponent', () => {
     }
     mount([open, ...done]);
 
-    $('.todo-list__clear').click();
+    $('.todo-list__delete-done').click();
     await settle();
     const stored = async () => (await scopeStoreService.load(KEYS)).page.todos.map((t) => t.text);
     expect(await stored()).toEqual(['Open']);
@@ -123,38 +124,121 @@ describe('TodoListComponent', () => {
     expect(document.activeElement).toBe($('.todo-composer__input'));
 
     const toast = panel.toasts.at(-1);
-    expect(toast.message).toBe('2 completed to-dos cleared.');
+    expect(toast.message).toBe('2 done to-dos deleted.');
     toast.onAction();
     await settle();
     expect(await stored()).toEqual(['Open', 'Done 1', 'Done 2']);
   });
 
-  it('says "1 completed to-do" for a single one', async () => {
+  it('says "1 done to-do" for a single one', async () => {
     const added = await scopeStoreService.addTodo('page', KEYS.page, 'Only');
     mount([await scopeStoreService.update('todos', added, { done: true })]);
-    $('.todo-list__clear').click();
+    $('.todo-list__delete-done').click();
     await settle();
-    expect(panel.toasts.at(-1).message).toBe('1 completed to-do cleared.');
+    expect(panel.toasts.at(-1).message).toBe('1 done to-do deleted.');
   });
 
-  it('reports a failed clear and a failed undo', async () => {
+  it('reports a failed delete and a failed undo', async () => {
     const added = await scopeStoreService.addTodo('page', KEYS.page, 'Done');
     const done = await scopeStoreService.update('todos', added, { done: true });
     await scopeStoreService.addTodo('page', KEYS.page, 'Keeps the list item');
     mount([done]);
 
     panel.fake.storage.local.failNextSet = new Error('Quota exceeded.');
-    $('.todo-list__clear').click();
+    $('.todo-list__delete-done').click();
     await settle();
-    expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t clear the completed to-dos. Quota exceeded.', type: 'error', duration: 6000 });
+    expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t delete the done to-dos. Quota exceeded.', type: 'error', duration: 6000 });
     expect(hasRequestedFocus()).toBe(false);
 
-    $('.todo-list__clear').click();
+    $('.todo-list__delete-done').click();
     await settle();
     panel.fake.storage.local.failNextSet = new Error('Quota exceeded.');
     panel.toasts.at(-1).onAction();
     await settle();
     expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t restore the to-dos. Quota exceeded.', type: 'error', duration: 6000 });
+  });
+
+});
+
+describe('TodoListComponent - delete all', () => {
+  let panel;
+  let list;
+  let asked;
+  let answer;
+  let detach;
+
+  const todo = (id, text, done = false) => ({ id, scope: 'page', key: KEYS.page, text, done, doneAt: done ? 1 : null, createdAt: 1, updatedAt: 1 });
+  const mount = (todos) => {
+    const placeholder = document.getElementById('app').appendChild(document.createElement('div'));
+    list = new TodoListComponent(placeholder, { scope: 'page', keys: KEYS, todos });
+    list.render();
+  };
+  const toggle = () => $('.todo-list__done-toggle');
+  const stored = async () => (await scopeStoreService.load(KEYS)).page.todos.map((t) => t.text);
+
+  beforeEach(async () => {
+    panel = await startPanel();
+    asked = [];
+    answer = true;
+    detach = confirmService.attach({ ask: async (options) => { asked.push(options); return answer; } });
+  });
+
+  afterEach(async () => {
+    detach();
+    list.destroy();
+    await panel.stop();
+  });
+
+  it('offers "Delete all to-dos" under the list, only when there are some', () => {
+    mount([]);
+    expect($('.todo-list__delete-all')).toBeFalsy();
+    list.destroy();
+    mount([todo('a', 'Open'), todo('b', 'Done', true)]);
+    expect($('.todo-list__delete-all').textContent).toBe('Delete all to-dos');
+    expect(toggle().compareDocumentPosition($('.todo-list__delete-all')) & window.Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('asks first, and deletes nothing when cancelled', async () => {
+    await scopeStoreService.addTodo('page', KEYS.page, 'Keep me');
+    mount((await scopeStoreService.load(KEYS)).page.todos);
+    answer = false;
+    $('.todo-list__delete-all').click();
+    await settle();
+
+    expect(asked).toEqual([{ title: 'Delete all to-dos for this page?', message: '1 to-do, done ones included.', confirmLabel: 'Delete all' }]);
+    expect(await stored()).toEqual(['Keep me']);
+  });
+
+  it('deletes every to-do once confirmed, done ones included, with an undo', async () => {
+    await scopeStoreService.addTodo('page', KEYS.page, 'Open');
+    const added = await scopeStoreService.addTodo('page', KEYS.page, 'Done');
+    await scopeStoreService.update('todos', added, { done: true });
+    mount((await scopeStoreService.load(KEYS)).page.todos);
+
+    $('.todo-list__delete-all').click();
+    await settle();
+    expect(asked[0].message).toBe('2 to-dos, done ones included.');
+    expect(await stored()).toEqual([]);
+    list.update([]);
+    expect(document.activeElement).toBe($('.todo-composer__input'));
+
+    const toast = panel.toasts.at(-1);
+    expect(toast.message).toBe('2 to-dos deleted.');
+    toast.onAction();
+    await settle();
+    expect(await stored()).toEqual(['Open', 'Done']);
+  });
+
+  it('reports a failed delete', async () => {
+    await scopeStoreService.addTodo('page', KEYS.page, 'Stuck');
+    mount((await scopeStoreService.load(KEYS)).page.todos);
+    const remove = spyOn(panel.fake.storage.local, 'remove').andCallFake(async () => { throw new Error('Nope.'); });
+    $('.todo-list__delete-all').click();
+    await settle();
+    remove.restore();
+
+    expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t delete the to-dos. Nope.', type: 'error', duration: 6000 });
+    expect(hasRequestedFocus()).toBe(false);
   });
 });
 

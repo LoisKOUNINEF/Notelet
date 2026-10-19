@@ -36,7 +36,7 @@ Drafts for the developer dashboard. Copy each part into its field.
 
 ## Images (to provide)
 
-- **Icon:** 128×128 PNG, with the artwork in the central 96×96 and transparent padding around it. Replace `src/assets/icons/icon-{16,32,48,128}.png` (and `public/favicon.ico`) with the Ticknote artwork, keeping the file names.
+- **Icon:** `src/assets/icons/ticknote-128.png` (the dark tile), 128×128 PNG. The extension ships `src/assets/icons/ticknote-{16,32,48,128}.png`; the panel's favicon is `public/favicon.ico`. Sources (SVGs, and the light tile PNGs for a future theme-aware icon) are in `docs/icons/`.
 - **Screenshots:** at least one, 1280×800 (or 640×400), PNG or JPEG. Suggested: the panel next to a page (notes and to-dos), a checklist note, and the settings.
 - **Small promo tile:** 440×280 PNG or JPEG.
 - **Marquee (optional):** 1400×560.

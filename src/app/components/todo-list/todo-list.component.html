@@ -4,12 +4,14 @@
   <div data-component="todo-composer"></div>
   ${done.length > 0 ? html`
   <div class="todo-list__done">
-    <div class="todo-list__done-header">
-      <button class="todo-list__done-toggle" type="button" tabindex="0" aria-expanded="${expanded ? 'true' : 'false'}" aria-controls="todo-done-items" data-event="click:_toggleDone">
-        <span class="todo-list__chevron" aria-hidden="true"></span>Done (${done.length})
-      </button>
-      <button class="button button--small todo-list__clear" type="button" tabindex="0" data-event="click:_clearDone">Clear completed</button>
-    </div>
+    <button class="todo-list__done-toggle" type="button" tabindex="0" aria-expanded="${expanded ? 'true' : 'false'}" aria-controls="todo-done-items" data-event="click:_toggleDone">
+      <span class="todo-list__chevron" aria-hidden="true"></span>Done (${done.length})
+    </button>
     <ul class="todo-list__items" id="todo-done-items" data-catalog="done-todos" aria-label="Done ${label.toLowerCase()}" ${expanded ? '' : raw('hidden')}></ul>
+    <button class="button button--small todo-list__delete-done" type="button" tabindex="0" data-event="click:_deleteDone">Delete all done</button>
+  </div>` : ''}
+  ${open.length + done.length > 0 ? html`
+  <div class="todo-list__footer">
+    <button class="button button--small button--danger todo-list__delete-all" type="button" tabindex="0" data-event="click:_deleteAll">Delete all to-dos</button>
   </div>` : ''}
 </div>

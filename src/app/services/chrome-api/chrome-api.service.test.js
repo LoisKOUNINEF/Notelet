@@ -66,6 +66,24 @@ describe('ChromeApiService', () => {
     expect(fake.tabs.created).toEqual([{ url: 'chrome://settings/appearance' }]);
   });
 
+  it('navigates the active tab', async () => {
+    await chromeApiService.openInActiveTab('https://example.com/other');
+    expect(fake.tabs.updated).toEqual([{ tabId: 1, url: 'https://example.com/other' }]);
+  });
+
+  it('refuses to navigate when no tab is found', async () => {
+    const query = spyOn(fake.tabs, 'query').andCallFake(async () => []);
+    let error;
+    try {
+      await chromeApiService.openInActiveTab('https://example.com/other');
+    } catch (e) {
+      error = e;
+    }
+    query.restore();
+    expect(error.message).toBe('No active tab.');
+    expect(fake.tabs.updated).toEqual([]);
+  });
+
   it('has no active tab URL when no tab is found', async () => {
     const query = spyOn(fake.tabs, 'query').andCallFake(async () => []);
     expect(await chromeApiService.getActiveTabUrl()).toBe(null);

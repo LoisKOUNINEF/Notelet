@@ -1,12 +1,13 @@
 import { Component, html, raw } from '../../../core/index.js';
 import { errorMessage } from '../../lib/errors.js';
+import { ListReorder } from '../../lib/list-reorder.js';
 import { applyRequestedFocus, byData, clearRequestedFocus, requestFocus } from '../../lib/focus.js';
+import { confirmService } from '../../services/confirm/confirm.service.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
 import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
 import { settingsService } from '../../services/settings/settings.service.js';
 import { TodoComposerComponent } from '../todo-composer/todo-composer.component.js';
 import { TodoItemComponent, type ITodoItemOptions } from '../todo-item/todo-item.component.js';
-import { TodoReorder } from './todo-reorder.js';
 
 export interface ITodoListConfig {
   scope: NoteScope;
@@ -28,7 +29,7 @@ const templateFn = ({ open, done, expanded, label }: ITodoListView) => html`__TE
  * One scope's to-dos: the open ones, its quick add, then the done ones in a "Done (n)" group,
  * collapsed or not as last left (a setting shared by every page). Like the note list, the
  * sidebar keeps it across renders and hands it new to-dos through update(): unchanged items
- * and the quick add's text are kept. Open to-dos are reordered by their handles (see TodoReorder).
+ * and the quick add's text are kept. Open to-dos are reordered by their handles (see ListReorder).
  */
 export class TodoListComponent extends Component<HTMLElement, ITodoListView> {
   private _scope: NoteScope;
@@ -40,9 +41,13 @@ export class TodoListComponent extends Component<HTMLElement, ITodoListView> {
   private readonly _itemOptions = new Map<string, ITodoItemOptions>();
   // Handed over by update() while a reorder gesture runs, applied once it ends.
   private _held: ITodo[] | null = null;
-  private readonly _reorder = new TodoReorder({
+  private readonly _reorder = new ListReorder({
     root: this.element,
-    openIds: () => this.config.open.map((todo) => todo.id),
+    listSelector: '[data-catalog="open-todos"]',
+    handleSelector: '.todo-item__handle',
+    idAttribute: 'todo-id',
+    draggingClass: 'todo-list__item--dragging',
+    ids: () => this.config.open.map((todo) => todo.id),
     // Only ever asked about the to-dos it shows.
     textOf: (id) => this._todos.find((todo) => todo.id === id)!.text,
     preview: () => this.refresh(),
@@ -138,7 +143,7 @@ export class TodoListComponent extends Component<HTMLElement, ITodoListView> {
     requestFocus(`${byData('todo-id', movedId)} .todo-item__handle`);
     this.refresh();
     try {
-      await scopeStoreService.reorderTodos(this._scope, this._key, order);
+      await scopeStoreService.reorder('todos', this._scope, this._key, order);
       return true;
     } catch (error) {
       this._todos = previous;
@@ -167,13 +172,14 @@ export class TodoListComponent extends Component<HTMLElement, ITodoListView> {
     }
   }
 
-  private async _clearDone(): Promise<void> {
+  // No confirmation: it can be undone, like deleting a single to-do.
+  private async _deleteDone(): Promise<void> {
     const done = this.config.done;
     // The group goes away with its last to-do.
     requestFocus('.todo-composer__input');
     try {
       await scopeStoreService.removeMany('todos', done);
-      notifierService.info(`${done.length} completed ${done.length === 1 ? 'to-do' : 'to-dos'} cleared.`, {
+      notifierService.info(`${done.length} done ${done.length === 1 ? 'to-do' : 'to-dos'} deleted.`, {
         label: 'Undo',
         run: () => void scopeStoreService.restoreMany('todos', done).catch((error) => {
           notifierService.error(`Couldn't restore the to-dos. ${errorMessage(error)}`);
@@ -181,7 +187,31 @@ export class TodoListComponent extends Component<HTMLElement, ITodoListView> {
       });
     } catch (error) {
       clearRequestedFocus();
-      notifierService.error(`Couldn't clear the completed to-dos. ${errorMessage(error)}`);
+      notifierService.error(`Couldn't delete the done to-dos. ${errorMessage(error)}`);
+    }
+  }
+
+  private async _deleteAll(): Promise<void> {
+    const count = this._todos.length;
+    const confirmed = await confirmService.ask({
+      title: `Delete all to-dos for this ${this._scope}?`,
+      message: `${count} ${count === 1 ? 'to-do' : 'to-dos'}, done ones included.`,
+      confirmLabel: 'Delete all',
+    });
+    if (!confirmed) return;
+
+    requestFocus('.todo-composer__input');
+    try {
+      const removed = await scopeStoreService.removeAll('todos', this._scope, this._key);
+      notifierService.info(`${removed.length} ${removed.length === 1 ? 'to-do' : 'to-dos'} deleted.`, {
+        label: 'Undo',
+        run: () => void scopeStoreService.restoreMany('todos', removed).catch((error) => {
+          notifierService.error(`Couldn't restore the to-dos. ${errorMessage(error)}`);
+        }),
+      });
+    } catch (error) {
+      clearRequestedFocus();
+      notifierService.error(`Couldn't delete the to-dos. ${errorMessage(error)}`);
     }
   }
 

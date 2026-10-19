@@ -1,3 +1,5 @@
+@use "reorder";
+
 .todo-list {
   display: grid;
   gap: var(--space-2);
@@ -13,14 +15,19 @@
 
 .todo-list__done {
   display: grid;
+  justify-items: start;
   gap: var(--space-1);
+
+  > .todo-list__items {
+    justify-self: stretch;
+  }
 }
 
-.todo-list__done-header {
+.todo-list__footer {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
+  justify-content: flex-end;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
 }
 
 .todo-list__done-toggle {
@@ -57,18 +64,10 @@
   }
 }
 
-// The others slide aside while a to-do is dragged (instantly under reduced motion: --transition).
 .todo-list__open > li {
-  position: relative;
-  transition: transform var(--transition);
+  @include reorder.sliding-item;
 }
 
 .todo-list__open > .todo-list__item--dragging {
-  z-index: 1;
-  border-radius: var(--radius-small);
-  background: var(--color-surface);
-  box-shadow: 0 4px 12px rgb(0 0 0 / 0.25);
-  // It follows the pointer exactly.
-  transition: none;
-  cursor: grabbing;
+  @include reorder.dragged-item;
 }

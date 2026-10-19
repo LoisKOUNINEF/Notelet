@@ -1,3 +1,4 @@
+import { removeOverlaysWithin } from 'a11y-elements/core';
 import { Component, html } from '../../../core/index.js';
 import { byData, clearRequestedFocus, requestFocus } from '../../lib/focus.js';
 import { errorMessage } from '../../lib/errors.js';
@@ -16,24 +17,34 @@ interface INoteItemView {
   addingItem: boolean;
   edited: boolean;
   moveTarget: string;
+  reorderable: boolean;
+  grabbed: boolean;
+  // How the handle and the "⋯" trigger name this note: its text, else its first item.
+  name: string;
 }
 
 // What the note list passes to each item, besides the note (see createCatalogComponents).
 export interface INoteItemOptions {
+  // Where "Move to this site/page" sends it.
   keys: IScopeKeys;
+  // Shows the grab handle (when there are at least two notes). The list runs the gestures.
+  reorderable: boolean;
+  // The note picked up with the keyboard, if any.
+  grabbedId: string | null;
 }
 
-const templateFn = ({ note, items, editing, addingItem, edited, moveTarget }: INoteItemView) => html`__TEMPLATE_PLACEHOLDER__`;
+const templateFn = ({ note, items, editing, addingItem, edited, moveTarget, reorderable, grabbed, name }: INoteItemView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 /**
  * One note: its text, its checklist if it has one (checked and added to right here), when it
- * was last edited, and its actions. Edit mode swaps all that for the note editor in place;
- * the list then keeps it as-is while other notes change.
+ * was last edited, and its actions (Edit, Delete, and the rest in a "⋯" menu). Edit mode swaps all
+ * that for the note editor in place; the list then keeps it as-is while other notes change.
  */
 export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
   private _note: INote;
   private _index: number;
   private _keys: IScopeKeys;
+  private _options: INoteItemOptions;
   private _editor: NoteEditorComponent | null = null;
 
   constructor(mountTarget: HTMLElement, config: INote & { index: number }, options: INoteItemOptions) {
@@ -45,13 +56,14 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
       tagName: 'article',
       props: { className: 'note-item' },
       // An edit left open when this note last went away comes back, still open.
-      config: NoteItemComponent.view(note, getEditDraft('note', note.id) !== null, false),
+      config: NoteItemComponent.view(note, options, getEditDraft('note', note.id) !== null, false),
     });
     // Lets the list find this note's controls again after it re-renders (see requestFocus).
     this.element.dataset.noteId = note.id;
     this._note = note;
     this._index = index;
     this._keys = options.keys;
+    this._options = options;
     // Only its own <time> changes: an edit in progress isn't re-rendered away.
     this.listen('minute-tick', () => {
       const time = this.element.querySelector('.note-item__meta time');
@@ -59,7 +71,7 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
     });
   }
 
-  private static view(note: INote, editing: boolean, addingItem: boolean): INoteItemView {
+  private static view(note: INote, options: INoteItemOptions, editing: boolean, addingItem: boolean): INoteItemView {
     return {
       note,
       items: note.items ?? [],
@@ -67,6 +79,9 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
       addingItem,
       edited: note.updatedAt !== note.createdAt,
       moveTarget: note.scope === 'page' ? 'this site' : 'this page',
+      reorderable: options.reorderable,
+      grabbed: options.grabbedId === note.id,
+      name: noteLabel(note),
     };
   }
 
@@ -92,6 +107,37 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
     });
   }
 
+  // The "⋯" menu is an a11y-elements dropdown: it moves itself to <body> once connected (see the
+  // a11y-elements guide). It's removed with this item's own wrapper, found again by id, and its
+  // clicks are delegated from it.
+  protected override onBeforeRender(): void {
+    this.removeOwnOverlays();
+    super.onBeforeRender();
+  }
+
+  protected override onAfterRender(): void {
+    super.onAfterRender();
+    const menu = document.getElementById(`note-${this._note.id}-menu`);
+    if (!menu) return;
+    const onClick = (event: Event) => {
+      const action = (event.target as Element).closest<HTMLElement>('[data-action]')?.dataset.action;
+      if (action === 'move') void this.move();
+      else if (action === 'add-checklist') this.addChecklist();
+    };
+    menu.addEventListener('click', onClick);
+    this.eventListeners.push([menu, 'click', onClick]);
+  }
+
+  protected override onBeforeDestroy(): void {
+    this.removeOwnOverlays();
+    super.onBeforeDestroy();
+  }
+
+  private removeOwnOverlays(): void {
+    const own = this.element.querySelector('.note-item__overlays');
+    if (own) removeOverlaysWithin(own);
+  }
+
   private _edit(): void {
     this.setView(true, false);
     this._editor?.focus();
@@ -103,7 +149,7 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
     this.element.querySelector<HTMLElement>('.note-item__edit')!.focus();
   }
 
-  private _addChecklist(): void {
+  private addChecklist(): void {
     this.setView(false, true);
     this.element.querySelector<HTMLInputElement>('.note-item__add-item-input')!.focus();
   }
@@ -144,7 +190,7 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
     }
   }
 
-  private async _move(): Promise<void> {
+  private async move(): Promise<void> {
     const target = this._note.scope === 'page' ? 'site' : 'page';
     this.requestFocusAfterLeaving();
     try {
@@ -184,11 +230,16 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
 
   private setView(editing: boolean, addingItem: boolean): void {
     this._editor = null;
-    this.config = NoteItemComponent.view(this._note, editing, addingItem);
+    this.config = NoteItemComponent.view(this._note, this._options, editing, addingItem);
     this.render();
   }
 }
 
 function sameItems(a: IChecklistItem[], b: IChecklistItem[]): boolean {
   return a.length === b.length && a.every((item, i) => item.id === b[i]!.id && item.text === b[i]!.text && item.done === b[i]!.done);
+}
+
+// How a note is named by its handle, its "⋯" trigger, and while it's moved: its text, else its first item.
+export function noteLabel(note: INote): string {
+  return note.text || note.items?.[0]?.text || 'Note';
 }

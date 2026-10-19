@@ -20,8 +20,10 @@ export const KEYS = {
 // The pipe registry is app-wide: pipes are registered once for the whole run.
 let pipesRegistered = false;
 
-export async function startPanel({ url = 'https://example.com/docs' } = {}) {
+// `settings`: saved settings to start from, e.g. `{ contentKind: 'todos' }` to show the to-dos.
+export async function startPanel({ url = 'https://example.com/docs', settings } = {}) {
   const fake = installFakeChrome({ url });
+  if (settings) fake.storage.local.data.set('settings', settings);
   if (!pipesRegistered) {
     // Nutin's own tests may have registered the built-in pipes already.
     silenceConsole('warn', () => registerPipes());

@@ -31,4 +31,60 @@
     <p class="settings-panel__text"><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd> opens and closes the panel, as does the toolbar button.</p>
     <button class="button" type="button" tabindex="0" data-event="click:_openChromeSettings:'chrome://extensions/shortcuts'">Change the shortcut</button>
   </div>
+
+  <div class="settings-panel__section">
+    <h3 class="settings-panel__subtitle">Delete everything</h3>
+    <p class="settings-panel__text">Every note and to-do, on every page and site.</p>
+    <button class="button button--danger settings-panel__delete-all" type="button" tabindex="0" ${busy ? raw('disabled') : ''} data-event="click:_deleteEverything">Delete all notes and to-dos</button>
+  </div>
+
+  <div class="settings-panel__section">
+    <h3 class="settings-panel__subtitle">Help</h3>
+    <div class="settings-panel__help">
+      <details class="settings-panel__help-item">
+        <summary>Page or site? Notes or to-dos?</summary>
+        <p>The tabs on top pick the page or the whole site; the ones below pick its to-dos or its notes. The panel opens on the last To-dos or Notes tab you picked.</p>
+        <p>Page notes and to-dos show on that page only. Site notes show on every page of the site (a subdomain like blog.example.com is a site of its own). "Move to this site" or "Move to this page", in a note's or to-do's "⋯" menu, switches it between the two.</p>
+      </details>
+      <details class="settings-panel__help-item">
+        <summary>When is it "the same page"?</summary>
+        <p>A <code>#section</code>, tracking parameters (<code>utm_…</code>, <code>fbclid</code>…), <code>www.</code> and a trailing <code>/</code> don't make a different page. A home page in a language, like <code>/en</code>, is the home page. Other parameters, like YouTube's <code>?v=…</code>, do make a different page.</p>
+      </details>
+      <details class="settings-panel__help-item">
+        <summary>Checklists</summary>
+        <p>In a new note, "Checklist" adds a first item; Enter adds the next one. On a saved note, pick "Add checklist" in its "⋯" menu, then use the "Add item" field, and check items off right in the note.</p>
+        <p>Used to Markdown? Lines like <code>- [ ] item</code> or <code>- [x] done</code> in a note's text become checklist items too.</p>
+      </details>
+      <details class="settings-panel__help-item">
+        <summary>Reordering notes and to-dos</summary>
+        <p>Drag a note or a to-do by its handle. With the keyboard: Space on the handle picks it up, the arrow keys move it, Space drops it and Escape cancels.</p>
+        <p>New notes appear on top, and new to-dos at the bottom. Checked to-dos move to "Done", which "Delete all done" empties.</p>
+      </details>
+      <details class="settings-panel__help-item">
+        <summary>Finding notes on other pages</summary>
+        <p>On the "This site" tab, "Pages on this site" lists the site's pages that have notes or to-dos. Pick one to open it in the current tab.</p>
+      </details>
+      <details class="settings-panel__help-item">
+        <summary>Deleted something by mistake?</summary>
+        <p>Use "Undo" in the message shown right after deleting a note, a to-do, or all of a list's done to-dos, to-dos or notes. Once that message is gone, there's no trash to restore from.</p>
+        <p>"Delete all notes and to-dos", here in Settings, can't be undone.</p>
+      </details>
+      <details class="settings-panel__help-item">
+        <summary>Text you haven't saved yet</summary>
+        <p>Notes being written and unsaved edits are kept while the panel stays open, even if you switch tabs. Closing the panel discards them.</p>
+      </details>
+      <details class="settings-panel__help-item">
+        <summary>Syncing between computers</summary>
+        <p>Chrome sync holds about 100 KB in total, and a few hundred pages and sites. Switching moves all your notes, and stopping sync removes the synced copy from every computer.</p>
+      </details>
+      <details class="settings-panel__help-item">
+        <summary>Why are notes unavailable on some pages?</summary>
+        <p>Only websites can have notes: Chrome's own pages (settings, new tab), files opened from your computer and other browser pages can't.</p>
+      </details>
+      <details class="settings-panel__help-item">
+        <summary>Keyboard shortcuts</summary>
+        <p><kbd>Ctrl</kbd>+<kbd>Enter</kbd> (<kbd>⌘</kbd>+<kbd>Enter</kbd> on a Mac) adds or saves, <kbd>Esc</kbd> cancels an edit, and <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd> opens the panel.</p>
+      </details>
+    </div>
+  </div>
 </section>

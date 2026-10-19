@@ -14,6 +14,7 @@ describe('SidebarComponent', () => {
   };
   const texts = (selector) => $$(selector).map((el) => el.textContent.trim());
   const tab = (scope) => $(`#scope-tab-${scope}`);
+  const kindTab = (kind) => $(`#kind-tab-${kind}`);
 
   beforeEach(async () => {
     panel = await startPanel();
@@ -47,14 +48,90 @@ describe('SidebarComponent', () => {
     expect(tab('site').querySelector('.a11y-visually-hidden').textContent).toBe(', 2 notes');
   });
 
-  it('shows the to-dos section, with its quick add, above the notes', async () => {
+  it('shows the notes first, behind To-dos / Notes tabs inside the scope\'s panel', async () => {
     await mount();
 
-    expect($$('[role="tabpanel"] h2').map((h) => h.textContent)).toEqual(['To-dos', 'Notes']);
-    const [todos, notes] = $$('.sidebar__section');
-    expect(todos.getAttribute('aria-labelledby')).toBe('todos-title');
-    expect(todos.querySelector('.todo-composer__input')).toBeTruthy();
-    expect(notes.querySelector('.note-composer__input')).toBeTruthy();
+    // Both tab rows sit together, in one shaded block above the panels.
+    expect($$('.sidebar__tabs [role="tablist"]').map((el) => el.getAttribute('aria-label'))).toEqual(['Show notes for', 'Show']);
+    // The scope tabs open into a card holding the To-dos / Notes tabs.
+    expect($('.sidebar__tabs > div > .tabs').classList.contains('tabs--folder')).toBe(true);
+    expect($('.sidebar__tabs-card [role="tablist"]').getAttribute('aria-label')).toBe('Show');
+    expect($$('.sidebar__tabs [role="tab"]').map((el) => el.id)).toEqual(['scope-tab-page', 'scope-tab-site', 'kind-tab-notes', 'kind-tab-todos']);
+    expect(kindTab('notes').getAttribute('aria-selected')).toBe('true');
+    expect(kindTab('todos').getAttribute('aria-controls')).toBe('sidebar-kind-panel');
+    expect($('#sidebar-kind-panel').getAttribute('aria-labelledby')).toBe('kind-tab-notes');
+    expect($('#sidebar-kind-panel .note-composer__input')).toBeTruthy();
+    expect($('.todo-composer__input')).toBeFalsy();
+  });
+
+  it('switches to the to-dos, and remembers it for the next panel', async () => {
+    await mount();
+    kindTab('todos').click();
+
+    expect(kindTab('todos').getAttribute('aria-selected')).toBe('true');
+    expect(document.activeElement).toBe(kindTab('todos'));
+    expect($('#sidebar-kind-panel').getAttribute('aria-labelledby')).toBe('kind-tab-todos');
+    expect($('.todo-composer__input')).toBeTruthy();
+    expect($('.note-composer__input')).toBeFalsy();
+    await settle();
+    expect(panel.fake.storage.local.data.get('settings').contentKind).toBe('todos');
+
+    sidebar.destroy();
+    await mount();
+    expect(kindTab('todos').getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('counts each kind of the shown scope on its tab', async () => {
+    await scopeStoreService.addNote('page', KEYS.page, 'Page note');
+    const done = await scopeStoreService.addTodo('page', KEYS.page, 'Done task');
+    await scopeStoreService.update('todos', done, { done: true });
+    await scopeStoreService.addTodo('site', KEYS.site, 'Site task');
+    await mount();
+
+    expect(kindTab('todos').querySelector('.tabs__count').textContent).toBe('0');
+    expect(kindTab('todos').querySelector('.a11y-visually-hidden').textContent).toBe(', none open');
+    expect(kindTab('notes').querySelector('.a11y-visually-hidden').textContent).toBe(', 1');
+
+    tab('site').click();
+    expect(kindTab('todos').querySelector('.a11y-visually-hidden').textContent).toBe(', 1 open');
+    expect(kindTab('notes').querySelector('.a11y-visually-hidden').textContent).toBe(', none');
+  });
+
+  it('moves between the kind tabs with the arrow keys, keeping focus on the selected one', async () => {
+    await mount();
+    kindTab('notes').focus();
+    keydown(kindTab('notes'), 'ArrowRight');
+    expect(kindTab('todos').getAttribute('aria-selected')).toBe('true');
+    expect(document.activeElement).toBe(kindTab('todos'));
+  });
+
+  it('follows the kind picked in another window', async () => {
+    await mount();
+    await panel.fake.storage.local.set({ settings: { storageArea: 'local', doneExpanded: false, contentKind: 'todos' } });
+    await settle();
+    expect(kindTab('todos').getAttribute('aria-selected')).toBe('true');
+    expect($('.todo-composer__input')).toBeTruthy();
+  });
+
+  it('keeps the tab switched when it can\'t be saved, and says so', async () => {
+    await mount();
+    panel.fake.storage.local.failNextSet = new Error('Quota exceeded.');
+    kindTab('todos').click();
+    await settle();
+
+    expect(panel.toasts.at(-1).message).toBe('Couldn\'t save that setting. Quota exceeded.');
+    expect(kindTab('todos').getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('keeps what was being written when switching kinds and back', async () => {
+    await mount();
+    typeInto($('.note-composer__input'), 'Half a note');
+    kindTab('todos').click();
+    typeInto($('.todo-composer__input'), 'Half a to-do');
+    kindTab('notes').click();
+    expect($('.note-composer__input').value).toBe('Half a note');
+    kindTab('todos').click();
+    expect($('.todo-composer__input').value).toBe('Half a to-do');
   });
 
   it('shows each tab\'s own to-dos and counts them with its notes', async () => {
@@ -62,10 +139,11 @@ describe('SidebarComponent', () => {
     await scopeStoreService.addTodo('site', KEYS.site, 'Site task');
     await scopeStoreService.addNote('site', KEYS.site, 'Site note');
     await mount();
+    kindTab('todos').click();
     const todoLabels = () => $$('.todo-item a11y-checkbox').map((el) => el.getAttribute('label'));
 
     expect(todoLabels()).toEqual(['Page task']);
-    expect(tab('site').querySelector('.scope-tabs__count').textContent).toBe('2');
+    expect(tab('site').querySelector('.tabs__count').textContent).toBe('2');
     expect(tab('site').querySelector('.a11y-visually-hidden').textContent).toBe(', 1 note, 1 to-do');
 
     tab('site').click();
@@ -74,6 +152,7 @@ describe('SidebarComponent', () => {
 
   it('adds a to-do from the quick add and keeps the focus there', async () => {
     await mount();
+    kindTab('todos').click();
     typeInto($('.todo-composer__input'), 'Ship it');
     $('.todo-composer').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
     await settle();
@@ -184,6 +263,38 @@ describe('SidebarComponent', () => {
 
     expect($('.sidebar__location-text').textContent).toBe('/x');
     expect(texts('.note-item__text')).toEqual(['Other page note']);
+  });
+
+  it('lists the site\'s pages with notes on the site tab only, and opens one in the tab', async () => {
+    await scopeStoreService.addNote('page', KEYS.page, 'This page');
+    await scopeStoreService.addNote('page', 'https://example.com/blog', 'Another page');
+    await scopeStoreService.addNote('page', 'https://other.org/x', 'Another site');
+    await mount();
+    expect($('.site-pages')).toBeFalsy();
+
+    tab('site').click();
+    $('.site-pages__toggle').click();
+    expect(texts('.site-pages__label')).toEqual(['/blog', '/docs']);
+    expect($('.site-pages__page--current .site-pages__label').textContent).toBe('/docs');
+
+    $('[data-url="https://example.com/blog"]').click();
+    await settle();
+
+    expect(panel.fake.tabs.updated).toEqual([{ tabId: 1, url: 'https://example.com/blog' }]);
+    expect(tab('site').getAttribute('aria-selected')).toBe('true');
+    // Still open, now with the other page as the current one.
+    expect($('.site-pages__toggle').getAttribute('aria-expanded')).toBe('true');
+    expect($('.site-pages__page--current .site-pages__label').textContent).toBe('/blog');
+  });
+
+  it('adds a page to the site\'s list once it has notes', async () => {
+    await mount();
+    tab('site').click();
+    expect($('.site-pages')).toBeFalsy();
+
+    await scopeStoreService.addTodo('page', KEYS.page, 'First to-do');
+    await settle();
+    expect($('.site-pages__toggle').textContent.trim()).toBe('Pages on this site (1)');
   });
 
   it('explains when the page can\'t have notes', async () => {
@@ -327,6 +438,7 @@ describe('SidebarComponent', () => {
   it('keeps a to-do edit through a tab switch and back, until it\'s saved or cancelled', async () => {
     const todo = await scopeStoreService.addTodo('page', KEYS.page, 'Original');
     await mount();
+    kindTab('todos').click();
     $(`[data-todo-id="${todo.id}"] .todo-item__edit`).click();
     $('.todo-item__input').value = 'Half-edited';
 
@@ -344,6 +456,7 @@ describe('SidebarComponent', () => {
   it('forgets a to-do edit once saved, or when nothing changed', async () => {
     const todo = await scopeStoreService.addTodo('page', KEYS.page, 'Original');
     await mount();
+    kindTab('todos').click();
     $(`[data-todo-id="${todo.id}"] .todo-item__edit`).click();
     tab('site').click();
     tab('page').click();
@@ -376,6 +489,7 @@ describe('SidebarComponent', () => {
     await mount();
     get.restore();
     expect($('.note-list__empty')).toBeTruthy();
+    kindTab('todos').click();
     expect($('.todo-composer__input')).toBeTruthy();
   });
 

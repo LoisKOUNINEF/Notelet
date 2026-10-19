@@ -54,3 +54,24 @@
   flex-wrap: wrap;
   gap: var(--space-1);
 }
+
+.settings-panel__help {
+  display: grid;
+  gap: var(--space-1);
+  justify-self: stretch;
+}
+
+.settings-panel__help-item {
+  font-size: var(--font-small);
+
+  summary {
+    padding: var(--space-1) 0;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  p {
+    margin: 0 0 var(--space-2);
+    color: var(--color-text-muted);
+  }
+}

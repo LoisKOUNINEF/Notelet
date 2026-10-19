@@ -115,6 +115,64 @@ describe('ScopeStoreService', () => {
     expect(notes.site.notes).toEqual([]);
   });
 
+  it('lists the pages of a site that have notes or to-dos, by path, with their counts', async () => {
+    await scopeStoreService.addNote('page', 'https://example.com/b', 'One');
+    await scopeStoreService.addNote('page', 'https://example.com/b', 'Two');
+    const todo = await scopeStoreService.addTodo('page', 'https://example.com/b', 'Open');
+    await scopeStoreService.addTodo('page', 'https://example.com/b', 'Still open');
+    await scopeStoreService.update('todos', todo, { done: true });
+    await scopeStoreService.addTodo('page', 'https://example.com', 'Home');
+    // Other sites, site-wide items and other settings aren't pages of this site.
+    await scopeStoreService.addNote('page', 'https://example.org/b', 'Elsewhere');
+    await scopeStoreService.addNote('page', 'https://sub.example.com/b', 'Subdomain');
+    await scopeStoreService.addNote('site', 'example.com', 'Whole site');
+    fake.storage.local.data.set('notes:page:not a url', [{ id: 'x', createdAt: 1 }]);
+
+    expect(await scopeStoreService.listSitePages('example.com')).toEqual([
+      { key: 'https://example.com', label: '/', notes: 0, todos: 1, openTodos: 1 },
+      { key: 'https://example.com/b', label: '/b', notes: 2, todos: 2, openTodos: 1 },
+    ]);
+    expect(await scopeStoreService.listSitePages('example.net')).toEqual([]);
+  });
+
+  it('empties one list in a single write, returning what it held for an undo', async () => {
+    const now = spyOn(Date, 'now').andReturn(1000);
+    const a = await scopeStoreService.addNote('page', keys.page, 'A');
+    now.andReturn(2000);
+    const b = await scopeStoreService.addNote('page', keys.page, 'B');
+    now.restore();
+    await scopeStoreService.addTodo('page', keys.page, 'Stays');
+    await scopeStoreService.addNote('site', keys.site, 'Stays too');
+    const remove = spyOn(fake.storage.local, 'remove');
+
+    const removed = await scopeStoreService.removeAll('notes', 'page', keys.page);
+    expect(remove.callCount).toBe(1);
+    remove.restore();
+    expect(removed.map((n) => n.id)).toEqual([b.id, a.id]);
+    expect(fake.storage.local.data.has(`notes:page:${keys.page}`)).toBe(false);
+    let content = await scopeStoreService.load(keys);
+    expect(content.page.todos.map((t) => t.text)).toEqual(['Stays']);
+    expect(content.site.notes.map((n) => n.text)).toEqual(['Stays too']);
+
+    await scopeStoreService.restoreMany('notes', removed);
+    content = await scopeStoreService.load(keys);
+    expect(content.page.notes.map((n) => n.id)).toEqual([b.id, a.id]);
+  });
+
+  it('clears every note and to-do of the area in use, keeping the settings', async () => {
+    await settingsService.setDoneExpanded(true);
+    await scopeStoreService.addNote('page', keys.page, 'A');
+    await scopeStoreService.addTodo('site', keys.site, 'B');
+    await scopeStoreService.addNote('page', 'https://other.org/x', 'C');
+    const remove = spyOn(fake.storage.local, 'remove');
+
+    await scopeStoreService.clearEverything();
+    expect(remove.callCount).toBe(1);
+    remove.restore();
+    expect([...fake.storage.local.data.keys()]).toEqual(['settings']);
+    expect(settingsService.doneExpanded).toBe(true);
+  });
+
   it('runs writes one at a time, so concurrent adds are all kept', async () => {
     await Promise.all(['a', 'b', 'c'].map((text) => scopeStoreService.addNote('page', keys.page, text)));
     expect((await scopeStoreService.load(keys)).page.notes.length).toBe(3);
@@ -492,7 +550,7 @@ describe('ScopeStoreService - reordering to-dos', () => {
 
   it('saves the new order in one write', async () => {
     const set = spyOn(fake.storage.local, 'set');
-    await scopeStoreService.reorderTodos('page', keys.page, [todos[2].id, todos[0].id, todos[1].id]);
+    await scopeStoreService.reorder('todos', 'page', keys.page, [todos[2].id, todos[0].id, todos[1].id]);
     expect(set.callCount).toBe(1);
     set.restore();
 
@@ -501,13 +559,13 @@ describe('ScopeStoreService - reordering to-dos', () => {
   });
 
   it('adds new to-dos after the reordered ones', async () => {
-    await scopeStoreService.reorderTodos('page', keys.page, [todos[2].id, todos[1].id, todos[0].id]);
+    await scopeStoreService.reorder('todos', 'page', keys.page, [todos[2].id, todos[1].id, todos[0].id]);
     await scopeStoreService.addTodo('page', keys.page, 'D');
     expect(await texts()).toEqual(['C', 'B', 'A', 'D']);
   });
 
   it('puts an unchecked to-do back where it was', async () => {
-    await scopeStoreService.reorderTodos('page', keys.page, [todos[2].id, todos[0].id, todos[1].id]);
+    await scopeStoreService.reorder('todos', 'page', keys.page, [todos[2].id, todos[0].id, todos[1].id]);
     const [, a] = (await scopeStoreService.load(keys)).page.todos;
     const done = await scopeStoreService.update('todos', a, { done: true });
     expect(await texts()).toEqual(['C', 'B', 'A']);
@@ -518,7 +576,7 @@ describe('ScopeStoreService - reordering to-dos', () => {
 
   it('ignores unknown ids, and keeps open to-dos it wasn\'t given after the others', async () => {
     const late = await scopeStoreService.addTodo('page', keys.page, 'Added elsewhere');
-    await scopeStoreService.reorderTodos('page', keys.page, ['unknown', todos[1].id, todos[0].id]);
+    await scopeStoreService.reorder('todos', 'page', keys.page, ['unknown', todos[1].id, todos[0].id]);
     expect(await texts()).toEqual(['B', 'A', 'C', 'Added elsewhere']);
     expect(late.position).toBeUndefined();
   });
@@ -527,12 +585,76 @@ describe('ScopeStoreService - reordering to-dos', () => {
     const now = spyOn(Date, 'now').andReturn(5000);
     await scopeStoreService.update('todos', todos[0], { done: true });
     now.restore();
-    await scopeStoreService.reorderTodos('page', keys.page, [todos[2].id, todos[1].id]);
+    await scopeStoreService.reorder('todos', 'page', keys.page, [todos[2].id, todos[1].id]);
 
     const stored = (await scopeStoreService.load(keys)).page.todos;
     expect(stored.map((t) => t.text)).toEqual(['C', 'B', 'A']);
     expect(stored[2].position).toBeUndefined();
     expect(stored[2].doneAt).toBe(5000);
+  });
+});
+
+describe('ScopeStoreService - reordering notes', () => {
+  const keys = { page: 'https://example.com/a', site: 'example.com', pageLabel: '/a', siteLabel: 'example.com' };
+  let notes;
+  const texts = async (scope = 'page') => (await scopeStoreService.load(keys))[scope].notes.map((n) => n.text);
+
+  beforeEach(async () => {
+    installFakeChrome();
+    await settingsService.init();
+    scopeStoreService.init();
+    const now = spyOn(Date, 'now');
+    notes = [];
+    for (const [i, text] of ['A', 'B', 'C'].entries()) {
+      now.andReturn(1000 + i);
+      notes.push(await scopeStoreService.addNote('page', keys.page, text));
+    }
+    now.restore();
+  });
+
+  afterEach(() => {
+    scopeStoreService.dispose();
+    settingsService.dispose();
+    uninstallFakeChrome();
+  });
+
+  it('shows the newest first until the list is reordered', async () => {
+    expect(await texts()).toEqual(['C', 'B', 'A']);
+  });
+
+  it('saves the new order of every note', async () => {
+    await scopeStoreService.reorder('notes', 'page', keys.page, [notes[0].id, notes[2].id, notes[1].id]);
+    expect(await texts()).toEqual(['A', 'C', 'B']);
+    expect((await scopeStoreService.load(keys)).page.notes.map((n) => n.position)).toEqual([0, 1, 2]);
+  });
+
+  it('puts notes written since, or not in the given order, on top', async () => {
+    const now = spyOn(Date, 'now').andReturn(2000);
+    const late = await scopeStoreService.addNote('page', keys.page, 'Added elsewhere');
+    await scopeStoreService.reorder('notes', 'page', keys.page, ['unknown', notes[0].id, notes[1].id, notes[2].id]);
+    now.andReturn(3000);
+    await scopeStoreService.addNote('page', keys.page, 'Newest');
+    now.restore();
+    expect(await texts()).toEqual(['Newest', 'Added elsewhere', 'A', 'B', 'C']);
+    expect(late.position).toBeUndefined();
+  });
+
+  it('keeps its place when edited', async () => {
+    await scopeStoreService.reorder('notes', 'page', keys.page, [notes[0].id, notes[1].id, notes[2].id]);
+    const [a] = (await scopeStoreService.load(keys)).page.notes;
+    await scopeStoreService.update('notes', a, { text: 'A, edited' });
+    expect(await texts()).toEqual(['A, edited', 'B', 'C']);
+  });
+
+  it('moves a reordered note to the top of the other list', async () => {
+    const older = await scopeStoreService.addNote('site', keys.site, 'Site note');
+    await scopeStoreService.reorder('notes', 'site', keys.site, [older.id]);
+    await scopeStoreService.reorder('notes', 'page', keys.page, [notes[0].id, notes[1].id, notes[2].id]);
+    const [a] = (await scopeStoreService.load(keys)).page.notes;
+
+    const moved = await scopeStoreService.move('notes', a, keys);
+    expect(moved.position).toBeUndefined();
+    expect(await texts('site')).toEqual(['A', 'Site note']);
   });
 });
 
@@ -571,7 +693,7 @@ describe('ScopeStoreService - moving to-dos', () => {
   it('lands above reordered to-dos and above one moved before', async () => {
     const a = await scopeStoreService.addTodo('site', keys.site, 'A');
     const b = await scopeStoreService.addTodo('site', keys.site, 'B');
-    await scopeStoreService.reorderTodos('site', keys.site, [b.id, a.id]);
+    await scopeStoreService.reorder('todos', 'site', keys.site, [b.id, a.id]);
     const first = await scopeStoreService.addTodo('page', keys.page, 'Moved first');
     const second = await scopeStoreService.addTodo('page', keys.page, 'Moved second');
 

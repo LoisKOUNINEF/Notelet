@@ -1,54 +1,75 @@
 import { Component, html } from '../../../core/index.js';
-import { applyRequestedFocus, hasRequestedFocus, requestFocus } from '../../lib/focus.js';
+import { applyRequestedFocus, clearRequestedFocus, hasRequestedFocus, requestFocus } from '../../lib/focus.js';
 import { errorMessage } from '../../lib/errors.js';
 import { activeTabService } from '../../services/active-tab/active-tab.service.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
+import { settingsService } from '../../services/settings/settings.service.js';
 import { scopeStoreService, type IScopedContent } from '../../services/scope-store/scope-store.service.js';
+import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.component.js';
 import { NoteComposerComponent } from '../note-composer/note-composer.component.js';
 import { NoteListComponent } from '../note-list/note-list.component.js';
-import { ScopeTabsComponent, type IScopeCounts } from '../scope-tabs/scope-tabs.component.js';
 import { SettingsPanelComponent } from '../settings-panel/settings-panel.component.js';
+import { SitePagesComponent } from '../site-pages/site-pages.component.js';
+import { TabsComponent } from '../tabs/tabs.component.js';
 import { TodoListComponent } from '../todo-list/todo-list.component.js';
 
 interface ISidebarView {
   keys: IScopeKeys | null;
   scope: NoteScope;
+  kind: ScopeContentKind;
   loaded: boolean;
   settingsOpen: boolean;
   location: { text: string; full: string };
 }
 
-const templateFn = ({ keys, scope, loaded, settingsOpen, location }: ISidebarView) => html`__TEMPLATE_PLACEHOLDER__`;
+const templateFn = ({ keys, scope, kind, loaded, settingsOpen, location }: ISidebarView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 const PANEL_ID = 'sidebar-panel';
+const KIND_PANEL_ID = 'sidebar-kind-panel';
+
+const SCOPE_LABELS: Record<NoteScope, string> = { page: 'This page', site: 'This site' };
+const KIND_LABELS: Record<ScopeContentKind, string> = { todos: 'To-dos', notes: 'Notes' };
 
 /**
  * The side panel's root: the active tab's page and site to-dos and notes, behind "This page" /
- * "This site" tabs, or the settings. Both scopes are loaded together, so switching tabs never waits.
+ * "This site" tabs, then "To-dos" / "Notes" tabs (the last one picked is a setting), or the
+ * settings. Everything is loaded together, so switching tabs never waits.
  */
 export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
   private _keys: IScopeKeys | null;
   private _scope: NoteScope = 'page';
+  private _kind: ScopeContentKind;
   private _content: IScopedContent | null = null;
+  // The site's pages that have notes or to-dos, for the "This site" tab.
+  private _sitePages: ISitePage[] = [];
   private _settingsOpen = false;
   private _noteList: NoteListComponent | null = null;
   private _todoList: TodoListComponent | null = null;
+  private _sitePagesList: SitePagesComponent | null = null;
   // Only the latest load's result is shown, however the requests resolve.
   private _loadId = 0;
 
   constructor(mountTarget: string | HTMLElement) {
     super({ templateFn, mountTarget });
     this._keys = activeTabService.keys;
+    this._kind = settingsService.contentKind;
     this.config = this.view();
 
     this.listen('active-scope-changed', ({ keys }) => {
       this._keys = keys;
       this._content = null;
+      this._sitePages = [];
       this.refresh();
       void this.load();
     });
     this.listen('scope-content-changed', () => void this.load());
     this.listen('storage-area-changed', () => void this.load());
+    // The To-dos / Notes tab picked in another window.
+    this.listen('settings-changed', () => {
+      if (settingsService.contentKind === this._kind) return;
+      this._kind = settingsService.contentKind;
+      this.refresh();
+    });
     void this.load();
   }
 
@@ -56,24 +77,58 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
     const keys = this._keys;
     const children: Nutin.ComponentConfig[] = [
       { selector: 'settings-panel', factory: (el) => new SettingsPanelComponent(el), keep: 'settings' },
+      // Asks before "Delete all" (see confirmService), from the lists and the settings alike.
+      { selector: 'confirm-dialog', factory: (el) => new ConfirmDialogComponent(el), keep: 'confirm' },
     ];
     if (!keys) return children;
 
     const scope = this._scope;
+    const kind = this._kind;
     const scopeKey = `${scope}|${keys[scope]}`;
     const empty = { notes: [], todos: [] };
     const content = this._content ?? { page: empty, site: empty };
+    const shown = counts(content[scope]);
 
     return [
       ...children,
       {
         selector: 'scope-tabs',
-        factory: (el) => new ScopeTabsComponent(el, {
+        factory: (el) => new TabsComponent<NoteScope>(el, {
+          tabs: (['page', 'site'] as const).map((value) => {
+            const { notes, todos } = counts(content[value]);
+            return { value, label: SCOPE_LABELS[value], count: notes + todos, countText: scopeCountText(notes, todos) };
+          }),
           active: scope,
-          counts: { page: counts(content.page), site: counts(content.site) },
+          idPrefix: 'scope-tab',
+          label: 'Show notes for',
           panelId: PANEL_ID,
+          folder: true,
           onSelect: (selected) => this.selectScope(selected),
         }),
+      },
+      {
+        selector: 'kind-tabs',
+        factory: (el) => new TabsComponent<ScopeContentKind>(el, {
+          tabs: (['notes', 'todos'] as const).map((value) => ({
+            value,
+            label: KIND_LABELS[value],
+            count: shown[value],
+            countText: kindCountText(value, shown[value]),
+          })),
+          active: kind,
+          idPrefix: 'kind-tab',
+          label: 'Show',
+          panelId: KIND_PANEL_ID,
+          small: true,
+          grouped: true,
+          onSelect: (selected) => void this.selectKind(selected),
+        }),
+      },
+      // Kept while on the same site: open or closed survives navigating between its pages.
+      {
+        selector: 'site-pages',
+        factory: (el) => (this._sitePagesList = new SitePagesComponent(el, { pages: this._sitePages, currentPage: keys.page })),
+        keep: keys.site,
       },
       // Kept while on the same scope and page: drafts and the lists' DOM survive other renders.
       {
@@ -100,6 +155,9 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
     if (content && this._noteList && this.element.contains(this._noteList.getElement())) {
       this._noteList.update(content.notes);
     }
+    if (this._sitePagesList && this._keys && this.element.contains(this._sitePagesList.getElement())) {
+      this._sitePagesList.update(this._sitePages, this._keys.page);
+    }
     applyRequestedFocus(this.element);
   }
 
@@ -107,6 +165,19 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
     this._scope = scope;
     requestFocus(`#scope-tab-${scope}`);
     this.refresh();
+  }
+
+  // Shown at once; saved for the next time the panel opens (and for other windows).
+  private async selectKind(kind: ScopeContentKind): Promise<void> {
+    this._kind = kind;
+    requestFocus(`#kind-tab-${kind}`);
+    this.refresh();
+    try {
+      await settingsService.setContentKind(kind);
+    } catch (error) {
+      clearRequestedFocus();
+      notifierService.error(`Couldn't save that setting. ${errorMessage(error)}`);
+    }
   }
 
   private _toggleSettings(): void {
@@ -121,16 +192,19 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
     if (!keys) return;
 
     let content: IScopedContent;
+    let sitePages: ISitePage[];
     try {
-      content = await scopeStoreService.load(keys);
+      [content, sitePages] = await Promise.all([scopeStoreService.load(keys), scopeStoreService.listSitePages(keys.site)]);
     } catch (error) {
       if (loadId !== this._loadId) return;
       // What was shown stays (or empty lists), rather than a panel stuck loading.
       notifierService.error(`Couldn't load your notes. ${errorMessage(error)}`);
       content = this._content ?? { page: { notes: [], todos: [] }, site: { notes: [], todos: [] } };
+      sitePages = this._sitePages;
     }
     if (loadId !== this._loadId) return;
     this._content = content;
+    this._sitePages = sitePages;
     this.refresh();
   }
 
@@ -163,6 +237,7 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
     return {
       keys,
       scope: this._scope,
+      kind: this._kind,
       loaded: this._content !== null,
       settingsOpen: this._settingsOpen,
       location: keys
@@ -172,7 +247,22 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
   }
 }
 
-// What the tab shows: notes plus the to-dos still open.
-function counts({ notes, todos }: IScopedContent[NoteScope]): IScopeCounts {
+// What the tabs count: notes, and the to-dos still open.
+function counts({ notes, todos }: IScopedContent[NoteScope]): Record<ScopeContentKind, number> {
   return { notes: notes.length, todos: todos.filter((todo) => !todo.done).length };
+}
+
+// How a scope tab's count is read out, e.g. ", 2 notes, 1 to-do".
+function scopeCountText(notes: number, todos: number): string {
+  const parts = [
+    notes > 0 ? `${notes} ${notes === 1 ? 'note' : 'notes'}` : '',
+    todos > 0 ? `${todos} ${todos === 1 ? 'to-do' : 'to-dos'}` : '',
+  ].filter(Boolean);
+  return `, ${parts.length > 0 ? parts.join(', ') : 'no items'}`;
+}
+
+// How a kind tab's count is read out: ", 2" alone would be unclear next to "To-dos".
+function kindCountText(kind: ScopeContentKind, count: number): string {
+  if (kind === 'notes') return `, ${count === 0 ? 'none' : count}`;
+  return `, ${count === 0 ? 'none' : count} open`;
 }

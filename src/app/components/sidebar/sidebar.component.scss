@@ -27,23 +27,27 @@
   text-overflow: ellipsis;
 }
 
+// The scope tabs as folder tabs: the selected one opens into the card holding its To-dos / Notes.
+.sidebar__tabs {
+  display: grid;
+}
+
+.sidebar__tabs-card {
+  padding: var(--space-1);
+  border-radius: var(--radius);
+  background: var(--color-surface-muted);
+}
+
 .sidebar__panel {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
 }
 
-.sidebar__section {
-  display: grid;
-  gap: var(--space-2);
-}
-
-.sidebar__section-title {
-  color: var(--color-text-muted);
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+.sidebar__kind-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
 .sidebar__unavailable {

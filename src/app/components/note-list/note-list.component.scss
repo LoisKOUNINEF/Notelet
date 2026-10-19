@@ -1,3 +1,5 @@
+@use "reorder";
+
 .note-list__items {
   display: grid;
   gap: var(--space-2);
@@ -6,9 +8,30 @@
   list-style: none;
 }
 
+.note-list {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.note-list__footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+}
+
 .note-list__empty {
   padding: var(--space-4);
   color: var(--color-text-muted);
   font-size: var(--font-small);
   text-align: center;
+}
+
+.note-list__items > li {
+  @include reorder.sliding-item;
+}
+
+.note-list__items > .note-list__item--dragging {
+  @include reorder.dragged-item;
+  border-radius: var(--radius);
 }

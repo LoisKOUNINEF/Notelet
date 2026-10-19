@@ -1,10 +1,11 @@
-import { Component, html } from '../../../core/index.js';
+import { Component, html, raw } from '../../../core/index.js';
 import { requestFocus } from '../../lib/focus.js';
-import { continueChecklist, parseChecklist, startChecklistLine, withIds } from '../../lib/checklist.js';
-import { getDraft, setDraft } from '../../lib/drafts.js';
+import { parseChecklist, withIds } from '../../lib/checklist.js';
+import { getDraft, getJsonDraft, setDraft, setJsonDraft } from '../../lib/drafts.js';
 import { errorMessage } from '../../lib/errors.js';
 import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
+import { ChecklistFieldsComponent } from '../checklist-fields/checklist-fields.component.js';
 
 export interface INoteComposerConfig {
   scope: NoteScope;
@@ -14,35 +15,58 @@ export interface INoteComposerConfig {
 interface INoteComposerView {
   label: string;
   draft: string;
-  // Checklist mode: Enter on a "- [ ] " line starts the next one.
-  checklist: boolean;
+  // The checklist being written has items: its button adds more, and the text is optional.
+  hasItems: boolean;
 }
 
-const templateFn = ({ label, draft, checklist }: INoteComposerView) => html`__TEMPLATE_PLACEHOLDER__`;
+const templateFn = ({ label, draft, hasItems }: INoteComposerView) => html`__TEMPLATE_PLACEHOLDER__`;
 
+/**
+ * A new note: its text, and its checklist written one field per item ("Checklist" adds the
+ * first). "- [ ] item" lines typed in the text become items too. Both are kept as drafts.
+ */
 export class NoteComposerComponent extends Component<HTMLElement, INoteComposerView> {
   private _scope: NoteScope;
   private _key: string;
-  private _checklist: boolean;
+  private _items: IChecklistItem[];
+  private _checklist: ChecklistFieldsComponent | null = null;
 
   constructor(mountTarget: HTMLElement, { scope, key }: INoteComposerConfig) {
+    // A draft from before checklist fields (the old toggle's 'on') reads as no items.
+    const draftItems = getJsonDraft<unknown>(checklistDraftId(scope, key));
+    const items = Array.isArray(draftItems) ? (draftItems as IChecklistItem[]) : [];
     super({
       templateFn,
       mountTarget,
       config: {
         label: scope === 'page' ? 'New note for this page' : 'New note for this site',
         draft: getDraft(draftId(scope, key)),
-        checklist: getDraft(checklistDraftId(scope, key)) === 'on',
+        hasItems: items.length > 0,
       },
     });
     this._scope = scope;
     this._key = key;
-    this._checklist = this.config.checklist;
+    this._items = items;
   }
 
   // Always rendered by the template.
   private get input(): HTMLTextAreaElement {
     return this.element.querySelector<HTMLTextAreaElement>('.note-composer__input')!;
+  }
+
+  public override registerChildren(): Nutin.ComponentConfig[] {
+    return [{
+      selector: 'checklist-fields',
+      factory: (el) => (this._checklist = new ChecklistFieldsComponent(el, {
+        items: this._items,
+        label: 'Checklist items',
+        className: 'note-composer__items',
+        onEscape: () => this.input.focus(),
+        onLastRemoved: () => this.element.querySelector<HTMLElement>('.note-composer__checklist')!.focus(),
+        onChange: () => this.onItemsChanged(),
+      })),
+      keep: 'fields',
+    }];
   }
 
   protected override onAfterRender(): void {
@@ -54,67 +78,68 @@ export class NoteComposerComponent extends Component<HTMLElement, INoteComposerV
     this.eventListeners.push([input, 'input', onInput]);
   }
 
-  private _onKeydown(event: KeyboardEvent): void {
-    if (event.key !== 'Enter') return;
-    if (event.ctrlKey || event.metaKey) {
-      event.preventDefault();
-      this.element.querySelector('form')!.requestSubmit();
-      return;
-    }
-    const input = this.input;
-    const next = this._checklist ? continueChecklist(input.value, input.selectionStart, input.selectionEnd) : null;
-    if (!next) return;
-    event.preventDefault();
-    this.setText(next.value, next.caret);
+  // Items typed but not added yet survive a tab switch, like the text.
+  protected override onBeforeDestroy(): void {
+    this.saveItemsDraft();
+    super.onBeforeDestroy();
   }
 
-  private _toggleChecklist(): void {
-    this.setChecklist(!this._checklist);
-    const input = this.input;
-    if (this._checklist) {
-      const next = startChecklistLine(input.value, input.selectionStart);
-      this.setText(next.value, next.caret);
+  private _onKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+      event.preventDefault();
+      this.element.querySelector('form')!.requestSubmit();
     }
-    input.focus();
+  }
+
+  private _addChecklistItem(): void {
+    this._checklist!.add();
   }
 
   private async _add(): Promise<void> {
     const input = this.input;
     const typed = input.value;
-    // "- [ ] item" lines become the note's checklist.
-    const { text, items } = parseChecklist(typed);
+    const fields = this._checklist!.values();
+    // Field items first, then "- [ ] item" lines typed in the text.
+    const { text, items: typedItems } = parseChecklist(typed);
+    const items = [
+      ...fields.map((field) => ({ ...field, text: field.text.trim() })).filter((field) => field.text),
+      ...withIds(typedItems),
+    ];
     if (!text && items.length === 0) return;
 
     // Ready for the next note right away; restored if the save fails.
-    const checklist = this._checklist;
     input.value = '';
     setDraft(draftId(this._scope, this._key), '');
-    this.setChecklist(false);
+    this._checklist!.reset([]);
     requestFocus('.note-composer__input');
     try {
-      await scopeStoreService.addNote(this._scope, this._key, text, withIds(items));
+      await scopeStoreService.addNote(this._scope, this._key, text, items);
     } catch (error) {
       input.value = typed;
       setDraft(draftId(this._scope, this._key), typed);
-      this.setChecklist(checklist);
+      this._checklist!.reset(fields);
       notifierService.error(`Couldn't add the note. ${errorMessage(error)}`);
     }
   }
 
-  // Typed into the field by code, so kept as a draft by hand (no input event fires).
-  private setText(value: string, caret: number): void {
-    const input = this.input;
-    input.value = value;
-    input.setSelectionRange(caret, caret);
-    setDraft(draftId(this._scope, this._key), value);
+  // Only the button and the field's `required` change: a render would rebuild the text being typed.
+  private onItemsChanged(): void {
+    const hasItems = this._checklist!.count > 0;
+    this.config = { ...this.config, hasItems };
+    this.element.querySelector('.note-composer__checklist')!.textContent = buttonLabel(hasItems);
+    // An items-only note has no text: the browser mustn't refuse to submit it.
+    this.input.required = !hasItems;
+    this.saveItemsDraft();
   }
 
-  // Only its own button changes: a render would rebuild the field being typed in.
-  private setChecklist(on: boolean): void {
-    this._checklist = on;
-    this.element.querySelector('.note-composer__checklist')!.setAttribute('aria-pressed', String(on));
-    setDraft(checklistDraftId(this._scope, this._key), on ? 'on' : '');
+  private saveItemsDraft(): void {
+    const items = this._checklist?.values() ?? [];
+    setJsonDraft(checklistDraftId(this._scope, this._key), items.length > 0 ? items : null);
   }
+}
+
+function buttonLabel(hasItems: boolean): string {
+  return hasItems ? 'Add item' : 'Checklist';
 }
 
 function draftId(scope: NoteScope, key: string): string {

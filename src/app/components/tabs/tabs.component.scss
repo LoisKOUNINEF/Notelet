@@ -1,0 +1,109 @@
+.tabs {
+  display: grid;
+  grid-auto-columns: 1fr;
+  grid-auto-flow: column;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border-radius: var(--radius);
+  background: var(--color-surface-muted);
+}
+
+.tabs--grouped {
+  padding: 0;
+  background: none;
+}
+
+.tabs--small {
+  font-size: var(--font-small);
+
+  .tabs__tab {
+    min-height: 1.875rem;
+  }
+}
+
+.tabs__tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 2.25rem;
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: var(--radius-small);
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color var(--transition), color var(--transition), box-shadow var(--transition);
+
+  &:hover {
+    color: var(--color-text);
+  }
+
+  &[aria-selected='true'] {
+    background: var(--color-surface);
+    color: var(--color-text);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
+  }
+}
+
+.tabs--folder {
+  --tabs-folder-surface: var(--color-surface-muted);
+  // Inset: the selected tab's outer curves need card to sit on, even at the row's ends.
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
+  border-radius: 0;
+  background: none;
+
+  .tabs__tab {
+    position: relative;
+    min-height: 2.5rem;
+    border-radius: var(--radius) var(--radius) 0 0;
+
+    &:hover:not([aria-selected='true']) {
+      background: color-mix(in srgb, var(--tabs-folder-surface) 50%, transparent);
+    }
+
+    &[aria-selected='true'] {
+      background: var(--tabs-folder-surface);
+      box-shadow: none;
+
+      // The curves joining the tab to the card below, one on each side.
+      &::before,
+      &::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        width: var(--radius);
+        height: var(--radius);
+        pointer-events: none;
+      }
+
+      &::before {
+        left: calc(-1 * var(--radius));
+        background: radial-gradient(circle at 0 0, transparent calc(var(--radius) - 0.5px), var(--tabs-folder-surface) var(--radius));
+      }
+
+      &::after {
+        right: calc(-1 * var(--radius));
+        background: radial-gradient(circle at 100% 0, transparent calc(var(--radius) - 0.5px), var(--tabs-folder-surface) var(--radius));
+      }
+    }
+  }
+}
+
+.tabs__count {
+  min-width: 1.5rem;
+  padding: 0 var(--space-1);
+  border-radius: 999px;
+  background: var(--color-border);
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+  text-align: center;
+
+  [aria-selected='true'] > & {
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+  }
+}

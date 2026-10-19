@@ -19,6 +19,8 @@ declare interface IScopeItem {
   text: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
+  // Where the user put it in its list; absent until they reorder it (see ScopeStoreService's sorters).
+  position?: number;
 }
 
 // One checkable line of a note's checklist (checked items stay in place).
@@ -37,8 +39,6 @@ declare interface ITodo extends IScopeItem {
   done: boolean;
   // When it was last checked (null while open): done to-dos are listed in the order they were done.
   doneAt: Timestamp | null;
-  // Where the user put it among the open ones; absent until they reorder the list.
-  position?: number;
 }
 
 // The item type of each kind.
@@ -53,6 +53,16 @@ declare interface IScopeKeys {
   site: string;
   pageLabel: string;
   siteLabel: string;
+}
+
+// A page of the active tab's site that has notes or to-dos (see ScopeStoreService.listSitePages).
+declare interface ISitePage {
+  // Its page key, which is also a URL to open it.
+  key: string;
+  label: string;
+  notes: number;
+  todos: number;
+  openTodos: number;
 }
 
 declare namespace Nutin {

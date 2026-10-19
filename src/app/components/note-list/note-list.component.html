@@ -2,4 +2,9 @@
   ${notes.length > 0
     ? html`<ul class="note-list__items" data-catalog="notes" aria-label="${label}"></ul>`
     : html`<p class="note-list__empty">${emptyText}</p>`}
+  ${notes.length > 0 ? html`
+  <div class="note-list__footer">
+    <button class="button button--small button--danger note-list__delete-all" type="button" tabindex="0" data-event="click:_deleteAll">Delete all notes</button>
+  </div>` : ''}
+  ${reorderable ? html`<p class="a11y-visually-hidden" id="note-reorder-help">Press Space to pick up. Use the arrow keys to move, Space to drop, Escape to cancel.</p>` : ''}
 </div>

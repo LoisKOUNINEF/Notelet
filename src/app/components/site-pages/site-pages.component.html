@@ -1,0 +1,20 @@
+${pages.length > 0 ? html`
+<div class="site-pages">
+  <button class="site-pages__toggle" type="button" tabindex="0" aria-expanded="${expanded ? 'true' : 'false'}" aria-controls="site-pages-list" data-event="click:_toggle">
+    <span class="site-pages__chevron" aria-hidden="true"></span>Pages on this site (${pages.length})
+  </button>
+  <ul class="site-pages__list" id="site-pages-list" aria-label="Pages on this site with notes or to-dos" ${expanded ? '' : raw('hidden')}>
+    ${pages.map((page) => html`
+    <li class="site-pages__item">
+      ${page.current ? html`
+      <span class="site-pages__page site-pages__page--current" aria-current="page" title="${page.key}">
+        <span class="site-pages__label">${page.label}</span>
+        <span class="site-pages__counts">${page.countText}<span class="a11y-visually-hidden">${', current page'}</span></span>
+      </span>` : html`
+      <button class="site-pages__page" type="button" tabindex="0" title="${page.key}" data-url="${page.key}" data-event="click:_open:@dataset:url">
+        <span class="site-pages__label">${page.label}</span>
+        <span class="site-pages__counts">${page.countText}</span>
+      </button>`}
+    </li>`)}
+  </ul>
+</div>` : ''}

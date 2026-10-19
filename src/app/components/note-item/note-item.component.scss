@@ -1,3 +1,5 @@
+@use "reorder";
+
 .note-item {
   display: grid;
   gap: var(--space-2);
@@ -26,7 +28,18 @@
   gap: var(--space-2);
 }
 
+.note-item__handle {
+  @include reorder.handle;
+  margin-left: calc(-1 * var(--space-1));
+}
+
+.note-item__grip {
+  @include reorder.grip;
+}
+
 .note-item__meta {
+  flex: 1;
+  min-width: 0;
   color: var(--color-text-muted);
   font-size: 0.75rem;
 }
@@ -38,6 +51,13 @@
   gap: var(--space-1);
 }
 
+.note-item__more {
+  min-width: 1.75rem;
+  justify-content: center;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
 .note-item__checklist {
   display: grid;
   gap: 2px;
@@ -47,5 +67,13 @@
 }
 
 .note-item__add-item {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
   padding-left: var(--space-1);
+}
+
+.note-item__add-item-field {
+  flex: 1;
+  min-width: 0;
 }

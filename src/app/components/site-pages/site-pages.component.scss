@@ -1,0 +1,81 @@
+.site-pages__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 1.75rem;
+  padding: 0 var(--space-1);
+  border: 0;
+  border-radius: var(--radius-small);
+  background: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--font-small);
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--color-text);
+  }
+}
+
+// A CSS chevron, pointing right when closed and down when open.
+.site-pages__chevron {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform var(--transition);
+
+  [aria-expanded='true'] > & {
+    transform: rotate(45deg);
+  }
+}
+
+.site-pages__list {
+  display: grid;
+  gap: 2px;
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.site-pages__page {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: var(--radius-small);
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+}
+
+button.site-pages__page {
+  cursor: pointer;
+
+  &:hover {
+    background: var(--color-surface-muted);
+  }
+}
+
+.site-pages__page--current {
+  background: var(--color-surface-muted);
+  font-weight: 600;
+}
+
+.site-pages__label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.site-pages__counts {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-weight: normal;
+}

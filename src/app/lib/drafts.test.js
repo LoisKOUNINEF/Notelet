@@ -1,4 +1,4 @@
-import { clearDrafts, getDraft, getEditDraft, setDraft, setEditDraft } from '#root/dist/src/app/lib/drafts.js';
+import { clearDrafts, getDraft, getEditDraft, getJsonDraft, setDraft, setEditDraft, setJsonDraft } from '#root/dist/src/app/lib/drafts.js';
 
 describe('drafts', () => {
   afterEach(() => clearDrafts());
@@ -22,6 +22,14 @@ describe('drafts', () => {
   it('ignores an edit draft it can\'t read', () => {
     setDraft('edit:note:broken', '{not json');
     expect(getEditDraft('note', 'broken')).toBe(null);
+  });
+
+  it('keeps any data as a JSON draft, and forgets it when set to null', () => {
+    setJsonDraft('note-checklist:page:a', [{ id: '1', text: 'Milk', done: false }]);
+    expect(getJsonDraft('note-checklist:page:a')).toEqual([{ id: '1', text: 'Milk', done: false }]);
+    setJsonDraft('note-checklist:page:a', null);
+    expect(getJsonDraft('note-checklist:page:a')).toBe(null);
+    expect(getDraft('note-checklist:page:a')).toBe('');
   });
 
   it('forgets everything with clearDrafts', () => {

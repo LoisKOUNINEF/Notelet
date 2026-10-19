@@ -1,17 +1,25 @@
-import { announce } from '../../lib/announce.js';
-import { byData } from '../../lib/focus.js';
-import { moveId, targetIndex } from '../../lib/reorder.js';
+import { announce } from './announce.js';
+import { byData } from './focus.js';
+import { moveId, targetIndex } from './reorder.js';
 
-// What the to-do list gives the reorder gestures to work with.
+// What a list (the open to-dos, the notes) gives the reorder gestures to work with.
 export interface IReorderHost {
   // The list's own element: handle events are delegated to it.
   root: HTMLElement;
-  // The open to-dos' ids, in the order shown.
-  openIds(): string[];
+  // The reorderable items' list (a catalog), each child being one item.
+  listSelector: string;
+  // Each item's grab handle.
+  handleSelector: string;
+  // The data attribute holding each item's id on its root, e.g. `todo-id` for `data-todo-id`.
+  idAttribute: string;
+  // Set on the item being dragged.
+  draggingClass: string;
+  // The reorderable items' ids, in the order shown.
+  ids(): string[];
   textOf(id: string): string;
   // Shows `order` (null: the stored one) with `grabbedId` picked up, focus back on its handle.
   preview(order: string[] | null, grabbedId: string | null): void;
-  // Saves the new order (resolves to whether it was saved); focus ends on the moved to-do's handle.
+  // Saves the new order (resolves to whether it was saved); focus ends on the moved item's handle.
   commit(order: string[], movedId: string): Promise<boolean>;
   // A gesture ended. `saved`: a new order was written, whose own reload brings everything fresh,
   // so updates held back meanwhile (older than it) are dropped; otherwise they can be applied.
@@ -35,17 +43,13 @@ interface IPointerDrag {
   height: number;
 }
 
-const OPEN_LIST = '[data-catalog="open-todos"]';
-const HANDLE = '.todo-item__handle';
-const DRAGGING = 'todo-list__item--dragging';
-
 /**
- * Reordering the open to-dos by their grab handles:
+ * Reordering a list's items by their grab handles:
  * - keyboard: Space/Enter picks up, ↑/↓/Home/End move, Space/Enter or Tab drops, Escape cancels,
  *   each step announced;
  * - pointer (mouse, pen, touch): drag the handle, the others slide aside, release to drop.
  */
-export class TodoReorder {
+export class ListReorder {
   private _grab: IKeyboardGrab | null = null;
   private _drag: IPointerDrag | null = null;
   // Set while preview() re-renders: the handle losing focus then isn't a drop.
@@ -91,7 +95,7 @@ export class TodoReorder {
       }
       return;
     }
-    const id = handleId(event.target);
+    const id = this.handleId(event.target);
     if (!id) return;
 
     if (!this._grab) {
@@ -119,7 +123,7 @@ export class TodoReorder {
     }
   }
 
-  // Tabbing away (or clicking elsewhere) drops the to-do where it is. The re-renders that move
+  // Tabbing away (or clicking elsewhere) drops the item where it is. The re-renders that move
   // the handle itself happen while previewing.
   private onFocusout(): void {
     if (!this._grab || this._previewing) return;
@@ -127,7 +131,7 @@ export class TodoReorder {
   }
 
   private pickUp(id: string): void {
-    const order = this.host.openIds();
+    const order = this.host.ids();
     this._grab = { id, original: order, order };
     this.preview(id);
     announce(`Picked up ${this.host.textOf(id)}. Position ${order.indexOf(id) + 1} of ${order.length}.`);
@@ -169,23 +173,23 @@ export class TodoReorder {
     this._previewing = true;
     try {
       this.host.preview(this.previewOrder, this.grabbedId);
-      focusHandle(this.host.root, focusId);
+      this.focusHandle(focusId);
     } finally {
       this._previewing = false;
     }
   }
 
   private onPointerdown(event: PointerEvent): void {
-    const id = handleId(event.target);
+    const id = this.handleId(event.target);
     if (!id || this._grab || !event.isPrimary || event.button > 0) return;
     const handle = event.target as HTMLElement;
-    const items = Array.from(this.host.root.querySelector(OPEN_LIST)!.children) as HTMLElement[];
+    const items = Array.from(this.host.root.querySelector(this.host.listSelector)!.children) as HTMLElement[];
     const from = items.findIndex((item) => item.contains(handle));
     const rects = items.map((item) => item.getBoundingClientRect());
 
     event.preventDefault();
     handle.setPointerCapture?.(event.pointerId);
-    items[from]!.classList.add(DRAGGING);
+    items[from]!.classList.add(this.host.draggingClass);
     window.addEventListener('blur', this._onWindowBlur);
     this._drag = {
       id,
@@ -209,7 +213,7 @@ export class TodoReorder {
         item.style.transform = `translateY(${event.clientY - drag.startY}px)`;
         return;
       }
-      // The ones the dragged to-do passed make room for it, the others stay.
+      // The ones the dragged item passed make room for it, the others stay.
       const shift = drag.from < drag.to && i > drag.from && i <= drag.to ? -drag.height
         : drag.from > drag.to && i < drag.from && i >= drag.to ? drag.height
         : 0;
@@ -229,27 +233,32 @@ export class TodoReorder {
     window.removeEventListener('blur', this._onWindowBlur);
     drag.items.forEach((item) => {
       item.style.transform = '';
-      item.classList.remove(DRAGGING);
+      item.classList.remove(this.host.draggingClass);
     });
 
-    const order = this.host.openIds();
+    const order = this.host.ids();
     if (keep && drag.to !== drag.from) {
       const next = moveId(order, drag.id, drag.to);
       announce(`Moved ${this.host.textOf(drag.id)} to position ${drag.to + 1} of ${order.length}.`);
       void this.host.commit(next, drag.id).then((saved) => this.host.settle(saved));
       return;
     }
-    focusHandle(this.host.root, drag.id);
+    this.focusHandle(drag.id);
     this.host.settle(false);
+  }
+
+  // The item whose handle a keyboard or pointer event started on (their targets are elements).
+  private handleId(target: EventTarget | null): string | null {
+    const handle = (target as Element).closest(this.host.handleSelector);
+    return handle?.closest<HTMLElement>(`[data-${this.host.idAttribute}]`)?.dataset[dataKey(this.host.idAttribute)] ?? null;
+  }
+
+  private focusHandle(id: string): void {
+    this.host.root.querySelector<HTMLElement>(`${byData(this.host.idAttribute, id)} ${this.host.handleSelector}`)?.focus();
   }
 }
 
-// The to-do whose handle a keyboard or pointer event started on (their targets are elements).
-function handleId(target: EventTarget | null): string | null {
-  const handle = (target as Element).closest(HANDLE);
-  return handle?.closest<HTMLElement>('[data-todo-id]')?.dataset.todoId ?? null;
-}
-
-function focusHandle(root: HTMLElement, id: string): void {
-  root.querySelector<HTMLElement>(`${byData('todo-id', id)} ${HANDLE}`)?.focus();
+// `todo-id` → `todoId`, its key in an element's dataset.
+function dataKey(attribute: string): string {
+  return attribute.replace(/-([a-z])/g, (_, letter: string) => letter.toUpperCase());
 }

@@ -67,6 +67,13 @@ export class ChromeApiService extends Service<ChromeApiService> {
   public async openTab(url: string): Promise<void> {
     await chrome.tabs.create({ url });
   }
+
+  // Navigates the tab shown next to the panel (which then follows it, see onTabsChanged).
+  public async openInActiveTab(url: string): Promise<void> {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.id === undefined) throw new Error('No active tab.');
+    await chrome.tabs.update(tab.id, { url });
+  }
 }
 
 export const chromeApiService = ChromeApiService.getInstance();

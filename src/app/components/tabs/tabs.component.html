@@ -1,0 +1,16 @@
+<div class="tabs ${small ? 'tabs--small' : ''} ${grouped ? 'tabs--grouped' : ''} ${folder ? 'tabs--folder' : ''}" role="tablist" aria-label="${label}" data-event="keydown:_onKeydown:@event">
+  ${tabs.map((tab) => html`
+  <button
+    class="tabs__tab"
+    type="button"
+    role="tab"
+    id="${tab.id}"
+    aria-controls="${panelId}"
+    aria-selected="${tab.selected ? 'true' : 'false'}"
+    tabindex="${tab.selected ? '0' : '-1'}"
+    data-value="${tab.value}"
+    data-event="click:_select:@dataset:value">
+    <span class="tabs__label">${tab.label}</span>
+    <span class="tabs__count" aria-hidden="true">${tab.count}</span><span class="a11y-visually-hidden">${tab.countText}</span>
+  </button>`)}
+</div>

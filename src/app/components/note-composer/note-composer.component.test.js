@@ -1,5 +1,6 @@
 import { NoteComposerComponent } from '#root/dist/src/app/components/note-composer/note-composer.component.js';
 import { scopeStoreService } from '#root/dist/src/app/services/scope-store/scope-store.service.js';
+import { setDraft } from '#root/dist/src/app/lib/drafts.js';
 import { KEYS, keydown, settle, startPanel, typeInto } from '../../testing/panel.js';
 
 describe('NoteComposerComponent', () => {
@@ -69,59 +70,71 @@ describe('NoteComposerComponent', () => {
   });
 
   const toggle = () => $('.note-composer__checklist');
-  const caretAtEnd = () => input().setSelectionRange(input().value.length, input().value.length);
+  const fields = () => $$('.checklist-field__input');
+  const values = () => fields().map((f) => f.value);
   const notes = async (scope = 'page') => (await scopeStoreService.load(KEYS))[scope].notes;
 
-  it('starts a checklist line with the toggle, which shows it is on', () => {
+  it('starts a checklist with "Checklist": a focused item field, then "Add item"', () => {
     mount('page');
-    expect(toggle().getAttribute('aria-pressed')).toBe('false');
+    expect(toggle().textContent).toBe('Checklist');
+    expect($('.note-composer__items')).toBeFalsy();
 
     toggle().click();
-    expect(toggle().getAttribute('aria-pressed')).toBe('true');
-    expect(input().value).toBe('- [ ] ');
-    expect(document.activeElement).toBe(input());
+    expect(fields().length).toBe(1);
+    expect(document.activeElement).toBe(fields()[0]);
+    expect($('.note-composer__items').getAttribute('aria-label')).toBe('Checklist items');
+    expect(toggle().textContent).toBe('Add item');
 
     toggle().click();
-    expect(toggle().getAttribute('aria-pressed')).toBe('false');
-    expect(input().value).toBe('- [ ] ');
-    typeInto(input(), '');
+    expect(fields().length).toBe(2);
+    expect(document.activeElement).toBe(fields()[1]);
   });
 
-  it('continues the list on Enter while on, and ends it on an empty item', () => {
+  it('adds the next item with Enter, without touching the text being written', () => {
     mount('page');
     typeInto(input(), 'Packing');
-    caretAtEnd();
     toggle().click();
-    typeInto(input(), `${input().value}Passport`);
-    caretAtEnd();
+    fields()[0].value = 'Passport';
+    keydown(fields()[0], 'Enter');
 
-    keydown(input(), 'Enter');
-    expect(input().value).toBe('Packing\n- [ ] Passport\n- [ ] ');
-    keydown(input(), 'Enter');
-    expect(input().value).toBe('Packing\n- [ ] Passport\n');
-    typeInto(input(), '');
+    expect(values()).toEqual(['Passport', '']);
+    expect(document.activeElement).toBe(fields()[1]);
+    expect(input().value).toBe('Packing');
   });
 
-  it('leaves Enter alone when off, and on lines that aren\'t items', () => {
+  it('removes items, then gives the focus back to "Checklist"', () => {
+    mount('page');
+    toggle().click();
+    toggle().click();
+    $$('.checklist-field__remove')[1].click();
+    expect(document.activeElement).toBe(fields()[0]);
+
+    $$('.checklist-field__remove')[0].click();
+    expect(fields()).toEqual([]);
+    expect(toggle().textContent).toBe('Checklist');
+    expect(document.activeElement).toBe(toggle());
+  });
+
+  it('goes back to the text with Escape from an item', () => {
+    mount('page');
+    toggle().click();
+    keydown(fields()[0], 'Escape');
+    expect(document.activeElement).toBe(input());
+  });
+
+  it('adds a line on plain Enter in the text, even after an item line', () => {
     mount('page');
     typeInto(input(), '- [ ] Typed by hand');
-    caretAtEnd();
     keydown(input(), 'Enter');
     expect(input().value).toBe('- [ ] Typed by hand');
-
-    toggle().click();
-    toggle().click();
-    toggle().click();
-    typeInto(input(), 'Plain line');
-    caretAtEnd();
-    keydown(input(), 'Enter');
-    expect(input().value).toBe('Plain line');
-    typeInto(input(), '');
+    expect(fields()).toEqual([]);
   });
 
-  it('adds a note with its checklist, and turns the toggle off', async () => {
+  it('adds a note with its items and typed "- [ ]" lines, then starts afresh', async () => {
     mount('page');
-    typeInto(input(), 'Trip\n- [ ] Passport\n- [x] Visa');
+    typeInto(input(), 'Trip\n- [x] Visa');
+    toggle().click();
+    fields()[0].value = '  Passport ';
     toggle().click();
     keydown(input(), 'Enter', { ctrlKey: true });
     await settle();
@@ -129,57 +142,50 @@ describe('NoteComposerComponent', () => {
     const [note] = await notes();
     expect(note.text).toBe('Trip');
     expect(note.items.map((i) => [i.text, i.done])).toEqual([['Passport', false], ['Visa', true]]);
-    expect(toggle().getAttribute('aria-pressed')).toBe('false');
+    expect(fields()).toEqual([]);
+    expect(toggle().textContent).toBe('Checklist');
+    expect(input().value).toBe('');
   });
 
-  it('adds an items-only note, but not an empty checklist', async () => {
+  it('adds an items-only note, which doesn\'t need text, but not empty items', async () => {
     mount('page');
-    typeInto(input(), '- [ ] ');
+    expect(input().required).toBe(true);
+    toggle().click();
+    expect(input().required).toBe(false);
     $('button[type="submit"]').click();
     await settle();
     expect(await notes()).toEqual([]);
 
-    typeInto(input(), '- [ ] Only item');
+    fields()[0].value = 'Only item';
     $('button[type="submit"]').click();
     await settle();
-    expect((await notes())[0].text).toBe('');
+    const [note] = await notes();
+    expect(note.text).toBe('');
+    expect(note.items.map((i) => i.text)).toEqual(['Only item']);
+    expect(input().required).toBe(true);
   });
 
-  it('keeps the toggle on with the draft, and gives both back when adding fails', async () => {
+  it('keeps the items being written as a draft, and gives them back when adding fails', async () => {
     mount('site');
     toggle().click();
-    typeInto(input(), '- [ ] Draft item');
+    fields()[0].value = 'Draft item';
     composer.destroy();
     mount('site');
-    expect(toggle().getAttribute('aria-pressed')).toBe('true');
+    expect(values()).toEqual(['Draft item']);
+    expect(toggle().textContent).toBe('Add item');
 
     panel.fake.storage.local.failNextSet = new Error('Quota exceeded.');
     $('button[type="submit"]').click();
     await settle();
-    expect(input().value).toBe('- [ ] Draft item');
-    expect(toggle().getAttribute('aria-pressed')).toBe('true');
-    typeInto(input(), '');
-    toggle().click();
+    expect(values()).toEqual(['Draft item']);
+    expect(toggle().textContent).toBe('Add item');
+    $$('.checklist-field__remove')[0].click();
   });
 
-  it('ignores keys other than Enter', () => {
+  it('reads a checklist draft left by an older version as no items', () => {
+    setDraft(`note-checklist:page:${KEYS.page}`, 'on');
     mount('page');
-    toggle().click();
-    keydown(input(), 'a');
-    expect(input().value).toBe('- [ ] ');
-    toggle().click();
-    typeInto(input(), '');
-  });
-
-  it('replaces selected text on Enter in checklist mode', () => {
-    mount('page');
-    toggle().click();
-    typeInto(input(), '- [ ] Milk');
-    input().setSelectionRange(8, 10);
-    keydown(input(), 'Enter');
-    expect(input().value).toBe('- [ ] Mi\n- [ ] ');
-    toggle().click();
-    typeInto(input(), '');
+    expect(fields()).toEqual([]);
+    expect(toggle().textContent).toBe('Checklist');
   });
 });
-

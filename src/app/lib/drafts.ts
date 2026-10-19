@@ -11,10 +11,9 @@ export function setDraft(id: string, text: string): void {
   else drafts.delete(id);
 }
 
-// An item's edit left open when its item went away (tab switch, navigation, another window
-// saving it...): restored when the item shows up again in this panel.
-export function getEditDraft<T>(kind: 'note' | 'todo', id: string): T | null {
-  const draft = getDraft(`edit:${kind}:${id}`);
+// A draft holding structured data (stored as JSON); null when there's none, or it can't be read.
+export function getJsonDraft<T>(id: string): T | null {
+  const draft = getDraft(id);
   if (!draft) return null;
   try {
     return JSON.parse(draft) as T;
@@ -23,8 +22,18 @@ export function getEditDraft<T>(kind: 'note' | 'todo', id: string): T | null {
   }
 }
 
+export function setJsonDraft(id: string, draft: unknown): void {
+  setDraft(id, draft === null ? '' : JSON.stringify(draft));
+}
+
+// An item's edit left open when its item went away (tab switch, navigation, another window
+// saving it...): restored when the item shows up again in this panel.
+export function getEditDraft<T>(kind: 'note' | 'todo', id: string): T | null {
+  return getJsonDraft<T>(`edit:${kind}:${id}`);
+}
+
 export function setEditDraft(kind: 'note' | 'todo', id: string, draft: unknown): void {
-  setDraft(`edit:${kind}:${id}`, draft === null ? '' : JSON.stringify(draft));
+  setJsonDraft(`edit:${kind}:${id}`, draft);
 }
 
 // Forgets every draft (tests start each panel fresh).

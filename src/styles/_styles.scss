@@ -61,6 +61,15 @@
   --a11y-menu-item-color-background: var(--color-surface);
   --a11y-menu-item-color-text: var(--color-text);
   --a11y-menu-item-color-secondary-hover: var(--color-primary);
+  --a11y-modal-color-background: var(--color-surface);
+  --a11y-modal-color-text: var(--color-text);
+  --a11y-modal-color-secondary: var(--color-text-muted);
+  --a11y-modal-color-secondary-hover: var(--color-text);
+  --a11y-modal-border-radius: var(--radius);
+  --a11y-modal-content-padding: var(--space-4);
+  --a11y-modal-footer-margin-top: var(--space-4);
+  --a11y-modal-footer-gap: var(--space-2);
+  --a11y-modal-overlay-padding: var(--space-4);
   --a11y-snackbar-container-width: calc(100vw - 2rem);
   --a11y-color-success: #3f6b34;
   --a11y-color-info: #2b2b28;
