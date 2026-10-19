@@ -13,8 +13,8 @@ Drafts for the developer dashboard. Copy each part into its field.
   >
   > Open the side panel on any site: Ticknote shows the notes and to-dos for that page, and for the whole site, a click away. Switch tabs and it follows.
   >
-  > - Notes, with checklists inside them
-  > - To-do lists you can reorder, with completed items tucked away
+  > - Notes for what you want to remember
+  > - To-dos, single or as lists of things to check off, that you can reorder, with completed ones tucked away
   > - Move anything between a page and its site
   > - Kept on this device, or synced with your Chrome profile
   > - Fully usable with the keyboard and screen readers
@@ -38,7 +38,7 @@ Drafts for the developer dashboard. Copy each part into its field.
 
 - **Icon:** `src/assets/icons/ticknote-128.png` (the dark tile), 128×128 PNG. The extension ships `src/assets/icons/ticknote-{16,32,48,128}.png`; the panel's favicon is `public/favicon.ico`. Sources (SVGs, and the light tile PNGs for a future theme-aware icon) are in `docs/icons/`.
 - **Fonts:** Source Serif 4 and Playfair Display, both under the SIL Open Font License 1.1, bundled in `src/assets/fonts/` with their `LICENSE.txt` (copied into the package by `tools/extension/package-extension.js`). No remote fonts are loaded.
-- **Screenshots:** at least one, 1280×800 (or 640×400), PNG or JPEG. Suggested: the panel next to a page (notes and to-dos), a checklist note, and the settings.
+- **Screenshots:** at least one, 1280×800 (or 640×400), PNG or JPEG. Suggested: the panel next to a page (notes and to-dos), a to-do list, and the settings.
 - **Small promo tile:** 440×280 PNG or JPEG.
 - **Marquee (optional):** 1400×560.
 

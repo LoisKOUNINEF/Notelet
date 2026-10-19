@@ -1,4 +1,3 @@
-import { AppEventBus } from '#root/dist/src/core/index.js';
 import { formatTimeAgo } from '#root/dist/src/app/lib/pipes.js';
 import { SidebarComponent } from '#root/dist/src/app/components/sidebar/sidebar.component.js';
 import { scopeStoreService } from '#root/dist/src/app/services/scope-store/scope-store.service.js';
@@ -250,20 +249,14 @@ describe('NoteItemComponent', () => {
   });
 });
 
-describe('NoteItemComponent - checklist', () => {
+describe('NoteItemComponent - naming and time', () => {
   let panel;
   let sidebar;
 
   const item = (note) => $(`[data-note-id="${note.id}"]`);
-  const menuItem = (note, action) => document.getElementById(`note-${note.id}-menu`)?.querySelector(`[data-action="${action}"]`);
-  const stored = async () => (await scopeStoreService.load(KEYS)).page.notes;
   const mount = async () => {
     sidebar = new SidebarComponent('#app');
     sidebar.render();
-    await settle();
-  };
-  const submit = async (form) => {
-    form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
     await settle();
   };
 
@@ -274,30 +267,6 @@ describe('NoteItemComponent - checklist', () => {
   afterEach(async () => {
     sidebar.destroy();
     await panel.stop();
-  });
-
-  it('shows the checklist and how much of it is done, without "Add checklist"', async () => {
-    const note = await scopeStoreService.addNote('page', KEYS.page, 'Trip', [
-      { id: 'a', text: 'Passport', done: true },
-      { id: 'b', text: 'Tickets', done: false },
-    ]);
-    await mount();
-
-    expect(item(note).querySelector('.note-item__checklist').getAttribute('aria-label')).toBe('Checklist');
-    expect(item(note).querySelector('.note-item__meta').textContent).toContain(' · 1 of 2 done');
-    expect(menuItem(note, 'add-checklist')).toBeFalsy();
-    expect(item(note).querySelector('.note-item__add-item-input')).toBeTruthy();
-  });
-
-  it('hides the empty text of an items-only note, naming it by its first item instead', async () => {
-    const note = await scopeStoreService.addNote('page', KEYS.page, '', [{ id: 'a', text: 'Only', done: false }]);
-    await mount();
-    expect(item(note).querySelector('.note-item__text')).toBeFalsy();
-
-    // Edit and Delete are still described by something that exists.
-    const describedBy = item(note).querySelector('.note-item__edit').getAttribute('aria-describedby');
-    expect(document.getElementById(describedBy).textContent).toBe('Only');
-    expect(item(note).querySelector('.note-item__delete').getAttribute('aria-describedby')).toBe(describedBy);
   });
 
   it('names a long note by its first line, cut to a readable length', async () => {
@@ -313,117 +282,12 @@ describe('NoteItemComponent - checklist', () => {
     expect($$('.note-item__more').map((b) => b.getAttribute('aria-label'))).toContain('More actions for: Starts after a blank line');
   });
 
-  it('shows notes saved before checklists as plain notes', async () => {
-    panel.fake.storage.local.data.set(`notes:page:${KEYS.page}`, [
-      { id: 'old', scope: 'page', key: KEYS.page, text: 'From before', createdAt: 1, updatedAt: 1 },
-    ]);
-    await mount();
-    const el = $('[data-note-id="old"]');
-    expect(el.querySelector('.note-item__checklist')).toBeFalsy();
-    expect(menuItem({ id: 'old' }, 'add-checklist')).toBeTruthy();
-    expect(el.querySelector('.note-item__meta').textContent).not.toContain('done');
-  });
-
-  it('starts a checklist with "Add checklist", focusing its first field', async () => {
-    const note = await scopeStoreService.addNote('page', KEYS.page, 'Plain');
-    await mount();
-
-    menuItem(note, 'add-checklist').click();
-    expect(document.activeElement).toBe(item(note).querySelector('.note-item__add-item-input'));
-    expect(menuItem(note, 'add-checklist')).toBeFalsy();
-  });
-
-  it('adds items from the view, keeping focus in the field', async () => {
-    const note = await scopeStoreService.addNote('page', KEYS.page, 'Plain');
-    await mount();
-    menuItem(note, 'add-checklist').click();
-
-    item(note).querySelector('.note-item__add-item-input').value = '  First item ';
-    await submit(item(note).querySelector('.note-item__add-item'));
-    item(note).querySelector('.note-item__add-item-input').value = 'Second item';
-    await submit(item(note).querySelector('.note-item__add-item'));
-
-    expect((await stored())[0].items.map((i) => i.text)).toEqual(['First item', 'Second item']);
-    expect(document.activeElement).toBe(item(note).querySelector('.note-item__add-item-input'));
-    expect(item(note).querySelector('.note-item__add-item-input').value).toBe('');
-  });
-
-  it('adds an item with its "Add" button, keeping focus in the field', async () => {
-    const note = await scopeStoreService.addNote('page', KEYS.page, 'List', [{ id: 'a', text: 'A', done: false }]);
-    await mount();
-    const button = item(note).querySelector('.note-item__add-item-submit');
-    expect(button.textContent).toBe('Add item');
-
-    item(note).querySelector('.note-item__add-item-input').value = 'B';
-    button.click();
-    await settle();
-
-    expect((await stored())[0].items.map((i) => i.text)).toEqual(['A', 'B']);
-    expect(document.activeElement).toBe(item(note).querySelector('.note-item__add-item-input'));
-  });
-
-  it('ignores an empty item, and reports a failed one', async () => {
-    const note = await scopeStoreService.addNote('page', KEYS.page, 'List', [{ id: 'a', text: 'A', done: false }]);
-    await mount();
-    const set = spyOn(panel.fake.storage.local, 'set');
-    await submit(item(note).querySelector('.note-item__add-item'));
-    expect(set.callCount).toBe(0);
-    set.restore();
-
-    panel.fake.storage.local.failNextSet = new Error('Quota exceeded.');
-    item(note).querySelector('.note-item__add-item-input').value = 'Too much';
-    await submit(item(note).querySelector('.note-item__add-item'));
-    expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t add the item. Quota exceeded.', type: 'error', duration: 6000 });
-    expect(item(note).querySelector('.note-item__add-item-input').value).toBe('Too much');
-  });
-
-  it('leaves edit mode without saving when nothing changed, checklist included', async () => {
-    const note = await scopeStoreService.addNote('page', KEYS.page, 'List', [{ id: 'a', text: 'A', done: false }]);
-    await mount();
-    const set = spyOn(panel.fake.storage.local, 'set');
-    item(note).querySelector('.note-item__edit').click();
-    $('.note-editor button[type="submit"]').click();
-    await settle();
-    expect(set.callCount).toBe(0);
-    set.restore();
-    expect($('.note-editor')).toBeFalsy();
-  });
-
-  it('adds a first item to a note saved before checklists', async () => {
-    panel.fake.storage.local.data.set(`notes:page:${KEYS.page}`, [
-      { id: 'old', scope: 'page', key: KEYS.page, text: 'From before', createdAt: 1, updatedAt: 1 },
-      { id: 'other', scope: 'page', key: KEYS.page, text: 'Another note', createdAt: 2, updatedAt: 2 },
-    ]);
-    await mount();
-    menuItem({ id: 'old' }, 'add-checklist').click();
-    $('[data-note-id="old"] .note-item__add-item-input').value = 'First';
-    await submit($('[data-note-id="old"] .note-item__add-item'));
-
-    const saved = await stored();
-    expect(saved.find((n) => n.id === 'old').items.map((i) => i.text)).toEqual(['First']);
-    expect(saved.find((n) => n.id === 'other').text).toBe('Another note');
-  });
-
-  it('edits a note saved before checklists, and leaves it unchanged when nothing changed', async () => {
-    panel.fake.storage.local.data.set(`notes:page:${KEYS.page}`, [
-      { id: 'old', scope: 'page', key: KEYS.page, text: 'From before', createdAt: 1, updatedAt: 1 },
-    ]);
-    await mount();
-    const set = spyOn(panel.fake.storage.local, 'set');
-    $('[data-note-id="old"] .note-item__edit').click();
-    expect($$('.checklist-field__input')).toEqual([]);
-    $('.note-editor button[type="submit"]').click();
-    await settle();
-    expect(set.callCount).toBe(0);
-    set.restore();
-  });
-
   it('keeps its relative time true as minutes pass, without re-rendering', async () => {
     const note = await scopeStoreService.addNote('page', KEYS.page, 'Timed');
     await mount();
     const time = item(note).querySelector('time');
     const now = spyOn(Date, 'now').andReturn(note.updatedAt + 5 * 60_000);
-    AppEventBus.emit('minute-tick');
+    panel.bus.emit('minute-tick');
     now.restore();
 
     expect(item(note).querySelector('time')).toBe(time);
@@ -458,19 +322,13 @@ describe('NoteItemComponent - actions menu', () => {
     const trigger = item().querySelector('.note-item__more');
     expect(trigger.getAttribute('aria-label')).toBe('More actions for: Plain');
     expect(menu().getAttribute('anchor')).toBe(trigger.id);
-    expect(actions()).toEqual(['Add checklist', 'Move to this site']);
-  });
-
-  it('offers only the move once the note has a checklist', async () => {
-    await scopeStoreService.update('notes', note, { items: [{ id: 'a', text: 'A', done: false }] });
-    await settle();
     expect(actions()).toEqual(['Move to this site']);
   });
 
   it('removes its menu with the note, and with edit mode', async () => {
     item().querySelector('.note-item__edit').click();
     expect(menu()).toBeFalsy();
-    item().querySelector('.note-editor button[type="button"]:not(.note-editor__add-item)').click();
+    item().querySelector('.note-editor button[type="button"]').click();
     expect(menu()).toBeTruthy();
 
     await scopeStoreService.remove('notes', note);
@@ -484,6 +342,5 @@ describe('NoteItemComponent - actions menu', () => {
     await settle();
     expect(set.callCount).toBe(0);
     set.restore();
-    expect(item().querySelector('.note-item__add-item')).toBeFalsy();
   });
 });

@@ -1,0 +1,59 @@
+.list-editor__form {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.list-editor__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.list-editor__spacer {
+  flex: 1;
+}
+
+.list-editor__hint,
+.list-editor__restored {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
+
+.list-editor__restored {
+  font-style: italic;
+}
+
+// Items taken out: single to-dos once saved, each can be put back.
+.list-editor__taken-out {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-small);
+}
+
+.list-editor__taken-out-title {
+  color: var(--color-text-muted);
+  font-size: var(--font-small);
+}
+
+.list-editor__taken-out-list {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.list-editor__taken-out-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.list-editor__taken-out-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

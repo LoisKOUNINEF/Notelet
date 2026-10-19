@@ -1,5 +1,4 @@
 import { DeleteDataComponent, countText } from '#root/dist/src/app/components/delete-data/delete-data.component.js';
-import { AppEventBus } from '#root/dist/src/core/index.js';
 import { confirmService } from '#root/dist/src/app/services/confirm/confirm.service.js';
 import { scopeStoreService } from '#root/dist/src/app/services/scope-store/scope-store.service.js';
 import { KEYS, settle, startPanel } from '../../testing/panel.js';
@@ -28,10 +27,14 @@ describe('DeleteDataComponent', () => {
       now.restore();
     }
   };
-  const olderText = () => $('#delete-data-older-text').textContent;
-  const allText = () => $('#delete-data-all-text').textContent;
+  // What "Delete" (older than) would delete is in its tooltip.
+  const olderText = () => tooltip('delete-data-older-button');
+  // What "Delete all notes and to-dos" would delete is in its tooltip.
+  const allText = () => tooltip('delete-data-all-button');
   const olderButton = () => $('.delete-data__older-button');
   const allButton = () => $('.delete-data__all-button');
+  // jsdom doesn't upgrade <a11y-tooltip>: it stays in place, found by its anchor.
+  const tooltip = (anchor) => $(`a11y-tooltip[anchor="${anchor}"]`)?.textContent ?? null;
   const pickAge = (value) => {
     $('.delete-data__select').value = value;
     $('.delete-data__select').dispatchEvent(new window.Event('change', { bubbles: true }));
@@ -54,13 +57,24 @@ describe('DeleteDataComponent', () => {
     await panel.stop();
   });
 
-  it('says when there\'s nothing to delete, with both buttons disabled', async () => {
+  it('says why there\'s nothing to delete in a tooltip, on buttons that do nothing', async () => {
     await mount();
-    expect(olderText()).toBe('Nothing older than 1 month.');
-    expect(allText()).toBe('No notes or to-dos yet.');
-    expect(olderButton().disabled).toBe(true);
-    expect(allButton().disabled).toBe(true);
-    expect(olderButton().getAttribute('aria-describedby')).toBe('delete-data-older-text');
+    // No line under the buttons: everything is in their tooltips.
+    expect($('#delete-data-older-text')).toBeFalsy();
+    expect($('#delete-data-all-text')).toBeFalsy();
+    // aria-disabled, not disabled: still focusable and hoverable, so the tooltip can show.
+    expect(olderButton().disabled).toBe(false);
+    expect(olderButton().getAttribute('aria-disabled')).toBe('true');
+    expect(allButton().getAttribute('aria-disabled')).toBe('true');
+    expect(tooltip('delete-data-older-button')).toBe('Nothing older than 1 month.');
+    expect(tooltip('delete-data-all-button')).toBe('No notes or to-dos yet.');
+    // The tooltip describes the button: no description of our own pointing at an empty line.
+    expect(olderButton().hasAttribute('aria-describedby')).toBe(false);
+
+    olderButton().click();
+    allButton().click();
+    await settle();
+    expect(asked).toEqual([]);
   });
 
   it('offers 1 week to 12 months, 1 month first, and counts what each would delete', async () => {
@@ -79,7 +93,7 @@ describe('DeleteDataComponent', () => {
     expect(olderText()).toBe('1 note and 1 to-do not edited in the last week.');
     pickAge('2m');
     expect(olderText()).toBe('Nothing older than 2 months.');
-    expect(olderButton().disabled).toBe(true);
+    expect(olderButton().getAttribute('aria-disabled')).toBe('true');
   });
 
   it('asks with the count, deletes only the old ones, and can undo it', async () => {
@@ -96,7 +110,7 @@ describe('DeleteDataComponent', () => {
       confirmLabel: 'Delete',
     }]);
     expect(await texts()).toEqual(['Fresh']);
-    expect(olderText()).toBe('Nothing older than 1 month.');
+    expect(tooltip('delete-data-older-button')).toBe('Nothing older than 1 month.');
     expect(allText()).toBe('1 note, on every page and site.');
 
     const toast = panel.toasts.at(-1);
@@ -132,7 +146,7 @@ describe('DeleteDataComponent', () => {
     });
     expect(await texts()).toEqual([]);
     expect(panel.toasts.at(-1)).toEqual({ message: 'All your notes and to-dos were deleted.', type: 'success' });
-    expect(allButton().disabled).toBe(true);
+    expect(allButton().getAttribute('aria-disabled')).toBe('true');
   });
 
   it('adds the sync warning when notes are synced', async () => {
@@ -153,24 +167,24 @@ describe('DeleteDataComponent', () => {
     expect(allButton().disabled).toBe(false);
   });
 
-  it('keeps focus on the age while the counts change, and moves it off a button just disabled', async () => {
+  it('keeps focus on the age while the counts change, and on a button left with nothing to do', async () => {
     await addOld(40, () => scopeStoreService.addNote('page', KEYS.page, 'Old note'));
     await mount();
     $('.delete-data__select').focus();
-    AppEventBus.emit('minute-tick');
+    panel.bus.emit('minute-tick');
     expect(document.activeElement).toBe($('.delete-data__select'));
 
     olderButton().focus();
     pickAge('2m');
-    expect(olderButton().disabled).toBe(true);
-    expect(document.activeElement).toBe(allButton());
+    expect(olderButton().getAttribute('aria-disabled')).toBe('true');
+    expect(document.activeElement).toBe(olderButton());
   });
 
   it('only re-renders on a minute tick when a count changes', async () => {
     await addOld(40, () => scopeStoreService.addNote('page', KEYS.page, 'Old note'));
     await mount();
     const select = $('.delete-data__select');
-    AppEventBus.emit('minute-tick');
+    panel.bus.emit('minute-tick');
     // The same element: an open dropdown isn't closed under the user.
     expect($('.delete-data__select')).toBe(select);
 
@@ -180,7 +194,7 @@ describe('DeleteDataComponent', () => {
     await addOld(7 - 30 / (24 * 60 * 60), () => scopeStoreService.addTodo('site', KEYS.site, 'Almost a week old'));
     expect(olderText()).toBe('1 note not edited in the last week.');
     const clock = spyOn(Date, 'now').andReturn(now + 60_000);
-    AppEventBus.emit('minute-tick');
+    panel.bus.emit('minute-tick');
     clock.restore();
     expect(olderText()).toBe('1 note and 1 to-do not edited in the last week.');
   });

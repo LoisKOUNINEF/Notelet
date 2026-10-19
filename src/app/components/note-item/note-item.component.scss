@@ -57,23 +57,3 @@
   font-weight: 700;
   letter-spacing: 0.05em;
 }
-
-.note-item__checklist {
-  display: grid;
-  gap: 2px;
-  margin: 0;
-  padding: 0 0 0 var(--space-1);
-  list-style: none;
-}
-
-.note-item__add-item {
-  display: flex;
-  align-items: flex-end;
-  gap: var(--space-2);
-  padding-left: var(--space-1);
-}
-
-.note-item__add-item-field {
-  flex: 1;
-  min-width: 0;
-}

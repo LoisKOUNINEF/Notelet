@@ -19,6 +19,13 @@ describe('requestFocus / applyRequestedFocus', () => {
     expect(document.activeElement).toBe($('.b'));
   });
 
+  it('skips a target inside something hidden, for the next selector', () => {
+    app.innerHTML = '<ul hidden><li><button class="a">A</button></li></ul><button class="b">B</button>';
+    requestFocus('.a', '.b');
+    expect(applyRequestedFocus(app)).toBe(true);
+    expect(document.activeElement).toBe($('.b'));
+  });
+
   it('applies a request once', () => {
     requestFocus('.a');
     applyRequestedFocus(app);

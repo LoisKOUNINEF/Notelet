@@ -21,9 +21,10 @@ interface ITodoListView {
   done: ITodo[];
   expanded: boolean;
   label: string;
+  emptyText: string;
 }
 
-const templateFn = ({ open, done, expanded, label }: ITodoListView) => html`__TEMPLATE_PLACEHOLDER__`;
+const templateFn = ({ open, done, expanded, label, emptyText }: ITodoListView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 
 /**
@@ -72,17 +73,24 @@ export class TodoListComponent extends Component<HTMLElement, ITodoListView> {
   }
 
   private itemOptions(group: ITodoItemOptions['group'], reorderable: boolean, grabbedId: string | null): ITodoItemOptions {
-    const id = `${group}|${reorderable}|${grabbedId}`;
+    // Whether there are lists to move a to-do into: items are rebuilt only when that flips.
+    const hasLists = this.openLists().length > 0;
+    const id = `${group}|${reorderable}|${hasLists}|${grabbedId}`;
     let options = this._itemOptions.get(id);
     if (!options) {
       // Kept: the stable combinations, and the current grab's (an earlier grab's would pile up).
       for (const cached of this._itemOptions.keys()) {
         if (!cached.endsWith('|null')) this._itemOptions.delete(cached);
       }
-      options = { group, reorderable, grabbedId, keys: this._keys };
+      options = { group, reorderable, grabbedId, keys: this._keys, hasLists, lists: () => this.openLists() };
       this._itemOptions.set(id, options);
     }
     return options;
+  }
+
+  // The open to-do lists, the ones "Move into a list…" offers.
+  private openLists(): ITodo[] {
+    return this._todos.filter((todo) => !todo.done && (todo.items?.length ?? 0) > 0);
   }
 
   private static view(scope: NoteScope, todos: ITodo[], order: string[] | null): ITodoListView {
@@ -93,6 +101,7 @@ export class TodoListComponent extends Component<HTMLElement, ITodoListView> {
       done: todos.filter((todo) => todo.done),
       expanded: settingsService.doneExpanded,
       label: scope === 'page' ? 'To-dos for this page' : 'To-dos for this site',
+      emptyText: scope === 'page' ? 'No to-dos for this page yet.' : 'No to-dos for this site yet.',
     };
   }
 

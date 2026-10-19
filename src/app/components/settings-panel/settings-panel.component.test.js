@@ -168,6 +168,31 @@ describe('SettingsPanelComponent', () => {
   });
 });
 
+describe('SettingsPanelComponent - notes by site', () => {
+  let panel;
+  let settings;
+  let opened;
+
+  beforeEach(async () => {
+    panel = await startPanel();
+    opened = 0;
+    settings = new SettingsPanelComponent(document.getElementById('app').appendChild(document.createElement('div')), { onManageSites: () => opened++ });
+    settings.render();
+  });
+
+  afterEach(async () => {
+    settings.destroy();
+    await panel.stop();
+  });
+
+  it('leads to "Manage by site", in a section before "Delete everything"', () => {
+    const titles = $$('.settings-panel__subtitle').map((h) => h.textContent);
+    expect(titles.indexOf('Notes by site')).toBe(titles.indexOf('Delete everything') - 1);
+    $('.settings-panel__manage-sites').click();
+    expect(opened).toBe(1);
+  });
+});
+
 describe('SettingsPanelComponent - delete everything', () => {
   let panel;
   let settings;

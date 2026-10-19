@@ -1,6 +1,7 @@
 import { Component, html, raw } from '../../../core/index.js';
 import { AGES, DEFAULT_AGE, ageOption, cutoff, isAge, type Age } from '../../lib/ages.js';
 import { errorMessage } from '../../lib/errors.js';
+import { removeOverlays } from '../../lib/overlays.js';
 import { countList } from '../../lib/plural.js';
 import { confirmService } from '../../services/confirm/confirm.service.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
@@ -14,14 +15,19 @@ interface ICounts {
 
 interface IDeleteDataView {
   ages: { value: Age; label: string; selected: boolean }[];
+  // What each would delete ('' when nothing, or while counting), shown in its button's tooltip.
   olderText: string;
   allText: string;
+  // Nothing to delete: the button is aria-disabled (still focusable), its tooltip says why.
+  olderNothing: string | null;
+  allNothing: string | null;
+  // Counting, or the notes moving between storage areas: the button is disabled.
   olderDisabled: boolean;
   allDisabled: boolean;
   busy: boolean;
 }
 
-const templateFn = ({ ages, olderText, allText, olderDisabled, allDisabled, busy }: IDeleteDataView) => html`__TEMPLATE_PLACEHOLDER__`;
+const templateFn = ({ ages, olderText, allText, olderNothing, allNothing, olderDisabled, allDisabled, busy }: IDeleteDataView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 // The controls whose focus survives a re-render (counts change under them), in fallback order.
 const FOCUSABLE = ['.delete-data__select', '.delete-data__older-button', '.delete-data__all-button'];
@@ -56,7 +62,7 @@ export class DeleteDataComponent extends Component<HTMLElement, IDeleteDataView>
   }
 
   private static emptyView(): IDeleteDataView {
-    return { ages: [], olderText: '', allText: '', olderDisabled: true, allDisabled: true, busy: false };
+    return { ages: [], olderText: '', allText: '', olderNothing: null, allNothing: null, olderDisabled: true, allDisabled: true, busy: false };
   }
 
   // Disabled while the settings move the notes to another storage area.
@@ -88,6 +94,7 @@ export class DeleteDataComponent extends Component<HTMLElement, IDeleteDataView>
   }
 
   private async _deleteOlder(): Promise<void> {
+    if (this.config.olderNothing) return;
     const age = ageOption(this._age);
     const old = this.oldCounts();
     const confirmed = await confirmService.ask({
@@ -114,6 +121,7 @@ export class DeleteDataComponent extends Component<HTMLElement, IDeleteDataView>
   }
 
   private async _deleteEverything(): Promise<void> {
+    if (this.config.allNothing) return;
     const all = this.allCounts();
     const synced = settingsService.storageArea === 'sync';
     const confirmed = await confirmService.ask({
@@ -147,19 +155,29 @@ export class DeleteDataComponent extends Component<HTMLElement, IDeleteDataView>
     const all = this.allCounts();
     const old = this.oldCounts();
     const none = (c: ICounts | null) => !!c && c.notes + c.todos === 0;
-    const known = (c: ICounts | null, text: (c: ICounts) => string) => (this._loading ? 'Counting…' : c ? text(c) : '');
+    // Nothing to say while counting (the buttons are disabled), or after a failed count.
+    const known = (c: ICounts | null, text: (c: ICounts) => string) => (!this._loading && c ? text(c) : '');
     return {
       ages: AGES.map(({ value, label }) => ({ value, label, selected: value === this._age })),
-      olderText: known(old, (c) => (none(c) ? `Nothing older than ${age.label}.` : `${countText(c)} not edited in the last ${age.since}.`)),
-      allText: known(all, (c) => (none(c) ? 'No notes or to-dos yet.' : `${countText(c)}, on every page and site.`)),
-      olderDisabled: this._busy || this._loading || none(old),
-      allDisabled: this._busy || this._loading || none(all),
+      olderText: known(old, (c) => (none(c) ? '' : `${countText(c)} not edited in the last ${age.since}.`)),
+      allText: known(all, (c) => (none(c) ? '' : `${countText(c)}, on every page and site.`)),
+      olderNothing: !this._loading && none(old) ? `Nothing older than ${age.label}.` : null,
+      allNothing: !this._loading && none(all) ? 'No notes or to-dos yet.' : null,
+      olderDisabled: this._busy || this._loading,
+      allDisabled: this._busy || this._loading,
       busy: this._busy,
     };
   }
 
+  // The "nothing to delete" tooltips are overlays on <body> (see lib/overlays.ts).
+  protected override onBeforeRender(): void {
+    removeOverlays(this.element, '.delete-data__overlays');
+    super.onBeforeRender();
+  }
+
   protected override onBeforeDestroy(): void {
     this._destroyed = true;
+    removeOverlays(this.element, '.delete-data__overlays');
     super.onBeforeDestroy();
   }
 

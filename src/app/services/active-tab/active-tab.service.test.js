@@ -1,6 +1,10 @@
 import { activeTabService } from '#root/dist/src/app/services/active-tab/active-tab.service.js';
-import { AppEventBus } from '#root/dist/src/core/index.js';
+import { useEventBus } from '#root/dist/src/core/index.js';
+import { MockEventBus } from '#root/tools/testin-nutin/mocks/mock-event-bus.js';
 import { installFakeChrome, uninstallFakeChrome } from '../../testing/fake-chrome.js';
+
+// The app's events go through this mock (see useEventBus), a new one for each test.
+let bus;
 
 describe('ActiveTabService', () => {
   let fake;
@@ -8,14 +12,16 @@ describe('ActiveTabService', () => {
   const onScope = ({ keys }) => events.push(keys);
 
   beforeEach(async () => {
+    bus = new MockEventBus();
+    useEventBus(bus);
     fake = installFakeChrome({ url: 'https://example.com/a' });
     events = [];
-    AppEventBus.subscribe('active-scope-changed', onScope);
+    bus.subscribe('active-scope-changed', onScope);
     await activeTabService.init();
   });
 
   afterEach(() => {
-    AppEventBus.off('active-scope-changed', onScope);
+    useEventBus(null);
     activeTabService.dispose();
     uninstallFakeChrome();
   });

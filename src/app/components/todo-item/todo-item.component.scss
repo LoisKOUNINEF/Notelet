@@ -35,6 +35,48 @@
   text-decoration: line-through;
 }
 
+// A to-do list's name, in place of a checkbox, with how much of it is done.
+.todo-item__title {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.todo-item__progress {
+  color: var(--color-text-muted);
+  font-size: var(--font-small);
+  font-weight: normal;
+}
+
+// A list's items and its "Add an item" field take full rows under its name.
+.todo-item__checklist {
+  display: grid;
+  flex-basis: 100%;
+  gap: 2px;
+  margin: 0;
+  padding: 0 0 0 var(--space-3);
+  list-style: none;
+}
+
+.todo-item__add-item {
+  display: flex;
+  flex-basis: 100%;
+  align-items: flex-end;
+  gap: var(--space-2);
+  padding-left: var(--space-3);
+}
+
+.todo-item__add-item-field {
+  flex: 1;
+  min-width: 0;
+}
+
+// The list editor takes the whole row.
+.todo-item > .list-editor {
+  flex-basis: 100%;
+}
+
 .todo-item__actions {
   display: flex;
   margin-left: auto;

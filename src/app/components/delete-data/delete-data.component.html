@@ -6,12 +6,14 @@
           ${ages.map((age) => html`<option value="${age.value}" ${age.selected ? raw('selected') : ''}>${age.label}</option>`)}
         </select>
       </a11y-select>
-      <button class="button button--danger delete-data__older-button" type="button" tabindex="0" aria-describedby="delete-data-older-text" ${olderDisabled ? raw('disabled') : ''} data-event="click:_deleteOlder">Delete<span class="a11y-visually-hidden">${' older notes and to-dos'}</span></button>
+      <button class="button button--danger delete-data__older-button" id="delete-data-older-button" type="button" tabindex="0" ${olderNothing ? raw('aria-disabled="true"') : ''} ${olderDisabled ? raw('disabled') : ''} data-event="click:_deleteOlder">Delete<span class="a11y-visually-hidden">${' older notes and to-dos'}</span></button>
     </div>
-    <p class="delete-data__text" id="delete-data-older-text">${olderText}</p>
   </div>
   <div class="delete-data__group">
-    <button class="button button--danger delete-data__all-button" type="button" tabindex="0" aria-describedby="delete-data-all-text" ${allDisabled ? raw('disabled') : ''} data-event="click:_deleteEverything">Delete all notes and to-dos</button>
-    <p class="delete-data__text" id="delete-data-all-text">${allText}</p>
+    <button class="button button--danger delete-data__all-button" id="delete-data-all-button" type="button" tabindex="0" ${allNothing ? raw('aria-disabled="true"') : ''} ${allDisabled ? raw('disabled') : ''} data-event="click:_deleteEverything">Delete all notes and to-dos</button>
+  </div>
+  <div class="delete-data__overlays">
+    ${olderNothing || olderText ? html`<a11y-tooltip anchor="delete-data-older-button" placement="top">${olderNothing ?? olderText}</a11y-tooltip>` : ''}
+    ${allNothing || allText ? html`<a11y-tooltip anchor="delete-data-all-button" placement="top">${allNothing ?? allText}</a11y-tooltip>` : ''}
   </div>
 </div>

@@ -1,20 +1,11 @@
 ${editing ? html`<div data-component="note-editor"></div>` : html`
-${note.text ? html`<p class="note-item__text" id="note-${note.id}-text">${note.text}</p>` : html`<span class="a11y-visually-hidden" id="note-${note.id}-text">${name}</span>`}
-${items.length > 0 ? html`<ul class="note-item__checklist" data-catalog="checklist" aria-label="Checklist"></ul>` : ''}
-${items.length > 0 || addingItem ? html`
-<form class="note-item__add-item" data-event="submit:_addItem">
-  <a11y-input class="note-item__add-item-field">
-    <a11y-label><span class="a11y-visually-hidden">Add an item</span></a11y-label>
-    <input class="note-item__add-item-input" type="text" autocomplete="off" placeholder="Add an item…">
-  </a11y-input>
-  <button class="button button--small note-item__add-item-submit" type="submit" tabindex="0">Add<span class="a11y-visually-hidden">${' item'}</span></button>
-</form>` : ''}
+<p class="note-item__text" id="note-${note.id}-text">${note.text}</p>
 <div class="note-item__footer">
   ${reorderable ? html`
   <button class="note-item__handle" type="button" tabindex="0" aria-label="Reorder: ${name}" aria-describedby="note-reorder-help" aria-pressed="${grabbed ? 'true' : 'false'}">
     <span class="note-item__grip" aria-hidden="true"></span>
   </button>` : ''}
-  <span class="note-item__meta">${edited ? 'Edited ' : ''}<time datetime="${new Date(note.updatedAt).toISOString()}" title="${new Date(note.updatedAt).toLocaleString()}" data-pipe="timeAgo">${note.updatedAt}</time>${items.length > 0 ? html`${' · '}${items.filter((item) => item.done).length} of ${items.length} done` : ''}</span>
+  <span class="note-item__meta">${edited ? 'Edited ' : ''}<time datetime="${new Date(note.updatedAt).toISOString()}" title="${new Date(note.updatedAt).toLocaleString()}" data-pipe="timeAgo">${note.updatedAt}</time></span>
   <div class="note-item__actions">
     <button class="button button--small note-item__edit" type="button" tabindex="0" aria-describedby="note-${note.id}-text" data-event="click:_edit">Edit</button>
     <button class="button button--small button--danger note-item__delete" type="button" tabindex="0" aria-describedby="note-${note.id}-text" data-event="click:_delete">Delete</button>
@@ -23,7 +14,6 @@ ${items.length > 0 || addingItem ? html`
 </div>
 <div class="note-item__overlays">
   <a11y-dropdown id="note-${note.id}-menu" anchor="note-${note.id}-more" placement="bottom-end">
-    ${items.length > 0 || addingItem ? '' : html`<div role="menuitem" tabindex="-1" data-action="add-checklist">Add checklist</div>`}
     <div role="menuitem" tabindex="-1" data-action="move">Move to ${moveTarget}</div>
   </a11y-dropdown>
 </div>`}

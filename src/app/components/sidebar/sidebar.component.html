@@ -5,14 +5,14 @@
       class="button button--small sidebar__settings-toggle"
       type="button"
       tabindex="0"
-      aria-expanded="${settingsOpen ? 'true' : 'false'}"
+      aria-expanded="${settingsPage ? 'true' : 'false'}"
       aria-controls="sidebar-settings"
-      data-event="click:_toggleSettings">${settingsOpen ? 'Back to notes' : 'Settings'}</button>
+      data-event="click:_toggleSettings">${settingsPage ? 'Back to notes' : 'Settings'}</button>
   </header>
 
-  ${settingsOpen ? html`
+  ${settingsPage ? html`
   <div class="sidebar__settings" id="sidebar-settings">
-    <div data-component="settings-panel"></div>
+    ${settingsPage === 'sites' ? html`<div data-component="site-manager"></div>` : html`<div data-component="settings-panel"></div>`}
   </div>` : !keys ? html`
   <div class="sidebar__unavailable" role="status">
     <p class="sidebar__unavailable-title">Notes aren't available on this page.</p>

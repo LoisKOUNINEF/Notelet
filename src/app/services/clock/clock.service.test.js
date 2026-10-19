@@ -1,18 +1,24 @@
 import { clockService } from '#root/dist/src/app/services/clock/clock.service.js';
-import { AppEventBus } from '#root/dist/src/core/index.js';
+import { useEventBus } from '#root/dist/src/core/index.js';
+import { MockEventBus } from '#root/tools/testin-nutin/mocks/mock-event-bus.js';
+
+// The app's events go through this mock (see useEventBus), a new one for each test.
+let bus;
 
 describe('ClockService', () => {
   let ticks;
   const onTick = () => ticks++;
 
   beforeEach(() => {
+    bus = new MockEventBus();
+    useEventBus(bus);
     ticks = 0;
     useFakeTimers();
-    AppEventBus.subscribe('minute-tick', onTick);
+    bus.subscribe('minute-tick', onTick);
   });
 
   afterEach(() => {
-    AppEventBus.off('minute-tick', onTick);
+    useEventBus(null);
     clockService.dispose();
     useRealTimers();
   });

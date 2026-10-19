@@ -7,10 +7,12 @@ export function requestFocus(...selectors: string[]): void {
   requested = selectors;
 }
 
+// A target inside a hidden element (e.g. a collapsed "Done" group) can't take the focus: the
+// next selector is tried instead.
 export function applyRequestedFocus(root: ParentNode = document): boolean {
   for (const selector of requested) {
     const target = root.querySelector<HTMLElement>(selector);
-    if (target) {
+    if (target && !target.closest('[hidden]')) {
       requested = [];
       target.focus();
       return true;

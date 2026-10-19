@@ -1,0 +1,26 @@
+<form class="list-editor__form" data-event="submit:_save">
+  ${restored ? html`<p class="list-editor__restored">Unsaved changes restored.</p>` : ''}
+  <a11y-input class="list-editor__field">
+    <a11y-label><span class="a11y-visually-hidden">${hasItems ? 'List name' : 'To-do name'}</span></a11y-label>
+    <input class="list-editor__input" type="text" name="text" required autocomplete="off" value="${text}" data-event="keydown:_onKeydown:@event">
+  </a11y-input>
+  <div data-component="checklist-fields"></div>
+  ${takenOut.length > 0 ? html`
+  <div class="list-editor__taken-out">
+    <p class="list-editor__taken-out-title" id="list-editor-taken-out-title">Will be separate to-dos once saved:</p>
+    <ul class="list-editor__taken-out-list" aria-labelledby="list-editor-taken-out-title">
+      ${takenOut.map((item) => html`
+      <li class="list-editor__taken-out-item">
+        <span class="list-editor__taken-out-text">${item.text}</span>
+        <button class="button button--small list-editor__put-back" type="button" tabindex="0" aria-label="Put back ${item.text}" data-id="${item.id}" data-event="click:_putBack:@dataset:id">Put back</button>
+      </li>`)}
+    </ul>
+  </div>` : ''}
+  <div class="list-editor__actions">
+    <button class="button button--small list-editor__add-item" type="button" tabindex="0" data-event="click:_addField">Add item</button>
+    <span class="list-editor__spacer"></span>
+    <button class="button button--small button--primary" type="submit" tabindex="0">Save</button>
+    <button class="button button--small list-editor__cancel" type="button" tabindex="0" data-event="click:_cancel">Cancel</button>
+  </div>
+  <span class="list-editor__hint" aria-hidden="true">Esc to cancel</span>
+</form>

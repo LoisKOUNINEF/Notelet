@@ -2,4 +2,5 @@
   <a11y-label><span class="a11y-visually-hidden">Item ${number}</span></a11y-label>
   <input class="checklist-field__input" type="text" autocomplete="off" value="${item.text}" data-event="keydown:_onKeydown:@event">
 </a11y-input>
+${canTakeOut ? html`<button class="button button--small checklist-field__take-out" type="button" tabindex="0" aria-label="Take out item ${number}" data-event="click:_takeOut">Take out</button>` : ''}
 <button class="button button--small checklist-field__remove" type="button" tabindex="0" aria-label="Remove item ${number}" data-event="click:_remove">Remove</button>

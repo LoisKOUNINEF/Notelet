@@ -1,6 +1,10 @@
 import { settingsService } from '#root/dist/src/app/services/settings/settings.service.js';
-import { AppEventBus } from '#root/dist/src/core/index.js';
+import { useEventBus } from '#root/dist/src/core/index.js';
+import { MockEventBus } from '#root/tools/testin-nutin/mocks/mock-event-bus.js';
 import { installFakeChrome, uninstallFakeChrome } from '../../testing/fake-chrome.js';
+
+// The app's events go through this mock (see useEventBus), a new one for each test.
+let bus;
 
 describe('SettingsService', () => {
   let fake;
@@ -8,13 +12,15 @@ describe('SettingsService', () => {
   const onArea = ({ area }) => areaEvents.push(area);
 
   beforeEach(() => {
+    bus = new MockEventBus();
+    useEventBus(bus);
     fake = installFakeChrome();
     areaEvents = [];
-    AppEventBus.subscribe('storage-area-changed', onArea);
+    bus.subscribe('storage-area-changed', onArea);
   });
 
   afterEach(() => {
-    AppEventBus.off('storage-area-changed', onArea);
+    useEventBus(null);
     settingsService.dispose();
     uninstallFakeChrome();
   });
@@ -35,7 +41,7 @@ describe('SettingsService', () => {
     await settingsService.setStorageArea('sync');
 
     expect(settingsService.storageArea).toBe('sync');
-    expect(fake.storage.local.data.get('settings')).toEqual({ storageArea: 'sync', doneExpanded: false, contentKind: 'notes' });
+    expect(fake.storage.local.data.get('settings')).toEqual({ storageArea: 'sync', doneExpanded: false, contentKind: 'notes', sitesOrder: 'recent' });
     expect(fake.storage.sync.data.size).toBe(0);
     expect(areaEvents).toEqual(['sync']);
   });
@@ -66,7 +72,7 @@ describe('SettingsService', () => {
 
     await settingsService.setDoneExpanded(true);
     expect(settingsService.doneExpanded).toBe(true);
-    expect(fake.storage.local.data.get('settings')).toEqual({ storageArea: 'local', doneExpanded: true, contentKind: 'notes' });
+    expect(fake.storage.local.data.get('settings')).toEqual({ storageArea: 'local', doneExpanded: true, contentKind: 'notes', sitesOrder: 'recent' });
     expect(areaEvents).toEqual([]);
 
     settingsService.dispose();
@@ -97,12 +103,20 @@ describe('SettingsService', () => {
     await settingsService.init();
     let changes = 0;
     const onChange = () => changes++;
-    AppEventBus.subscribe('settings-changed', onChange);
+    bus.subscribe('settings-changed', onChange);
     await fake.storage.local.set({ settings: { storageArea: 'local', doneExpanded: false, contentKind: 'todos' } });
-    AppEventBus.off('settings-changed', onChange);
 
     expect(settingsService.contentKind).toBe('todos');
     expect(changes).toBe(1);
     expect(areaEvents).toEqual([]);
+  });
+
+  it('orders "Manage by site" by recent edits first, and remembers the order picked', async () => {
+    await settingsService.init();
+    expect(settingsService.sitesOrder).toBe('recent');
+    await settingsService.setSitesOrder('az');
+    settingsService.dispose();
+    await settingsService.init();
+    expect(settingsService.sitesOrder).toBe('az');
   });
 });

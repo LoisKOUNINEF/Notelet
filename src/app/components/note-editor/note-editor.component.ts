@@ -1,20 +1,17 @@
 import { Component, html } from '../../../core/index.js';
 import { announce } from '../../lib/announce.js';
 import { setEditDraft } from '../../lib/drafts.js';
-import { parseChecklist, withIds } from '../../lib/checklist.js';
-import { ChecklistFieldsComponent } from '../checklist-fields/checklist-fields.component.js';
 
 // What an edit in progress holds, kept as a draft if the editor goes away unsaved.
 export interface INoteEditDraft {
   text: string;
-  items: IChecklistItem[];
 }
 
 export interface INoteEditorConfig {
   note: INote;
   // An earlier, unsaved edit of this note to start from.
   draft?: INoteEditDraft | null;
-  onSave: (text: string, items: IChecklistItem[]) => void;
+  onSave: (text: string) => void;
   onCancel: () => void;
 }
 
@@ -25,13 +22,8 @@ interface INoteEditorView {
 
 const templateFn = ({ text, restored }: INoteEditorView) => html`__TEMPLATE_PLACEHOLDER__`;
 
-/**
- * A note in edit mode: its text, and one field per checklist item (rename, remove, add).
- * Checklist lines typed in the text ("- [ ] item") become items too when it's saved.
- */
+// A note in edit mode: its text, in place of the note until saved or cancelled.
 export class NoteEditorComponent extends Component<HTMLElement, INoteEditorView> {
-  private _text: string;
-  private _fields: IChecklistItem[];
   private _onSave: INoteEditorConfig['onSave'];
   private _onCancel: INoteEditorConfig['onCancel'];
   private readonly _note: INote;
@@ -39,16 +31,12 @@ export class NoteEditorComponent extends Component<HTMLElement, INoteEditorView>
   private _announced = false;
   // Saved or cancelled: nothing to keep when the editor goes away.
   private _closed = false;
-  private _checklist: ChecklistFieldsComponent | null = null;
 
   constructor(mountTarget: HTMLElement, { note, draft, onSave, onCancel }: INoteEditorConfig) {
     const text = draft?.text ?? note.text;
-    const fields = draft?.items ?? note.items ?? [];
     super({ templateFn, mountTarget, config: { text, restored: !!draft } });
     this._note = note;
     this._restored = !!draft;
-    this._text = text;
-    this._fields = fields;
     this._onSave = onSave;
     this._onCancel = onCancel;
   }
@@ -66,9 +54,8 @@ export class NoteEditorComponent extends Component<HTMLElement, INoteEditorView>
 
   protected override onBeforeDestroy(): void {
     if (!this._closed) {
-      this.collect();
-      const unchanged = this._text === this._note.text && sameFields(this._fields, this._note.items ?? []);
-      setEditDraft('note', this._note.id, unchanged ? null : { text: this._text, items: this._fields });
+      const text = this.textarea.value;
+      setEditDraft('note', this._note.id, text === this._note.text ? null : { text });
     }
     super.onBeforeDestroy();
   }
@@ -79,20 +66,6 @@ export class NoteEditorComponent extends Component<HTMLElement, INoteEditorView>
       this._announced = true;
       announce('Unsaved changes restored.');
     }
-  }
-
-  public override registerChildren(): Nutin.ComponentConfig[] {
-    return [{
-      selector: 'checklist-fields',
-      factory: (el) => (this._checklist = new ChecklistFieldsComponent(el, {
-        items: this._fields,
-        label: 'Checklist items',
-        className: 'note-editor__items',
-        onEscape: () => this._cancel(),
-        onLastRemoved: () => this.element.querySelector<HTMLElement>('.note-editor__add-item')!.focus(),
-      })),
-      keep: 'fields',
-    }];
   }
 
   // Focuses the text, caret at the end, where one usually continues a note.
@@ -117,33 +90,15 @@ export class NoteEditorComponent extends Component<HTMLElement, INoteEditorView>
     }
   }
 
-  private _addField(): void {
-    this._checklist!.add();
-  }
-
   private _save(): void {
-    this.collect();
-    const parsed = parseChecklist(this._text);
-    const items = [
-      ...this._fields.map((f) => ({ ...f, text: f.text.trim() })).filter((f) => f.text),
-      ...withIds(parsed.items),
-    ];
+    const text = this.textarea.value.trim();
     // Nothing left to keep: deleting a note is its own action.
-    if (!parsed.text && items.length === 0) return;
-    this._onSave(parsed.text, items);
+    if (!text) return;
+    this._onSave(text);
   }
 
   private _cancel(): void {
     this._onCancel();
   }
 
-  // What's been typed, back into the state.
-  private collect(): void {
-    this._text = this.textarea.value;
-    this._fields = this._checklist!.values();
-  }
-}
-
-function sameFields(a: IChecklistItem[], b: IChecklistItem[]): boolean {
-  return a.length === b.length && a.every((item, i) => item.id === b[i]!.id && item.text === b[i]!.text);
 }

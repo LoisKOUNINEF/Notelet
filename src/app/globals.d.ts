@@ -23,19 +23,20 @@ declare interface IScopeItem {
   position?: number;
 }
 
-// One checkable line of a note's checklist (checked items stay in place).
+// One checkable item of a to-do list (checked items stay in place).
 declare interface IChecklistItem {
   id: string;
   text: string;
   done: boolean;
 }
 
-declare interface INote extends IScopeItem {
-  // Absent (notes saved before checklists) or empty: a plain note.
-  items?: IChecklistItem[];
-}
+// A note: text only (lists of things to check off are to-do lists).
+declare interface INote extends IScopeItem {}
 
 declare interface ITodo extends IScopeItem {
+  // A to-do list: its text is the list's name, and it's done once every item is (see ScopeStoreService).
+  // Absent or empty: a single to-do.
+  items?: IChecklistItem[];
   done: boolean;
   // When it was last checked (null while open): done to-dos are listed in the order they were done.
   doneAt: Timestamp | null;
@@ -64,6 +65,19 @@ declare interface ISitePage {
   todos: number;
   openTodos: number;
 }
+
+// A site with notes or to-dos, for "Manage by site" (see ScopeStoreService.listSites).
+declare interface ISiteSummary {
+  site: string;
+  // Its own and its pages' together; to-dos done or not.
+  notes: number;
+  todos: number;
+  // The latest edit of any of them.
+  lastEdited: Timestamp;
+}
+
+// How "Manage by site" orders the sites: by last edit, or by name.
+declare type SitesOrder = 'recent' | 'oldest' | 'az' | 'za';
 
 declare namespace Nutin {
   interface AppEventMap {

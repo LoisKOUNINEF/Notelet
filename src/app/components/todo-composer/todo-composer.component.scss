@@ -1,6 +1,6 @@
 .todo-composer {
   display: grid;
-  gap: var(--space-1);
+  gap: var(--space-2);
 }
 
 .todo-composer__row {
@@ -14,9 +14,19 @@
   min-width: 0;
 }
 
-// Like the note composer's "Ctrl+Enter to add".
+// Like the note composer's: the list button on the left, the hint and "Add" on the right.
+.todo-composer__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+.todo-composer__list {
+  margin-right: auto;
+}
+
 .todo-composer__hint {
-  justify-self: end;
   color: var(--color-text-muted);
   font-size: 0.75rem;
 }

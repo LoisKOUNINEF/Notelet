@@ -65,6 +65,9 @@
   --a11y-input-control-border-radius: var(--radius-small);
   --a11y-input-control-padding-y: 0.375rem;
   --a11y-spinner-color: var(--color-primary);
+  --a11y-tooltip-color-background: var(--color-text);
+  --a11y-tooltip-color-text: var(--color-bg);
+  --a11y-tooltip-font-size: var(--font-small);
   --a11y-select-color-surface: var(--color-surface);
   --a11y-select-color-border: var(--color-border-strong);
   --a11y-select-color-border-strong: var(--color-text-muted);
@@ -189,6 +192,9 @@ kbd {
   font-size: 0.85em;
 }
 
+// Buttons that can't be used keep their colors under the pointer (see &:disabled below).
+$button-inactive: ":disabled, [aria-disabled='true']";
+
 .button {
   display: inline-flex;
   align-items: center;
@@ -203,7 +209,7 @@ kbd {
   cursor: pointer;
   transition: background-color var(--transition), border-color var(--transition);
 
-  &:hover {
+  &:hover:not(#{$button-inactive}) {
     border-color: var(--color-border-strong);
     background: var(--color-surface-muted);
   }
@@ -214,7 +220,7 @@ kbd {
     color: var(--color-on-primary);
     font-weight: 600;
 
-    &:hover {
+    &:hover:not(#{$button-inactive}) {
       border-color: var(--color-primary-hover);
       background: var(--color-primary-hover);
     }
@@ -229,13 +235,15 @@ kbd {
   &--danger {
     color: var(--color-danger);
 
-    &:hover {
+    &:hover:not(#{$button-inactive}) {
       color: var(--color-bg);
       background: var(--color-danger);
     }
   }
 
-  &:disabled {
+  // Disabled, or aria-disabled (still focusable, e.g. to show a tooltip saying why): same look.
+  &:disabled,
+  &[aria-disabled='true'] {
     opacity: 0.6;
     cursor: not-allowed;
   }

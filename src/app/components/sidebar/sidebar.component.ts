@@ -10,6 +10,7 @@ import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.compone
 import { NoteComposerComponent } from '../note-composer/note-composer.component.js';
 import { NoteListComponent } from '../note-list/note-list.component.js';
 import { SettingsPanelComponent } from '../settings-panel/settings-panel.component.js';
+import { SiteManagerComponent } from '../site-manager/site-manager.component.js';
 import { SitePagesComponent } from '../site-pages/site-pages.component.js';
 import { TabsComponent } from '../tabs/tabs.component.js';
 import { TodoListComponent } from '../todo-list/todo-list.component.js';
@@ -19,11 +20,14 @@ interface ISidebarView {
   scope: NoteScope;
   kind: ScopeContentKind;
   loaded: boolean;
-  settingsOpen: boolean;
+  settingsPage: SettingsPage | null;
   location: { text: string; full: string };
 }
 
-const templateFn = ({ keys, scope, kind, loaded, settingsOpen, location }: ISidebarView) => html`__TEMPLATE_PLACEHOLDER__`;
+// What replaces the notes when Settings is open: the settings, or their "Manage by site" page.
+type SettingsPage = 'settings' | 'sites';
+
+const templateFn = ({ keys, scope, kind, loaded, settingsPage, location }: ISidebarView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 const PANEL_ID = 'sidebar-panel';
 const KIND_PANEL_ID = 'sidebar-kind-panel';
@@ -49,7 +53,7 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
   // The site's pages that have notes or to-dos, for the "This site" tab. Listing them reads the
   // whole storage area, so only while that tab shows; null: not loaded for this site yet.
   private _sitePages: ISitePage[] | null = null;
-  private _settingsOpen = false;
+  private _settingsPage: SettingsPage | null = null;
   private _noteList: NoteListComponent | null = null;
   private _todoList: TodoListComponent | null = null;
   private _sitePagesList: SitePagesComponent | null = null;
@@ -85,7 +89,16 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
   public override registerChildren(): Nutin.ComponentConfig[] {
     const keys = this._keys;
     const children: Nutin.ComponentConfig[] = [
-      { selector: 'settings-panel', factory: (el) => new SettingsPanelComponent(el), keep: 'settings' },
+      {
+        selector: 'settings-panel',
+        factory: (el) => new SettingsPanelComponent(el, { onManageSites: () => this.openSettings('sites', '#site-manager-title') }),
+        keep: 'settings',
+      },
+      {
+        selector: 'site-manager',
+        factory: (el) => new SiteManagerComponent(el, { onBack: () => this.openSettings('settings', '.settings-panel__manage-sites') }),
+        keep: 'sites',
+      },
       // Asks before "Delete all" (see confirmService), from the lists and the settings alike.
       { selector: 'confirm-dialog', factory: (el) => new ConfirmDialogComponent(el), keep: 'confirm' },
     ];
@@ -197,9 +210,15 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
     }
   }
 
+  // From any settings page back to the notes, or from the notes to the settings.
   private _toggleSettings(): void {
-    this._settingsOpen = !this._settingsOpen;
-    requestFocus(this._settingsOpen ? '#settings-title' : '.sidebar__settings-toggle');
+    if (this._settingsPage) this.openSettings(null, '.sidebar__settings-toggle');
+    else this.openSettings('settings', '#settings-title');
+  }
+
+  private openSettings(page: SettingsPage | null, focus: string): void {
+    this._settingsPage = page;
+    requestFocus(focus);
     this.refresh();
   }
 
@@ -274,7 +293,7 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
       scope: this._scope,
       kind: this._kind,
       loaded: this._content !== null,
-      settingsOpen: this._settingsOpen,
+      settingsPage: this._settingsPage,
       location: keys
         ? { text: onPage ? keys.pageLabel : keys.siteLabel, full: onPage ? keys.page : keys.site }
         : { text: '', full: '' },

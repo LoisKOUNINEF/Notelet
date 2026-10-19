@@ -1,27 +1,31 @@
-${editing ? html`
-<form class="todo-item__form" data-event="submit:_save">
-  ${restored ? html`<span class="a11y-visually-hidden">Unsaved changes restored.</span>` : ''}
-  <a11y-input class="todo-item__field">
-    <a11y-label><span class="a11y-visually-hidden">Edit to-do</span></a11y-label>
-    <input class="todo-item__input" type="text" name="text" required autocomplete="off" value="${editText}" data-event="keydown:_onKeydown:@event">
-  </a11y-input>
-  <button class="button button--small button--primary" type="submit" tabindex="0">Save</button>
-  <button class="button button--small todo-item__cancel" type="button" tabindex="0" data-event="click:_cancel">Cancel</button>
-</form>` : html`
+${editing ? html`<div data-component="list-editor"></div>` : html`
 ${reorderable ? html`
 <button class="todo-item__handle" type="button" tabindex="0" aria-label="Reorder: ${todo.text}" aria-describedby="todo-reorder-help" aria-pressed="${grabbed ? 'true' : 'false'}">
   <span class="todo-item__grip" aria-hidden="true"></span>
 </button>` : ''}
+${items.length > 0 ? html`
+<span class="todo-item__title" id="todo-${todo.id}-check">${todo.text}<span class="todo-item__progress">${' · '}${doneCount} of ${items.length} done</span></span>` : html`
 <a11y-checkbox class="todo-item__check" id="todo-${todo.id}-check" label="${todo.text}">
   <input class="todo-item__checkbox" type="checkbox" tabindex="0" ${todo.done ? raw('checked') : ''} data-event="change:_toggle:@checked">
-</a11y-checkbox>
+</a11y-checkbox>`}
 <div class="todo-item__actions">
-  <button class="button button--small todo-item__edit" type="button" tabindex="0" aria-describedby="todo-${todo.id}-check" data-event="click:_edit">Edit</button>
+  ${todo.done ? '' : html`<button class="button button--small todo-item__edit" type="button" tabindex="0" aria-describedby="todo-${todo.id}-check" data-event="click:_edit">Edit</button>`}
   <button class="button button--small button--danger todo-item__delete" type="button" tabindex="0" aria-describedby="todo-${todo.id}-check" data-event="click:_delete">Delete</button>
-  <button class="button button--small todo-item__more" id="todo-${todo.id}-more" type="button" tabindex="0" aria-label="More actions for: ${todo.text}">⋯</button>
+  ${todo.done ? '' : html`<button class="button button--small todo-item__more" id="todo-${todo.id}-more" type="button" tabindex="0" aria-label="More actions for: ${todo.text}">⋯</button>`}
 </div>
+${items.length > 0 ? html`<ul class="todo-item__checklist" data-catalog="checklist" aria-label="${todo.text}"></ul>` : ''}
+${!todo.done && items.length > 0 ? html`
+<form class="todo-item__add-item" data-event="submit:_addItem">
+  <a11y-input class="todo-item__add-item-field">
+    <a11y-label><span class="a11y-visually-hidden">Add an item to ${todo.text}</span></a11y-label>
+    <input class="todo-item__add-item-input" type="text" autocomplete="off" placeholder="Add an item…">
+  </a11y-input>
+  <button class="button button--small todo-item__add-item-submit" type="submit" tabindex="0">Add<span class="a11y-visually-hidden">${' item'}</span></button>
+</form>` : ''}
+${todo.done ? '' : html`
 <div class="todo-item__overlays">
   <a11y-dropdown id="todo-${todo.id}-menu" anchor="todo-${todo.id}-more" placement="bottom-end">
+    ${canMoveIntoList ? html`<div role="menuitem" tabindex="-1" data-action="move-into-list">Move into a list…</div>` : ''}
     <div role="menuitem" tabindex="-1" data-action="move">Move to ${moveTarget}</div>
   </a11y-dropdown>
-</div>`}
+</div>`}`}

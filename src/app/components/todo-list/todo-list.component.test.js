@@ -26,10 +26,17 @@ describe('TodoListComponent', () => {
     await panel.stop();
   });
 
-  it('shows only the quick add while empty', () => {
+  it('shows the quick add and says there are no to-dos yet, like the notes', () => {
     mount([]);
     expect($('.todo-list__items')).toBeFalsy();
     expect($('.todo-composer__input')).toBeTruthy();
+    expect($('.todo-list__empty').textContent).toBe('No to-dos for this page yet.');
+    expect($('.todo-composer').compareDocumentPosition($('.todo-list__empty')) & window.Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    list.destroy();
+
+    // Gone as soon as there's one, done or not.
+    mount([todo('b', 'Done', true)]);
+    expect($('.todo-list__empty')).toBeFalsy();
   });
 
   it('lists the to-dos in a labelled list, in the order given', () => {

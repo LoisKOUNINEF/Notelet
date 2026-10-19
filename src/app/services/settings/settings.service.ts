@@ -7,12 +7,14 @@ interface ISettings {
   doneExpanded: boolean;
   // The To-dos / Notes tab last picked, shown when the panel opens.
   contentKind: ScopeContentKind;
+  // The order last picked in "Manage by site".
+  sitesOrder: SitesOrder;
 }
 
 // Settings always live on this device: they say where the notes are.
 const SETTINGS_AREA: StorageAreaName = 'local';
 const SETTINGS_KEY = 'settings';
-const DEFAULTS: ISettings = { storageArea: 'local', doneExpanded: false, contentKind: 'notes' };
+const DEFAULTS: ISettings = { storageArea: 'local', doneExpanded: false, contentKind: 'notes', sitesOrder: 'recent' };
 
 export class SettingsService extends Service<SettingsService> {
   private _settings: ISettings = { ...DEFAULTS };
@@ -31,6 +33,10 @@ export class SettingsService extends Service<SettingsService> {
 
   public get contentKind(): ScopeContentKind {
     return this._settings.contentKind;
+  }
+
+  public get sitesOrder(): SitesOrder {
+    return this._settings.sitesOrder;
   }
 
   public async init(): Promise<void> {
@@ -55,6 +61,10 @@ export class SettingsService extends Service<SettingsService> {
 
   public setContentKind(contentKind: ScopeContentKind): Promise<void> {
     return this.save({ contentKind });
+  }
+
+  public setSitesOrder(sitesOrder: SitesOrder): Promise<void> {
+    return this.save({ sitesOrder });
   }
 
   private async save(changes: Partial<ISettings>): Promise<void> {

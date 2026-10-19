@@ -1,0 +1,16 @@
+<section class="site-manager" aria-labelledby="site-manager-title">
+  <div class="site-manager__header">
+    <h2 class="site-manager__title" id="site-manager-title" tabindex="-1">Notes by site</h2>
+    <button class="button button--small site-manager__back" type="button" tabindex="0" data-event="click:_back">Back to settings</button>
+  </div>
+  <a11y-select class="site-manager__order" label="Order">
+    <select class="site-manager__select" name="order" tabindex="0" data-event="change:_setOrder:@target">
+      ${orders.map((order) => html`<option value="${order.value}" ${order.selected ? raw('selected') : ''}>${order.label}</option>`)}
+    </select>
+  </a11y-select>
+  ${loading ? html`
+  <div class="site-manager__loading">
+    <a11y-spinner class="a11y-spinner--sm" label="Loading your sites"></a11y-spinner>
+  </div>` : empty ? html`<p class="site-manager__empty">No notes or to-dos yet.</p>` : html`
+  <ul class="site-manager__list" data-catalog="sites" aria-label="Sites with notes or to-dos"></ul>`}
+</section>

@@ -1,6 +1,7 @@
 // Everything a component test needs from the panel's runtime: a fake `chrome`, the services
 // started on it (as main.ts does), the pipes, and toasts captured instead of shown.
-import { AppEventBus, registerPipes } from '#root/dist/src/core/index.js';
+import { registerPipes, useEventBus } from '#root/dist/src/core/index.js';
+import { MockEventBus } from '#root/tools/testin-nutin/mocks/mock-event-bus.js';
 import { registerAppPipes } from '#root/dist/src/app/lib/pipes.js';
 import { clearRequestedFocus } from '#root/dist/src/app/lib/focus.js';
 import { clearDrafts } from '#root/dist/src/app/lib/drafts.js';
@@ -19,9 +20,16 @@ export const KEYS = {
 
 // The pipe registry is app-wide: pipes are registered once for the whole run.
 let pipesRegistered = false;
+// The panel's event bus while one runs (see startPanel).
+let currentBus = null;
 
 // `settings`: saved settings to start from, e.g. `{ contentKind: 'todos' }` to show the to-dos.
+// The app's events go through a MockEventBus (`bus`), installed first so every subscription
+// lands there: emit on it to simulate an event, read its calls to check what was emitted.
 export async function startPanel({ url = 'https://example.com/docs', settings } = {}) {
+  const bus = new MockEventBus();
+  useEventBus(bus);
+  currentBus = bus;
   const fake = installFakeChrome({ url });
   if (settings) fake.storage.local.data.set('settings', settings);
   if (!pipesRegistered) {
@@ -38,6 +46,7 @@ export async function startPanel({ url = 'https://example.com/docs', settings } 
   const notify = spyOn(notifierService, '_notify').andCallFake((message, options) => toasts.push({ message, ...options }));
 
   return {
+    bus,
     fake,
     toasts,
     async stop() {
@@ -49,6 +58,8 @@ export async function startPanel({ url = 'https://example.com/docs', settings } 
       settingsService.dispose();
       uninstallFakeChrome();
       document.getElementById('app').innerHTML = '';
+      useEventBus(null);
+      currentBus = null;
     },
   };
 }
@@ -90,10 +101,10 @@ export async function spoken() {
   return document.getElementById('app-announcer').textContent;
 }
 
-// How many listeners each app event has. For leak checks: compare before mounting and after
-// destroying. (`handlers` is private in Nutin's TypeScript, readable from these JS tests.)
+// How many listeners each app event has on the panel's bus. For leak checks: compare before
+// mounting and after destroying.
 export function busListenerCounts() {
-  return Object.fromEntries(Object.entries(AppEventBus.handlers).map(([event, list]) => [event, list.length]).filter(([, count]) => count > 0));
+  return Object.fromEntries(Object.entries(currentBus.handlers).map(([event, list]) => [event, list.length]).filter(([, count]) => count > 0));
 }
 
 // A promise to resolve or reject from outside, e.g. to hold a storage write.

@@ -6,7 +6,7 @@ import { confirmService } from '#root/dist/src/app/services/confirm/confirm.serv
 describe('ConfirmDialogComponent', () => {
   let dialog;
 
-  const options = { title: 'Delete all notes for this page?', message: '2 notes, checklists included.', confirmLabel: 'Delete all' };
+  const options = { title: 'Delete all notes for this page?', message: '2 notes. You can undo this right after.', confirmLabel: 'Delete all' };
   const modal = () => document.getElementById('confirm-dialog');
   const button = (name) => modal().querySelector(`.confirm-dialog__${name}`);
   const closeFromOutside = () => {
@@ -95,5 +95,62 @@ describe('ConfirmDialogComponent', () => {
     expect(await answer).toBe(false);
     expect(await confirmService.ask(options)).toBe(false);
     // afterEach destroys it again: harmless.
+  });
+});
+
+describe('ConfirmDialogComponent - choose()', () => {
+  let dialog;
+
+  const options = { title: 'Delete all notes for this page?', message: '2 notes. You can undo this right after.', confirmLabel: 'Delete all' };
+  const modal = () => document.getElementById('confirm-dialog');
+  const button = (name) => modal().querySelector(`.confirm-dialog__${name}`);
+  const closeFromOutside = () => {
+    modal().open = false;
+    document.dispatchEvent(new window.CustomEvent('a11y-overlay-close', { detail: { name: 'a11y-modal' } }));
+  };
+
+  beforeEach(() => {
+    const placeholder = document.getElementById('app').appendChild(document.createElement('div'));
+    dialog = new ConfirmDialogComponent(placeholder);
+    dialog.render();
+  });
+
+  afterEach(() => {
+    dialog.destroy();
+    document.getElementById('app').innerHTML = '';
+  });
+
+  const choices = [{ value: 'a', label: 'Groceries · 1 of 2 done' }, { value: 'b', label: 'Trip · 0 of 3 done' }];
+  const chooseOptions = { title: 'Move “Call back” into a list', message: 'It becomes the list\'s last item.', choices };
+  const choiceButtons = () => [...modal().querySelectorAll('.confirm-dialog__choice')];
+
+  it('shows the choices instead of a confirm button, the first one focused', () => {
+    void dialog.choose(chooseOptions);
+    expect(choiceButtons().map((b) => b.textContent)).toEqual(choices.map((c) => c.label));
+    expect(button('confirm')).toBeFalsy();
+    expect(document.activeElement).toBe(choiceButtons()[0]);
+  });
+
+  it('answers with the picked choice\'s value, and closes', async () => {
+    const answer = dialog.choose(chooseOptions);
+    choiceButtons()[1].click();
+    expect(await answer).toBe('b');
+    expect(modal().open).toBe(false);
+  });
+
+  it('answers null on Cancel, or when closed from outside', async () => {
+    const cancelled = dialog.choose(chooseOptions);
+    button('cancel').click();
+    expect(await cancelled).toBe(null);
+    const closed = dialog.choose(chooseOptions);
+    closeFromOutside();
+    expect(await closed).toBe(null);
+  });
+
+  it('shows the confirm button again for the next ask()', () => {
+    void dialog.choose(chooseOptions);
+    void dialog.ask(options);
+    expect(choiceButtons().length).toBe(0);
+    expect(button('confirm').textContent).toBe('Delete all');
   });
 });

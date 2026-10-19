@@ -1,0 +1,50 @@
+.site-manager {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.site-manager__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.site-manager__title {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.site-manager__order {
+  justify-self: start;
+}
+
+.site-manager__list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.site-manager__empty {
+  padding: var(--space-4);
+  color: var(--color-text-muted);
+  font-size: var(--font-small);
+  text-align: center;
+}
+
+// Shown only if listing the sites takes a moment: a quick read never flashes it.
+.site-manager__loading {
+  display: flex;
+  justify-content: center;
+  min-height: 2rem;
+  opacity: 0;
+  animation: site-manager-reveal 0s linear 200ms forwards;
+}
+
+@keyframes site-manager-reveal {
+  to { opacity: 1; }
+}

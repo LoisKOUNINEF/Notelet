@@ -8,6 +8,7 @@ import 'a11y-elements/components/visually-hidden';
 import 'a11y-elements/overlays/dropdown';
 import 'a11y-elements/overlays/modal';
 import 'a11y-elements/overlays/snackbar';
+import 'a11y-elements/overlays/tooltip';
 import { initI18n, registerPipes } from '../core/index.js';
 import { SidebarComponent } from './components/sidebar/sidebar.component.js';
 import { errorMessage } from './lib/errors.js';

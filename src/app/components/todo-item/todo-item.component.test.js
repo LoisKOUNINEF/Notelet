@@ -90,7 +90,7 @@ describe('TodoItemComponent', () => {
 
   it('edits in place: Enter saves, focus goes back to Edit', async () => {
     item(todos[1]).querySelector('.todo-item__edit').click();
-    const input = item(todos[1]).querySelector('.todo-item__input');
+    const input = item(todos[1]).querySelector('.list-editor__input');
     expect(document.activeElement).toBe(input);
     expect(input.value).toBe('Second');
 
@@ -105,8 +105,8 @@ describe('TodoItemComponent', () => {
 
   it('cancels an edit with Escape, without saving', async () => {
     item(todos[1]).querySelector('.todo-item__edit').click();
-    item(todos[1]).querySelector('.todo-item__input').value = 'Discarded';
-    keydown(item(todos[1]).querySelector('.todo-item__input'), 'Escape');
+    item(todos[1]).querySelector('.list-editor__input').value = 'Discarded';
+    keydown(item(todos[1]).querySelector('.list-editor__input'), 'Escape');
     await settle();
 
     expect(labels()).toEqual(['First', 'Second', 'Third']);
@@ -115,12 +115,12 @@ describe('TodoItemComponent', () => {
 
   it('refuses to save an empty to-do', async () => {
     item(todos[1]).querySelector('.todo-item__edit').click();
-    item(todos[1]).querySelector('.todo-item__input').value = '   ';
+    item(todos[1]).querySelector('.list-editor__input').value = '   ';
     item(todos[1]).querySelector('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
     await settle();
 
     expect((await stored()).find((t) => t.id === todos[1].id).text).toBe('Second');
-    expect(item(todos[1]).querySelector('.todo-item__input')).toBeTruthy();
+    expect(item(todos[1]).querySelector('.list-editor__input')).toBeTruthy();
   });
 
   it('deletes a to-do, offers to undo it, and moves focus to the next one', async () => {
@@ -163,25 +163,25 @@ describe('TodoItemComponent', () => {
 
     expect(set.callCount).toBe(0);
     set.restore();
-    expect(item(todos[0]).querySelector('.todo-item__input')).toBeFalsy();
+    expect(item(todos[0]).querySelector('.list-editor__input')).toBeFalsy();
     expect(document.activeElement).toBe(item(todos[0]).querySelector('.todo-item__edit'));
   });
 
   it('ignores keys other than Escape while editing', () => {
     item(todos[0]).querySelector('.todo-item__edit').click();
-    keydown(item(todos[0]).querySelector('.todo-item__input'), 'a');
-    expect(item(todos[0]).querySelector('.todo-item__input')).toBeTruthy();
+    keydown(item(todos[0]).querySelector('.list-editor__input'), 'a');
+    expect(item(todos[0]).querySelector('.list-editor__input')).toBeTruthy();
   });
 
   it('reports a failed save and stays in edit mode', async () => {
     item(todos[0]).querySelector('.todo-item__edit').click();
-    item(todos[0]).querySelector('.todo-item__input').value = 'Renamed';
+    item(todos[0]).querySelector('.list-editor__input').value = 'Renamed';
     panel.fake.storage.local.failNextSet = new Error('Quota exceeded.');
     item(todos[0]).querySelector('button[type="submit"]').click();
     await settle();
 
     expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t save the to-do. Quota exceeded.', type: 'error', duration: 6000 });
-    expect(item(todos[0]).querySelector('.todo-item__input').value).toBe('Renamed');
+    expect(item(todos[0]).querySelector('.list-editor__input').value).toBe('Renamed');
   });
 
   it('reports a failed delete and keeps the to-do', async () => {
@@ -260,7 +260,7 @@ describe('TodoItemComponent - actions menu', () => {
   let todos;
 
   const item = (todo) => $(`[data-todo-id="${todo.id}"]`);
-  const menuItem = (todo) => document.getElementById(`todo-${todo.id}-menu`).querySelector('[role="menuitem"]');
+  const menuItem = (todo) => document.getElementById(`todo-${todo.id}-menu`).querySelector('[data-action="move"]');
   const content = async () => scopeStoreService.load(KEYS);
   const mount = async () => {
     sidebar = new SidebarComponent('#app');
@@ -318,12 +318,16 @@ describe('TodoItemComponent - actions menu', () => {
     expect((await content()).page.todos[0].text).toBe('Already on the site');
   });
 
-  it('moves a done to-do too', async () => {
+  it('offers only Delete on a done to-do, with no menu', async () => {
     const done = await scopeStoreService.update('todos', todos[1], { done: true });
     await settle();
-    menuItem(done).click();
+    expect([...item(done).querySelectorAll('.todo-item__actions button')].map((b) => b.textContent)).toEqual(['Delete']);
+    expect(document.getElementById(`todo-${done.id}-menu`)).toBeFalsy();
+
+    // Unchecked, it gets its actions back.
+    item(done).querySelector('.todo-item__checkbox').click();
     await settle();
-    expect((await content()).site.todos.find((t) => t.id === done.id).done).toBe(true);
+    expect([...item(done).querySelectorAll('.todo-item__actions button')].map((b) => b.textContent)).toEqual(['Edit', 'Delete', '⋯']);
   });
 
   it('ignores clicks in the menu outside its items', async () => {
@@ -360,3 +364,211 @@ describe('TodoItemComponent - actions menu', () => {
   }
 });
 
+
+describe('TodoItemComponent - lists', () => {
+  let panel;
+  let sidebar;
+  let list;
+  let single;
+
+  const item = (todo) => $(`[data-todo-id="${todo.id}"]`);
+  const stored = async (id) => (await scopeStoreService.load(KEYS)).page.todos.find((t) => t.id === id);
+  const itemLabels = (todo) => [...item(todo).querySelectorAll('.checklist-item a11y-checkbox')].map((el) => el.getAttribute('label'));
+  const checkItem = async (todo, id) => {
+    const box = item(todo).querySelector(`[data-item-id="${id}"] .checklist-item__checkbox`);
+    box.checked = true;
+    box.dispatchEvent(new window.Event('change', { bubbles: true }));
+    await settle();
+  };
+  const submit = async (form) => {
+    form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+    await settle();
+  };
+  const mount = async () => {
+    sidebar = new SidebarComponent('#app');
+    sidebar.render();
+    await settle();
+  };
+
+  beforeEach(async () => {
+    panel = await startPanel({ settings: { contentKind: 'todos' } });
+    list = await scopeStoreService.addTodo('page', KEYS.page, 'Groceries', [
+      { id: 'a', text: 'Milk', done: true },
+      { id: 'b', text: 'Eggs', done: false },
+    ]);
+    single = await scopeStoreService.addTodo('page', KEYS.page, 'Call back');
+    await mount();
+  });
+
+  afterEach(async () => {
+    sidebar?.destroy();
+    sidebar = null;
+    await panel.stop();
+  });
+
+  it('shows a list by its name, how much of it is done, and its items, with no checkbox of its own', () => {
+    expect(item(list).querySelector('.todo-item__checkbox')).toBeFalsy();
+    expect(item(list).querySelector('.todo-item__title').textContent).toBe('Groceries · 1 of 2 done');
+    expect(item(list).querySelector('.todo-item__checklist').getAttribute('aria-label')).toBe('Groceries');
+    expect(itemLabels(list)).toEqual(['Milk', 'Eggs']);
+    expect(item(list).querySelector('.todo-item__edit').getAttribute('aria-describedby')).toBe(item(list).querySelector('.todo-item__title').id);
+    // Counted as one open to-do, like a single one.
+    expect($('#kind-tab-todos .a11y-visually-hidden').textContent).toBe(', 2 open');
+  });
+
+  it('adds an item from the list, keeping focus in the field', async () => {
+    item(list).querySelector('.todo-item__add-item-input').value = 'Bread';
+    await submit(item(list).querySelector('.todo-item__add-item'));
+    expect((await stored(list.id)).items.map((i) => i.text)).toEqual(['Milk', 'Eggs', 'Bread']);
+    expect(document.activeElement).toBe(item(list).querySelector('.todo-item__add-item-input'));
+  });
+
+  it('moves to "Done" once every item is checked, then only offers Delete, items still checkable', async () => {
+    await settingsService.setDoneExpanded(true);
+    await settle();
+    await checkItem(list, 'b');
+    expect((await stored(list.id)).done).toBe(true);
+    expect(item(list).closest('[data-catalog="done-todos"]')).toBeTruthy();
+    expect([...item(list).querySelectorAll('.todo-item__actions button')].map((b) => b.textContent)).toEqual(['Delete']);
+    expect(item(list).querySelector('.todo-item__add-item')).toBeFalsy();
+
+    const box = item(list).querySelector('[data-item-id="b"] .checklist-item__checkbox');
+    box.checked = false;
+    box.dispatchEvent(new window.Event('change', { bubbles: true }));
+    await settle();
+    expect(item(list).closest('[data-catalog="open-todos"]')).toBeTruthy();
+  });
+
+  it('edits a list: its name and items, with Save', async () => {
+    item(list).querySelector('.todo-item__edit').click();
+    const editor = item(list).querySelector('.list-editor');
+    expect(document.activeElement).toBe(editor.querySelector('.list-editor__input'));
+    expect([...editor.querySelectorAll('.checklist-field__input')].map((f) => f.value)).toEqual(['Milk', 'Eggs']);
+
+    editor.querySelector('.list-editor__input').value = 'Shopping';
+    editor.querySelectorAll('.checklist-field__input')[1].value = 'Free-range eggs';
+    editor.querySelector('.list-editor__add-item').click();
+    editor.querySelectorAll('.checklist-field__input')[2].value = 'Bread';
+    editor.querySelectorAll('.checklist-field__remove')[0].click();
+    await submit(editor.querySelector('form'));
+
+    const saved = await stored(list.id);
+    expect(saved.text).toBe('Shopping');
+    expect(saved.items.map((i) => [i.text, i.done])).toEqual([['Free-range eggs', false], ['Bread', false]]);
+    expect(item(list).querySelector('.list-editor')).toBeFalsy();
+    expect(document.activeElement).toBe(item(list).querySelector('.todo-item__edit'));
+  });
+
+  it('cancels a list edit with Cancel or Escape, and keeps one in progress across a tab switch', async () => {
+    item(list).querySelector('.todo-item__edit').click();
+    item(list).querySelector('.list-editor__input').value = 'Half-edited';
+    $('#scope-tab-site').click();
+    $('#scope-tab-page').click();
+    expect(item(list).querySelector('.list-editor__input').value).toBe('Half-edited');
+    expect(item(list).querySelector('.list-editor__restored').textContent).toBe('Unsaved changes restored.');
+
+    keydown(item(list).querySelector('.list-editor__input'), 'Escape');
+    expect(item(list).querySelector('.list-editor')).toBeFalsy();
+    expect((await stored(list.id)).text).toBe('Groceries');
+    item(list).querySelector('.todo-item__edit').click();
+    item(list).querySelector('.list-editor__cancel').click();
+    expect(item(list).querySelector('.list-editor')).toBeFalsy();
+  });
+
+  it('turns a single to-do into a list on edit, and a list back into a single one', async () => {
+    item(single).querySelector('.todo-item__edit').click();
+    const editor = () => item(single).querySelector('.list-editor');
+    expect(editor().querySelectorAll('.checklist-field__input').length).toBe(0);
+    expect(editor().querySelector('.list-editor__field .a11y-visually-hidden').textContent).toBe('To-do name');
+    editor().querySelector('.list-editor__add-item').click();
+    expect(editor().querySelector('.list-editor__field .a11y-visually-hidden').textContent).toBe('List name');
+    editor().querySelector('.checklist-field__input').value = 'Ask about the invoice';
+    await submit(editor().querySelector('form'));
+
+    expect((await stored(single.id)).items.map((i) => i.text)).toEqual(['Ask about the invoice']);
+    expect(item(single).querySelector('.todo-item__title').textContent).toBe('Call back · 0 of 1 done');
+
+    item(list).querySelector('.todo-item__edit').click();
+    item(list).querySelectorAll('.checklist-field__remove')[1].click();
+    item(list).querySelectorAll('.checklist-field__remove')[0].click();
+    expect(document.activeElement).toBe(item(list).querySelector('.list-editor__add-item'));
+    await submit(item(list).querySelector('.list-editor form'));
+    const saved = await stored(list.id);
+    expect(saved.items).toBeUndefined();
+    expect(saved.done).toBe(false);
+    expect(item(list).querySelector('.todo-item__checkbox')).toBeTruthy();
+  });
+
+  it('takes items out of a list: once saved, single to-dos right after it, as they were', async () => {
+    const after = await scopeStoreService.addTodo('page', KEYS.page, 'After');
+    await settle();
+    item(list).querySelector('.todo-item__edit').click();
+    const editor = () => item(list).querySelector('.list-editor');
+    expect(editor().querySelector('.checklist-field__take-out').getAttribute('aria-label')).toBe('Take out item 1');
+    editor().querySelectorAll('.checklist-field__take-out')[0].click();
+    expect([...editor().querySelectorAll('.list-editor__taken-out-text')].map((el) => el.textContent)).toEqual(['Milk']);
+    expect([...editor().querySelectorAll('.checklist-field__input')].map((f) => f.value)).toEqual(['Eggs']);
+
+    // Put back, then taken out again (both now).
+    editor().querySelector('.list-editor__put-back').click();
+    expect([...editor().querySelectorAll('.checklist-field__input')].map((f) => f.value)).toEqual(['Eggs', 'Milk']);
+    expect(editor().querySelector('.list-editor__taken-out')).toBeFalsy();
+    editor().querySelector('.list-editor__add-item').click();
+    editor().querySelectorAll('.checklist-field__input')[2].value = 'Bread';
+    editor().querySelectorAll('.checklist-field__take-out')[0].click();
+    editor().querySelectorAll('.checklist-field__take-out')[0].click();
+    expect([...editor().querySelectorAll('.list-editor__taken-out-text')].map((el) => el.textContent)).toEqual(['Eggs', 'Milk']);
+    await submit(editor().querySelector('form'));
+
+    const todos = (await scopeStoreService.load(KEYS)).page.todos;
+    const open = todos.filter((t) => !t.done).sort((a, b) => a.position - b.position).map((t) => t.text);
+    expect(open).toEqual(['Groceries', 'Eggs', 'Call back', 'After']);
+    // "Milk" was checked: a done to-do now.
+    expect(todos.find((t) => t.text === 'Milk').done).toBe(true);
+    expect((await stored(list.id)).items.map((i) => i.text)).toEqual(['Bread']);
+    expect(after.id).toBeDefined();
+  });
+
+  it('a list whose last item is taken out becomes a single to-do', async () => {
+    item(list).querySelector('.todo-item__edit').click();
+    item(list).querySelectorAll('.checklist-field__take-out')[0].click();
+    item(list).querySelectorAll('.checklist-field__take-out')[0].click();
+    await submit(item(list).querySelector('.list-editor form'));
+    const saved = await stored(list.id);
+    expect(saved.items).toBeUndefined();
+    expect(saved.text).toBe('Groceries');
+  });
+
+  it('moves a single to-do into a list, picked in a popup, with Undo', async () => {
+    const menu = document.getElementById(`todo-${single.id}-menu`);
+    expect([...menu.querySelectorAll('[role="menuitem"]')].map((m) => m.textContent)).toEqual(['Move into a list…', 'Move to this site']);
+    expect(document.getElementById(`todo-${list.id}-menu`)?.querySelector('[data-action="move-into-list"]')).toBeFalsy();
+
+    menu.querySelector('[data-action="move-into-list"]').click();
+    const dialog = $('#confirm-dialog');
+    expect(dialog.querySelector('.confirm-dialog__title').textContent).toBe('Move “Call back” into a list');
+    expect([...dialog.querySelectorAll('.confirm-dialog__choice')].map((b) => b.textContent)).toEqual(['Groceries · 1 of 2 done']);
+    expect(document.activeElement).toBe(dialog.querySelector('.confirm-dialog__choice'));
+    dialog.querySelector('.confirm-dialog__choice').click();
+    await settle();
+
+    const todos = (await scopeStoreService.load(KEYS)).page.todos;
+    expect(todos.map((t) => t.text)).toEqual(['Groceries']);
+    expect(todos[0].items.map((i) => [i.text, i.done])).toEqual([['Milk', true], ['Eggs', false], ['Call back', false]]);
+    const toast = panel.toasts.at(-1);
+    expect(toast.message).toBe('Moved into Groceries.');
+
+    toast.onAction();
+    await settle();
+    const restored = (await scopeStoreService.load(KEYS)).page.todos;
+    expect(restored.map((t) => t.text).sort()).toEqual(['Call back', 'Groceries']);
+    expect(restored.find((t) => t.id === list.id).items.length).toBe(2);
+  });
+
+  it('leaves the to-do where it is when the popup is cancelled', async () => {
+    document.getElementById(`todo-${single.id}-menu`).querySelector('[data-action="move-into-list"]').click();
+    $('#confirm-dialog .confirm-dialog__cancel').click();
+    await settle();
+    expect((await scopeStoreService.load(KEYS)).page.todos.length).toBe(2);
+  });
+});

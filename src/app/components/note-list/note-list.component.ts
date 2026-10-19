@@ -112,7 +112,7 @@ export class NoteListComponent extends Component<HTMLElement, INoteListView> {
     }
     if (notes === this._notes) return;
     // Every change to a note gives it a new updatedAt. An unchanged one keeps its previous object, so
-    // the catalog (which compares items shallowly, and a note holds its checklist array) keeps it.
+    // the catalog (which compares items shallowly) keeps it.
     // Its position doesn't count: reordering alone keeps every item (and an edit in progress).
     const previous = new Map(this._notes.map((note) => [note.id, note]));
     this._notes = notes.map((note) => {
@@ -136,7 +136,7 @@ export class NoteListComponent extends Component<HTMLElement, INoteListView> {
     const count = this._notes.length;
     const confirmed = await confirmService.ask({
       title: `Delete all notes for this ${this._scope}?`,
-      message: `${plural(count, 'note')}, checklists included.`,
+      message: `${plural(count, 'note')}. You can undo this right after.`,
       confirmLabel: 'Delete all',
     });
     if (!confirmed) return;

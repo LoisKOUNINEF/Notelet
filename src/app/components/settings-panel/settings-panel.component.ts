@@ -32,13 +32,20 @@ const SUCCESS: Record<StorageAreaName, string> = {
   sync: 'Your notes now sync with your Chrome profile.',
 };
 
+export interface ISettingsPanelOptions {
+  // "Manage by site": the sidebar shows that page instead.
+  onManageSites?: () => void;
+}
+
 export class SettingsPanelComponent extends Component<HTMLElement, ISettingsPanelView> {
   private _deleteData: DeleteDataComponent | null = null;
+  private _onManageSites: () => void;
   // Closed (destroyed): a move between storage areas ending later mustn't re-render it.
   private _destroyed = false;
 
-  constructor(mountTarget: HTMLElement) {
+  constructor(mountTarget: HTMLElement, { onManageSites = () => {} }: ISettingsPanelOptions = {}) {
     super({ templateFn, mountTarget, config: SettingsPanelComponent.view(false, false) });
+    this._onManageSites = onManageSites;
     // Also follows a change made in another window.
     this.listen('storage-area-changed', () => this.setBusy(false));
   }
@@ -96,6 +103,10 @@ export class SettingsPanelComponent extends Component<HTMLElement, ISettingsPane
       this.setBusy(false);
       this.element.querySelector<HTMLInputElement>(`input[value="${settingsService.storageArea}"]`)?.focus();
     }
+  }
+
+  private _manageSites(): void {
+    this._onManageSites();
   }
 
   private async _openChromeSettings(url: string): Promise<void> {

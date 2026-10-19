@@ -2,9 +2,13 @@
   <a11y-modal id="confirm-dialog" class="confirm-dialog">
     <h2 class="confirm-dialog__title">${title}</h2>
     <p class="confirm-dialog__message">${message}</p>
+    ${choices.length > 0 ? html`
+    <ul class="confirm-dialog__choices" aria-label="${title}">
+      ${choices.map((choice) => html`<li><button class="button confirm-dialog__choice" type="button" tabindex="0" data-action="choice:${choice.value}">${choice.label}</button></li>`)}
+    </ul>` : ''}
     <div class="confirm-dialog__buttons">
       <button class="button confirm-dialog__cancel" type="button" tabindex="0" data-action="cancel">Cancel</button>
-      <button class="button button--danger confirm-dialog__confirm" type="button" tabindex="0" data-action="confirm">${confirmLabel}</button>
+      ${choices.length > 0 ? '' : html`<button class="button button--danger confirm-dialog__confirm" type="button" tabindex="0" data-action="confirm">${confirmLabel}</button>`}
     </div>
   </a11y-modal>
 </div>

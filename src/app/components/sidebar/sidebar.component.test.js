@@ -1,4 +1,3 @@
-import { AppEventBus } from '#root/dist/src/core/index.js';
 import { SidebarComponent } from '#root/dist/src/app/components/sidebar/sidebar.component.js';
 import { scopeStoreService } from '#root/dist/src/app/services/scope-store/scope-store.service.js';
 import { busListenerCounts, deferred, KEYS, keydown, settle, startPanel, typeInto } from '../../testing/panel.js';
@@ -396,6 +395,29 @@ describe('SidebarComponent', () => {
     expect(document.activeElement).toBe(toggle());
   });
 
+  it('opens "Manage by site" from the settings, and goes back, moving focus with it', async () => {
+    await scopeStoreService.addNote('page', KEYS.page, 'A note');
+    await mount();
+    $('.sidebar__settings-toggle').click();
+    $('.settings-panel__manage-sites').click();
+    expect(document.activeElement).toBe($('#site-manager-title'));
+    expect($('.settings-panel')).toBeFalsy();
+    expect($('.sidebar__settings-toggle').textContent).toBe('Back to notes');
+    await settle();
+    expect(texts('.site-row__name')).toEqual(['example.com (current)']);
+
+    $('.site-manager__back').click();
+    expect($('.site-manager')).toBeFalsy();
+    expect(document.activeElement).toBe($('.settings-panel__manage-sites'));
+
+    // From the page, the header's button goes straight back to the notes.
+    $('.settings-panel__manage-sites').click();
+    $('.sidebar__settings-toggle').click();
+    expect($('.site-manager')).toBeFalsy();
+    expect(texts('.note-item__text')).toEqual(['A note']);
+    expect(document.activeElement).toBe($('.sidebar__settings-toggle'));
+  });
+
   it('reloads the notes from the new storage area once switched', async () => {
     await scopeStoreService.addNote('page', KEYS.page, 'Travels along');
     await mount();
@@ -426,7 +448,7 @@ describe('SidebarComponent', () => {
       return realGet(keys);
     });
 
-    AppEventBus.emit('scope-content-changed');
+    panel.bus.emit('scope-content-changed');
     panel.fake.activateTab('https://other.org/x');
     await settle();
     releaseOld();
@@ -512,17 +534,17 @@ describe('SidebarComponent', () => {
     await mount();
     kindTab('todos').click();
     $(`[data-todo-id="${todo.id}"] .todo-item__edit`).click();
-    $('.todo-item__input').value = 'Half-edited';
+    $('.list-editor__input').value = 'Half-edited';
 
     tab('site').click();
     tab('page').click();
-    expect($('.todo-item__input').value).toBe('Half-edited');
-    expect($(`[data-todo-id="${todo.id}"] .a11y-visually-hidden`).textContent).toBe('Unsaved changes restored.');
+    expect($('.list-editor__input').value).toBe('Half-edited');
+    expect($(`[data-todo-id="${todo.id}"] .list-editor__restored`).textContent).toBe('Unsaved changes restored.');
 
-    keydown($('.todo-item__input'), 'Escape');
+    keydown($('.list-editor__input'), 'Escape');
     tab('site').click();
     tab('page').click();
-    expect($('.todo-item__input')).toBeFalsy();
+    expect($('.list-editor__input')).toBeFalsy();
   });
 
   it('forgets a to-do edit once saved, or when nothing changed', async () => {
@@ -532,15 +554,15 @@ describe('SidebarComponent', () => {
     $(`[data-todo-id="${todo.id}"] .todo-item__edit`).click();
     tab('site').click();
     tab('page').click();
-    expect($('.todo-item__input')).toBeFalsy();
+    expect($('.list-editor__input')).toBeFalsy();
 
     $(`[data-todo-id="${todo.id}"] .todo-item__edit`).click();
-    $('.todo-item__input').value = 'Saved';
+    $('.list-editor__input').value = 'Saved';
     $(`[data-todo-id="${todo.id}"] button[type="submit"]`).click();
     await settle();
     tab('site').click();
     tab('page').click();
-    expect($('.todo-item__input')).toBeFalsy();
+    expect($('.list-editor__input')).toBeFalsy();
   });
 
   it('keeps the panel usable when loading fails, and says so', async () => {
@@ -548,7 +570,7 @@ describe('SidebarComponent', () => {
     await mount();
     const get = spyOn(panel.fake.storage.local, 'get').andCallFake(async () => { throw new Error('Extension context invalidated.'); });
     await scopeStoreService.addNote('site', KEYS.site, 'Triggers a reload').catch(() => {});
-    AppEventBus.emit('scope-content-changed');
+    panel.bus.emit('scope-content-changed');
     await settle();
     get.restore();
 
@@ -578,7 +600,7 @@ describe('SidebarComponent', () => {
       return realGet(keys);
     });
 
-    AppEventBus.emit('scope-content-changed');
+    panel.bus.emit('scope-content-changed');
     panel.fake.activateTab('https://other.org/x');
     await settle();
     failOld();
@@ -624,6 +646,9 @@ describe('SidebarComponent', () => {
     $('.site-pages__toggle').click();
     $('.sidebar__settings-toggle').click();
     await settle();
+    $('.settings-panel__manage-sites').click();
+    await settle();
+    $('.site-manager__back').click();
     $('.sidebar__settings-toggle').click();
     await settle();
 

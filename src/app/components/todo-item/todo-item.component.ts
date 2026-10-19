@@ -1,12 +1,14 @@
 import { Component, html, raw } from '../../../core/index.js';
-import { announce } from '../../lib/announce.js';
-import { getEditDraft, setEditDraft } from '../../lib/drafts.js';
+import { getEditDraft } from '../../lib/drafts.js';
 import { errorMessage } from '../../lib/errors.js';
 import { byData, clearRequestedFocus, requestFocus } from '../../lib/focus.js';
 import { delegateActions, removeOverlays } from '../../lib/overlays.js';
+import { confirmService } from '../../services/confirm/confirm.service.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
 import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
 import { settingsService } from '../../services/settings/settings.service.js';
+import { ChecklistItemComponent } from '../checklist-item/checklist-item.component.js';
+import { ListEditorComponent, type IListEditDraft } from '../list-editor/list-editor.component.js';
 
 // What the to-do list passes to each item, besides the to-do (see createCatalogComponents).
 export interface ITodoItemOptions {
@@ -17,38 +19,45 @@ export interface ITodoItemOptions {
   grabbedId: string | null;
   // Where "Move to this site/page" sends it.
   keys: IScopeKeys;
+  // There are lists to move a single to-do into ("Move into a list…"), read when it's picked.
+  hasLists: boolean;
+  lists: () => ITodo[];
 }
 
 interface ITodoItemView {
   todo: ITodo;
+  // A to-do list: its name, its items (checked right here) and how many are done.
+  items: IChecklistItem[];
+  doneCount: number;
   editing: boolean;
-  // The edit field's text: the to-do's, or an unsaved edit restored.
-  editText: string;
-  restored: boolean;
+  canMoveIntoList: boolean;
   reorderable: boolean;
   grabbed: boolean;
   moveTarget: string;
 }
 
-const templateFn = ({ todo, editing, editText, restored, reorderable, grabbed, moveTarget }: ITodoItemView) => html`__TEMPLATE_PLACEHOLDER__`;
+const templateFn = ({ todo, items, doneCount, editing, canMoveIntoList, reorderable, grabbed, moveTarget }: ITodoItemView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 /**
- * One to-do: a checkbox labelled by its text, and its actions. Edit mode swaps them for a
- * one-line field in place. Checking it moves it below the open ones; focus follows it there.
+ * One to-do: a checkbox labelled by its text, and its actions (a done one only offers Delete).
+ * Checking it moves it below the open ones; focus follows it there.
+ *
+ * A to-do list has no checkbox of its own: its name, then its items, checked one by one; it's done
+ * once they all are (see ScopeStoreService.updateWith).
+ *
+ * Every to-do is edited in the list editor, in place: adding items to a single one makes it a list,
+ * removing them all makes a list single, and items taken out become single to-dos after it.
  */
 export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
   private _todo: ITodo;
   private _index: number;
   private _group: ITodoItemOptions['group'];
-  private _keys: IScopeKeys;
-  // Saved or cancelled: nothing to keep as a draft when the item goes away.
-  private _closing = false;
-  private _announced = false;
+  private _options: ITodoItemOptions;
+  private _editor: ListEditorComponent | null = null;
 
   constructor(mountTarget: HTMLElement, config: ITodo & { index: number }, options: ITodoItemOptions) {
     const { index, ...todo } = config;
-    // An edit left open when this to-do last went away comes back, still open.
-    const draft = getEditDraft<string>('todo', todo.id);
+    const items = todo.items ?? [];
     // The item's own root, directly inside the catalog's <li>.
     super({
       templateFn,
@@ -56,9 +65,11 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
       props: { className: todo.done ? 'todo-item todo-item--done' : 'todo-item' },
       config: {
         todo,
-        editing: draft !== null,
-        editText: draft ?? todo.text,
-        restored: draft !== null,
+        items,
+        doneCount: items.filter((item) => item.done).length,
+        // An edit left open when this to-do last went away comes back, still open.
+        editing: getEditDraft<IListEditDraft>('todo', todo.id) !== null,
+        canMoveIntoList: !todo.done && items.length === 0 && options.hasLists,
         reorderable: options.reorderable,
         grabbed: options.grabbedId === todo.id,
         moveTarget: todo.scope === 'page' ? 'this site' : 'this page',
@@ -69,7 +80,29 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
     this._todo = todo;
     this._index = index;
     this._group = options.group;
-    this._keys = options.keys;
+    this._options = options;
+  }
+
+  public override registerChildren(): Nutin.ComponentConfig[] {
+    if (this.config.editing) {
+      return [{
+        selector: 'list-editor',
+        factory: (el) => (this._editor = new ListEditorComponent(el, {
+          todo: this._todo,
+          draft: getEditDraft<IListEditDraft>('todo', this._todo.id),
+          onSave: (text, items, takenOut) => void this.save(text, items, takenOut),
+          onCancel: () => this.cancel(),
+        })),
+      }];
+    }
+    return this.createCatalogComponents({
+      items: this.config.items,
+      selector: 'checklist',
+      elementName: 'checklist-item',
+      elementTag: 'li',
+      component: ChecklistItemComponent,
+      props: { todo: this._todo },
+    });
   }
 
   // The "⋯" menu is an overlay on <body> (see lib/overlays.ts).
@@ -80,23 +113,15 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
 
   protected override onAfterRender(): void {
     super.onAfterRender();
-    if (this.config.restored && !this._announced) {
-      this._announced = true;
-      announce('Unsaved changes restored.');
-    }
     const menu = delegateActions(`todo-${this._todo.id}-menu`, (action) => {
       if (action === 'move') void this.move();
+      else if (action === 'move-into-list') void this.moveIntoList();
     });
     if (menu) this.eventListeners.push(menu);
   }
 
   protected override onBeforeDestroy(): void {
     removeOverlays(this.element, '.todo-item__overlays');
-    // Going away mid-edit (tab switch, navigation, another window saving it): keep what was typed.
-    if (this.config.editing && !this._closing) {
-      const text = this.element.querySelector<HTMLInputElement>('.todo-item__input')!.value;
-      setEditDraft('todo', this._todo.id, text === this._todo.text ? null : text);
-    }
     super.onBeforeDestroy();
   }
 
@@ -119,43 +144,75 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
 
   private _edit(): void {
     this.setEditing(true);
-    // Rendered by setEditing(true) just above.
-    const input = this.element.querySelector<HTMLInputElement>('.todo-item__input')!;
-    input.focus();
-    input.setSelectionRange(input.value.length, input.value.length);
+    this._editor?.focus();
   }
 
-  private _cancel(): void {
-    setEditDraft('todo', this._todo.id, null);
+  private async save(text: string, items: IChecklistItem[], takenOut: IChecklistItem[]): Promise<void> {
+    if (text === this._todo.text && sameItems(items, this._todo.items ?? []) && takenOut.length === 0) {
+      this.cancel();
+      return;
+    }
+    // Comes back through `scope-content-changed` as a new list item, in view mode: this one goes
+    // away with no draft to keep.
+    this._editor?.close();
+    requestFocus(`${byData('todo-id', this._todo.id)} .todo-item__edit`, `${byData('todo-id', this._todo.id)} .todo-item__delete`);
+    try {
+      await scopeStoreService.editList(this._todo, text, items, takenOut);
+    } catch (error) {
+      this._editor?.reopen();
+      clearRequestedFocus();
+      notifierService.error(`Couldn't save the to-do. ${errorMessage(error)}`);
+    }
+  }
+
+  private cancel(): void {
+    this._editor?.close();
     this.setEditing(false);
     this.element.querySelector<HTMLElement>('.todo-item__edit')?.focus();
   }
 
-  private _onKeydown(event: KeyboardEvent): void {
-    if (event.key !== 'Escape') return;
-    event.stopPropagation();
-    this._cancel();
+  private async _addItem(): Promise<void> {
+    const input = this.element.querySelector<HTMLInputElement>('.todo-item__add-item-input')!;
+    const text = input.value.trim();
+    if (!text) return;
+
+    // The list comes back with the item as a new list item: focus the field again there.
+    requestFocus(`${byData('todo-id', this._todo.id)} .todo-item__add-item-input`);
+    try {
+      await scopeStoreService.updateWith('todos', this._todo, (current) => ({
+        items: [...(current.items ?? []), { id: crypto.randomUUID(), text, done: false }],
+      }));
+    } catch (error) {
+      clearRequestedFocus();
+      notifierService.error(`Couldn't add the item. ${errorMessage(error)}`);
+    }
   }
 
-  private async _save(): Promise<void> {
-    const text = this.element.querySelector<HTMLInputElement>('.todo-item__input')!.value.trim();
-    if (!text) return;
-    if (text === this._todo.text) {
-      this._cancel();
-      return;
-    }
+  // "Move into a list…": a single to-do becomes the last item of a list picked in a popup.
+  private async moveIntoList(): Promise<void> {
+    const lists = this._options.lists();
+    const listId = await confirmService.choose({
+      title: `Move “${this._todo.text}” into a list`,
+      message: 'It becomes the list\'s last item.',
+      choices: lists.map((list) => ({
+        value: list.id,
+        label: `${list.text} · ${list.items!.filter((item) => item.done).length} of ${list.items!.length} done`,
+      })),
+    });
+    const list = lists.find(({ id }) => id === listId);
+    if (!list) return;
 
-    // The saved to-do comes back through `scope-content-changed` as a new list item, in view mode:
-    // this one goes away with no draft to keep.
-    this._closing = true;
-    setEditDraft('todo', this._todo.id, null);
-    requestFocus(`${byData('todo-id', this._todo.id)} .todo-item__edit`);
+    this.requestFocusAfterLeaving();
     try {
-      await scopeStoreService.update('todos', this._todo, { text });
+      const moved = await scopeStoreService.moveIntoList(this._todo, list);
+      if (!moved) {
+        clearRequestedFocus();
+        return;
+      }
+      notifierService.undoable(`Moved into ${list.text}.`, () => scopeStoreService.restoreMany('todos', moved.before), `Couldn't move it back.`);
     } catch (error) {
-      this._closing = false;
       clearRequestedFocus();
-      notifierService.error(`Couldn't save the to-do. ${errorMessage(error)}`);
+      notifierService.error(`Couldn't move the to-do. ${errorMessage(error)}`);
     }
   }
 
@@ -175,7 +232,7 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
     const target = this._todo.scope === 'page' ? 'site' : 'page';
     this.requestFocusAfterLeaving();
     try {
-      await scopeStoreService.move('todos', this._todo, this._keys);
+      await scopeStoreService.move('todos', this._todo, this._options.keys);
       notifierService.success(`Moved to this ${target}'s to-dos.`);
     } catch (error) {
       clearRequestedFocus();
@@ -184,18 +241,25 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
   }
 
   // Once this to-do leaves its group, the next one there takes its index; else the previous one,
-  // else the quick add. Each group is its own catalog, with its own indexes.
+  // else the quick add. Each group is its own catalog, with its own indexes. A to-do's first
+  // control is its checkbox, a list's its first item's.
   private requestFocusAfterLeaving(): void {
     const group = `[data-catalog="${this._group}-todos"]`;
+    const first = ':is(.todo-item__checkbox, .checklist-item__checkbox)';
     requestFocus(
-      `${group} > [data-index="${this._index}"] .todo-item__checkbox`,
-      `${group} > [data-index="${this._index - 1}"] .todo-item__checkbox`,
+      `${group} > [data-index="${this._index}"] ${first}`,
+      `${group} > [data-index="${this._index - 1}"] ${first}`,
       '.todo-composer__input',
     );
   }
 
   private setEditing(editing: boolean): void {
-    this.config = { ...this.config, editing, editText: this._todo.text, restored: false };
+    this._editor = null;
+    this.config = { ...this.config, editing };
     this.render();
   }
+}
+
+function sameItems(a: IChecklistItem[], b: IChecklistItem[]): boolean {
+  return a.length === b.length && a.every((item, i) => item.id === b[i]!.id && item.text === b[i]!.text && item.done === b[i]!.done);
 }

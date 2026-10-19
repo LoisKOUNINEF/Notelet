@@ -7,9 +7,21 @@ export interface IConfirmOptions {
   confirmLabel: string;
 }
 
+export interface IChoice {
+  value: string;
+  label: string;
+}
+
+export interface IChooseOptions {
+  title: string;
+  message: string;
+  choices: IChoice[];
+}
+
 // What asks the question on screen (see ConfirmDialogComponent).
 export interface IConfirmDialog {
   ask(options: IConfirmOptions): Promise<boolean>;
+  choose(options: IChooseOptions): Promise<string | null>;
 }
 
 /**
@@ -34,6 +46,11 @@ export class ConfirmService extends Service<ConfirmService> {
 
   public ask(options: IConfirmOptions): Promise<boolean> {
     return this._dialog ? this._dialog.ask(options) : Promise.resolve(false);
+  }
+
+  // One of `choices`, picked in the same popup: its value, or null when it's closed without one.
+  public choose(options: IChooseOptions): Promise<string | null> {
+    return this._dialog ? this._dialog.choose(options) : Promise.resolve(null);
   }
 }
 

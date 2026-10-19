@@ -48,16 +48,11 @@ describe('NoteListComponent - reordering', () => {
     expect($('#note-reorder-help').textContent).toContain('Press Space to pick up');
   });
 
-  it('shows no handle with a single note, and names an items-only note by its first item', async () => {
+  it('shows no handle with a single note', () => {
     list.destroy();
     mount([notes[0]]);
     expect($('.note-item__handle')).toBeFalsy();
     expect($('#note-reorder-help')).toBeFalsy();
-
-    list.destroy();
-    const listOnly = await scopeStoreService.addNote('page', KEYS.page, '', [{ id: 'i', text: 'Milk', done: false }]);
-    mount([listOnly, notes[0]]);
-    expect(handle(listOnly).getAttribute('aria-label')).toBe('Reorder: Milk');
   });
 
   it('moves a note with the keyboard and saves the order', async () => {
@@ -186,18 +181,18 @@ describe('NoteListComponent - delete all', () => {
     $('.note-list__delete-all').click();
     await settle();
 
-    expect(asked).toEqual([{ title: 'Delete all notes for this site?', message: '2 notes, checklists included.', confirmLabel: 'Delete all' }]);
+    expect(asked).toEqual([{ title: 'Delete all notes for this site?', message: '2 notes. You can undo this right after.', confirmLabel: 'Delete all' }]);
     expect((await stored()).length).toBe(2);
   });
 
   it('deletes every note once confirmed, with an undo', async () => {
-    await scopeStoreService.addNote('site', KEYS.site, 'Only', [{ id: 'i', text: 'Item', done: false }]);
+    const only = await scopeStoreService.addNote('site', KEYS.site, 'Only');
     await scopeStoreService.addNote('page', KEYS.page, 'Other list');
     mount((await scopeStoreService.load(KEYS)).site.notes);
 
     $('.note-list__delete-all').click();
     await settle();
-    expect(asked[0].message).toBe('1 note, checklists included.');
+    expect(asked[0].message).toBe('1 note. You can undo this right after.');
     expect(await stored()).toEqual([]);
     expect((await scopeStoreService.load(KEYS)).page.notes.length).toBe(1);
 
@@ -205,8 +200,7 @@ describe('NoteListComponent - delete all', () => {
     expect(toast.message).toBe('1 note deleted.');
     toast.onAction();
     await settle();
-    const [restored] = (await scopeStoreService.load(KEYS)).site.notes;
-    expect(restored.items.map((i) => i.text)).toEqual(['Item']);
+    expect((await scopeStoreService.load(KEYS)).site.notes).toEqual([only]);
   });
 
   it('reports a failed delete', async () => {

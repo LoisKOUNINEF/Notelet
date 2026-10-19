@@ -1,10 +1,14 @@
 <form class="todo-composer" data-event="submit:_add">
   <div class="todo-composer__row">
     <a11y-input class="todo-composer__field">
-      <a11y-label><span class="a11y-visually-hidden">${label}</span></a11y-label>
-      <input class="todo-composer__input" type="text" name="text" required autocomplete="off" placeholder="Add a to-do…" value="${draft}">
+      <a11y-label>${listMode ? `New to-do list for this ${scope}` : `New to-do for this ${scope}`}</a11y-label>
+      <input class="todo-composer__input" type="text" name="text" required autocomplete="off" placeholder="${listMode ? 'List name…' : 'Write a to-do…'}" value="${draft}">
     </a11y-input>
-    <button class="button button--primary todo-composer__submit" type="submit" tabindex="0">Add<span class="a11y-visually-hidden">${' to-do'}</span></button>
   </div>
-  <span class="todo-composer__hint" aria-hidden="true">Enter to add</span>
+  <div data-component="checklist-fields"></div>
+  <div class="todo-composer__actions">
+    <button class="button button--small todo-composer__list" type="button" tabindex="0" data-event="click:_addListItem">${listMode ? 'Add item' : 'List'}</button>
+    <span class="todo-composer__hint" aria-hidden="true">${listMode ? 'Ctrl+Enter to add' : 'Enter to add'}</span>
+    <button class="button button--primary todo-composer__submit" type="submit" tabindex="0">Add<span class="a11y-visually-hidden">${listMode ? ' list' : ' to-do'}</span></button>
+  </div>
 </form>

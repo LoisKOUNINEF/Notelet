@@ -126,12 +126,14 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
     return [...pages.values()].sort((a, b) => a.label.localeCompare(b.label));
   }
 
-  public addNote(scope: NoteScope, key: string, text: string, items: IChecklistItem[] = []): Promise<INote> {
-    return this.add('notes', { ...this.newItem(scope, key, text), items });
+  public addNote(scope: NoteScope, key: string, text: string): Promise<INote> {
+    return this.add('notes', this.newItem(scope, key, text));
   }
 
-  public addTodo(scope: NoteScope, key: string, text: string): Promise<ITodo> {
-    return this.add('todos', { ...this.newItem(scope, key, text), done: false, doneAt: null });
+  // A single to-do, or a to-do list when given items (`text` is then the list's name).
+  public addTodo(scope: NoteScope, key: string, text: string, items: IChecklistItem[] = []): Promise<ITodo> {
+    const todo: ITodo = { ...this.newItem(scope, key, text), done: false, doneAt: null };
+    return this.add('todos', items.length > 0 ? { ...todo, items, done: listDone(items) } : todo);
   }
 
   /**
@@ -158,7 +160,12 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
         if (current.id !== item.id) return current;
         const now = Date.now();
         updated = { ...current, ...change(current), updatedAt: now } as IScopeItemKinds[K];
-        if (kind === 'todos') stampDoneAt(current as ITodo, updated as ITodo, now);
+        if (kind === 'todos') {
+          const todo = updated as ITodo;
+          // A list is done once every item is: checking its last one moves it to "Done".
+          if (todo.items?.length) todo.done = listDone(todo.items);
+          stampDoneAt(current as ITodo, todo, now);
+        }
         return updated;
       }));
       return updated;
@@ -234,6 +241,71 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
   }
 
   /**
+   * Saves an edited to-do, in one write: its text and items (none left: a single to-do again).
+   * The items `takenOut` of it become single to-dos, as they were (checked or not), the open ones
+   * right after it: the open to-dos are numbered in that order, like a reorder.
+   */
+  public editList(todo: ITodo, text: string, items: IChecklistItem[], takenOut: IChecklistItem[] = []): Promise<ITodo> {
+    return this.enqueue(async () => {
+      let updated = todo;
+      await this.write('todos', todo.scope, todo.key, (todos) => {
+        const current = todos.find((t) => t.id === todo.id);
+        // Gone meanwhile (deleted in another window): left gone.
+        if (!current) return todos;
+        const now = Date.now();
+        const edited: ITodo = { ...current, text, updatedAt: now };
+        if (items.length > 0) {
+          edited.items = items;
+          edited.done = listDone(items);
+        } else {
+          delete edited.items;
+        }
+        stampDoneAt(current, edited, now);
+        updated = edited;
+
+        const singles: ITodo[] = takenOut.map((item) => ({
+          ...this.newItem(todo.scope, todo.key, item.text),
+          done: item.done,
+          doneAt: item.done ? now : null,
+        }));
+        const rest = todos.map((t) => (t.id === todo.id ? edited : t));
+        const openSingles = singles.filter((t) => !t.done);
+        const doneSingles = singles.filter((t) => t.done);
+        if (openSingles.length === 0) return [...rest, ...doneSingles];
+
+        const open = rest.filter((t) => !t.done);
+        const at = open.findIndex((t) => t.id === todo.id) + 1 || open.length;
+        const ordered = [...open.slice(0, at), ...openSingles, ...open.slice(at)];
+        return [...ordered.map((t, index) => ({ ...t, position: index })), ...rest.filter((t) => t.done), ...doneSingles];
+      });
+      return updated;
+    });
+  }
+
+  /**
+   * Puts a single to-do into a list, as its last item (checked or not, as it was), in one write.
+   * Resolves to both as they were (for an Undo: restoreMany) and the list now, or null when either
+   * is gone or the to-do is itself a list.
+   */
+  public moveIntoList(todo: ITodo, list: ITodo): Promise<{ before: ITodo[]; list: ITodo } | null> {
+    return this.enqueue(async () => {
+      let result: { before: ITodo[]; list: ITodo } | null = null;
+      await this.write('todos', list.scope, list.key, (todos) => {
+        const single = todos.find((t) => t.id === todo.id);
+        const target = todos.find((t) => t.id === list.id);
+        if (!single || !target || single.items?.length || !target.items?.length) return todos;
+        const now = Date.now();
+        const items = [...target.items, { id: crypto.randomUUID(), text: single.text, done: single.done }];
+        const moved: ITodo = { ...target, items, done: listDone(items), updatedAt: now };
+        stampDoneAt(target, moved, now);
+        result = { before: [single, target], list: moved };
+        return todos.filter((t) => t.id !== single.id).map((t) => (t.id === target.id ? moved : t));
+      });
+      return result;
+    });
+  }
+
+  /**
    * Saves the order the user gave a list, in one write: all of a scope's notes, or its open
    * to-dos (done ones keep their place). Items missing from `ids` (added in another window
    * meanwhile) keep theirs too: new notes stay on top, new to-dos after the ordered ones.
@@ -302,6 +374,40 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
         return [key, sortItems(kind, [...current, ...back])];
       }));
       await chromeApiService.storageSet(this.area, lists);
+    });
+  }
+
+  // Every site with notes or to-dos (on the site itself or any of its pages), in one read. Unsorted.
+  public async listSites(): Promise<ISiteSummary[]> {
+    const content = scopeContent(await chromeApiService.storageGet(this.area, null));
+    const sites = new Map<string, ISiteSummary>();
+    for (const [key, list] of Object.entries(content)) {
+      const site = siteOf(key);
+      if (!site) continue;
+      const kind = kindOf(key);
+      const items = sortItems(kind, list) as IScopeItem[];
+      if (items.length === 0) continue;
+      const summary = sites.get(site) ?? { site, notes: 0, todos: 0, lastEdited: 0 };
+      summary[kind] += items.length;
+      summary.lastEdited = Math.max(summary.lastEdited, ...items.map((item) => item.updatedAt));
+      sites.set(site, summary);
+    }
+    return [...sites.values()];
+  }
+
+  /**
+   * Deletes everything kept for a site: its own notes and to-dos and those of each of its pages,
+   * in one removal. Resolves to what it removed, for an Undo (restoreRemoved).
+   */
+  public removeSite(site: string): Promise<IRemovedItems> {
+    return this.enqueue(async () => {
+      const content = scopeContent(await chromeApiService.storageGet(this.area, null));
+      const removed: IRemovedItems = {};
+      for (const [key, list] of Object.entries(content)) {
+        if (siteOf(key) === site) removed[key] = sortItems(kindOf(key), list) as IScopeItem[];
+      }
+      await chromeApiService.storageRemove(this.area, Object.keys(removed));
+      return removed;
     });
   }
 
@@ -417,6 +523,13 @@ function hostOf(pageKey: string): string | null {
   }
 }
 
+// The site a storage item belongs to: its key for a site's list, its page's host for a page's.
+function siteOf(storageItem: string): string | null {
+  const [, scope, ...rest] = storageItem.split(':');
+  const key = rest.join(':');
+  return scope === 'site' ? key : scope === 'page' ? hostOf(key) : null;
+}
+
 // Which kind a storage item holds (`notes:…` or `todos:…`).
 function kindOf(key: string): ScopeContentKind {
   return key.startsWith('todos:') ? 'todos' : 'notes';
@@ -443,6 +556,10 @@ function mergeContent(target: Record<string, unknown>, incoming: Record<string, 
     merged[key] = sortItems(kind, [...byId.values()]);
   }
   return merged;
+}
+
+function listDone(items: IChecklistItem[]): boolean {
+  return items.length > 0 && items.every((item) => item.done);
 }
 
 // Checking a to-do records when; unchecking it clears that. Other edits keep it as it was.
