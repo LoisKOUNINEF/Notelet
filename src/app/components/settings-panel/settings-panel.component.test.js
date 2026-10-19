@@ -1,5 +1,4 @@
 import { SettingsPanelComponent } from '#root/dist/src/app/components/settings-panel/settings-panel.component.js';
-import { confirmService } from '#root/dist/src/app/services/confirm/confirm.service.js';
 import { scopeStoreService } from '#root/dist/src/app/services/scope-store/scope-store.service.js';
 import { settingsService } from '#root/dist/src/app/services/settings/settings.service.js';
 import { KEYS, settle, startPanel } from '../../testing/panel.js';
@@ -150,74 +149,41 @@ describe('SettingsPanelComponent', () => {
 describe('SettingsPanelComponent - delete everything', () => {
   let panel;
   let settings;
-  let asked;
-  let answer;
-  let detach;
 
-  const start = async (options) => {
-    panel = await startPanel(options);
+  beforeEach(async () => {
+    panel = await startPanel();
     const placeholder = document.getElementById('app').appendChild(document.createElement('div'));
     settings = new SettingsPanelComponent(placeholder);
     settings.render();
     await scopeStoreService.addNote('page', KEYS.page, 'A note');
-    await scopeStoreService.addTodo('site', KEYS.site, 'A to-do');
-  };
-  const area = () => panel.fake.storage[settingsService.storageArea];
-
-  beforeEach(() => {
-    asked = [];
-    answer = true;
-    detach = confirmService.attach({ ask: async (options) => { asked.push(options); return answer; } });
+    await settle();
   });
 
   afterEach(async () => {
-    detach();
     settings.destroy();
     await panel.stop();
   });
 
-  it('comes right before the help', async () => {
-    await start();
+  it('comes right before the help, with both ways to delete', () => {
     const titles = $$('.settings-panel__subtitle').map((h) => h.textContent);
     expect(titles.indexOf('Delete everything')).toBe(titles.indexOf('Help') - 1);
-    expect($('.settings-panel__delete-all').textContent).toBe('Delete all notes and to-dos');
+    expect($('.delete-data__select')).toBeTruthy();
+    expect($('.delete-data__all-button').textContent).toBe('Delete all notes and to-dos');
   });
 
-  it('asks first, and keeps everything when cancelled', async () => {
-    await start();
-    answer = false;
-    $('.settings-panel__delete-all').click();
+  it('disables them while the notes move to another storage area, keeping the age picked', async () => {
+    const select = $('.delete-data__select');
+    select.value = '2w';
+    select.dispatchEvent(new window.Event('change', { bubbles: true }));
+    expect($('.delete-data__all-button').disabled).toBe(false);
+
+    const radio = $('input[name="storage-area"][value="sync"]');
+    radio.checked = true;
+    radio.dispatchEvent(new window.Event('change', { bubbles: true }));
+    expect($('.delete-data__all-button').disabled).toBe(true);
+    expect($('.delete-data__select').disabled).toBe(true);
     await settle();
-
-    expect(asked).toEqual([{ title: 'Delete all your notes and to-dos?', message: 'This can\'t be undone.', confirmLabel: 'Delete everything' }]);
-    expect(area().data.size).toBe(2);
-  });
-
-  it('deletes every page\'s and site\'s notes and to-dos once confirmed, keeping the settings', async () => {
-    await start();
-    await settingsService.setDoneExpanded(true);
-    $('.settings-panel__delete-all').click();
-    await settle();
-
-    expect([...area().data.keys()]).toEqual(['settings']);
-    expect(panel.toasts.at(-1)).toEqual({ message: 'All your notes and to-dos were deleted.', type: 'success' });
-  });
-
-  it('warns that synced notes go from every computer', async () => {
-    await start({ settings: { storageArea: 'sync' } });
-    $('.settings-panel__delete-all').click();
-    await settle();
-
-    expect(asked[0].message).toBe('This can\'t be undone. They\'ll also be removed from your other computers.');
-    expect([...panel.fake.storage.sync.data.keys()]).toEqual([]);
-  });
-
-  it('reports a failed delete', async () => {
-    await start();
-    const remove = spyOn(panel.fake.storage.local, 'remove').andCallFake(async () => { throw new Error('Nope.'); });
-    $('.settings-panel__delete-all').click();
-    await settle();
-    remove.restore();
-    expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t delete your notes. Nope.', type: 'error', duration: 6000 });
+    expect($('.delete-data__all-button').disabled).toBe(false);
+    expect($('.delete-data__select').value).toBe('2w');
   });
 });

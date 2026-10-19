@@ -64,6 +64,20 @@
   --a11y-input-color-error: var(--color-danger);
   --a11y-input-control-border-radius: var(--radius-small);
   --a11y-input-control-padding-y: 0.375rem;
+  --a11y-select-color-surface: var(--color-surface);
+  --a11y-select-color-border: var(--color-border-strong);
+  --a11y-select-color-border-strong: var(--color-text-muted);
+  --a11y-select-color-primary: var(--color-focus);
+  --a11y-select-color-text: var(--color-text);
+  --a11y-select-color-text-muted: var(--color-text-muted);
+  --a11y-select-color-disabled-bg: var(--color-surface-muted);
+  --a11y-select-color-disabled-text: var(--color-text-disabled);
+  --a11y-select-control-border-radius: var(--radius-small);
+  --a11y-select-control-font-family: var(--font-body);
+  --a11y-select-control-font-size: var(--font-small);
+  --a11y-select-control-padding-x: var(--space-2);
+  --a11y-select-control-padding-y: 0.3125rem;
+  --a11y-select-label-font-size: var(--font-small);
   --a11y-checkbox-color-background: var(--color-surface);
   --a11y-checkbox-color-border: var(--color-text-muted);
   --a11y-checkbox-color-border-strong: var(--color-text);
@@ -226,8 +240,6 @@ kbd {
   }
 }
 
-// The confirmation popup (components/confirm-dialog): a11y-elements builds its wrapper on <body>,
-// out of the component's reach. 40–50% of the panel's height, its content centered both ways.
 .a11y-modal-wrapper:has(.confirm-dialog__title) {
   height: 50%;
 }

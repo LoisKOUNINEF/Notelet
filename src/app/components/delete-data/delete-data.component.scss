@@ -1,0 +1,27 @@
+.delete-data {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.delete-data__group {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-1);
+}
+
+// The age and its button side by side, wrapping on a narrow panel.
+.delete-data__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.delete-data__text {
+  color: var(--color-text-muted);
+  font-size: var(--font-small);
+
+  &:empty {
+    display: none;
+  }
+}

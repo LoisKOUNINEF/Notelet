@@ -1,6 +1,7 @@
 import 'a11y-elements/components/checkbox';
 import 'a11y-elements/components/input';
 import 'a11y-elements/components/radio-group';
+import 'a11y-elements/components/select';
 import 'a11y-elements/components/textarea';
 import 'a11y-elements/components/visually-hidden';
 import 'a11y-elements/overlays/dropdown';

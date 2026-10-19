@@ -34,8 +34,7 @@
 
   <div class="settings-panel__section">
     <h3 class="settings-panel__subtitle">Delete everything</h3>
-    <p class="settings-panel__text">Every note and to-do, on every page and site.</p>
-    <button class="button button--danger settings-panel__delete-all" type="button" tabindex="0" ${busy ? raw('disabled') : ''} data-event="click:_deleteEverything">Delete all notes and to-dos</button>
+    <div data-component="delete-data"></div>
   </div>
 
   <div class="settings-panel__section">
@@ -67,7 +66,7 @@
       <details class="settings-panel__help-item">
         <summary>Deleted something by mistake?</summary>
         <p>Use "Undo" in the message shown right after deleting a note, a to-do, or all of a list's done to-dos, to-dos or notes. Once that message is gone, there's no trash to restore from.</p>
-        <p>"Delete all notes and to-dos", here in Settings, can't be undone.</p>
+        <p>"Delete all older than", here in Settings, can be undone the same way. "Delete all notes and to-dos" can't.</p>
       </details>
       <details class="settings-panel__help-item">
         <summary>Text you haven't saved yet</summary>

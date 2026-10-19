@@ -11,6 +11,15 @@ export interface IScopeContent {
 
 export type IScopedContent = Record<NoteScope, IScopeContent>;
 
+// One stored note or to-do, with its kind (see listEverything()).
+export interface IStoredItem {
+  kind: ScopeContentKind;
+  item: IScopeItem;
+}
+
+// What removeOlderThan() took out, by storage item: what restoreRemoved() puts back.
+export type IRemovedItems = Record<string, IScopeItem[]>;
+
 // What an update may change: everything but the item's identity and dates (doneAt follows done).
 export type ScopeItemChanges<K extends ScopeContentKind> = Partial<Omit<IScopeItemKinds[K], keyof Omit<IScopeItem, 'text'> | 'doneAt'>>;
 
@@ -186,6 +195,59 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
     });
   }
 
+  // Every note and to-do of the storage area in use, on every page and site, in one read.
+  public async listEverything(): Promise<IStoredItem[]> {
+    const content = scopeContent(await chromeApiService.storageGet(this.area, null));
+    return Object.entries(content).flatMap(([key, list]) => {
+      const kind = kindOf(key);
+      return sortItems(kind, list).map((item) => ({ kind, item: item as IScopeItem }));
+    });
+  }
+
+  /**
+   * Deletes every note and to-do not edited since `cutoff`, on every page and site, in one
+   * write (plus one removal for the lists it empties). Resolves to what it removed, for an Undo.
+   */
+  public removeOlderThan(cutoff: Timestamp): Promise<IRemovedItems> {
+    return this.enqueue(async () => {
+      const content = scopeContent(await chromeApiService.storageGet(this.area, null));
+      const removed: IRemovedItems = {};
+      const kept: Record<string, IScopeItem[]> = {};
+      const emptied: string[] = [];
+
+      for (const [key, list] of Object.entries(content)) {
+        const items = sortItems(kindOf(key), list) as IScopeItem[];
+        const old = items.filter((item) => item.updatedAt < cutoff);
+        if (old.length === 0) continue;
+        removed[key] = old;
+        const rest = items.filter((item) => item.updatedAt >= cutoff);
+        if (rest.length > 0) kept[key] = rest;
+        else emptied.push(key);
+      }
+      if (Object.keys(kept).length > 0) await chromeApiService.storageSet(this.area, kept);
+      await chromeApiService.storageRemove(this.area, emptied);
+      return removed;
+    });
+  }
+
+  // Undoes removeOlderThan(): each list gets its items back, next to what was added since.
+  public restoreRemoved(removed: IRemovedItems): Promise<void> {
+    return this.enqueue(async () => {
+      const keys = Object.keys(removed);
+      if (keys.length === 0) return;
+      const stored = await chromeApiService.storageGet(this.area, keys);
+      const lists = Object.fromEntries(keys.map((key) => {
+        const kind = kindOf(key);
+        const current = sortItems(kind, stored[key]) as IScopeItem[];
+        const ids = new Set(current.map((item) => item.id));
+        // An item back elsewhere since (restored, moved...) isn't duplicated.
+        const back = removed[key]!.filter((item) => !ids.has(item.id));
+        return [key, sortItems(kind, [...current, ...back])];
+      }));
+      await chromeApiService.storageSet(this.area, lists);
+    });
+  }
+
   // Deletes every note and to-do of the storage area in use, on every page and site (settings stay).
   public clearEverything(): Promise<void> {
     return this.enqueue(async () => {
@@ -355,6 +417,11 @@ function hostOf(pageKey: string): string | null {
   }
 }
 
+// Which kind a storage item holds (`notes:…` or `todos:…`).
+function kindOf(key: string): ScopeContentKind {
+  return key.startsWith('todos:') ? 'todos' : 'notes';
+}
+
 // The notes and to-dos items of a storage area (leaving `settings` and anything else out).
 function scopeContent(items: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(Object.entries(items).filter(([key]) => isScopeContentKey(key)));
@@ -367,7 +434,7 @@ function scopeContent(items: Record<string, unknown>): Record<string, unknown> {
 function mergeContent(target: Record<string, unknown>, incoming: Record<string, unknown>): Record<string, unknown> {
   const merged: Record<string, unknown> = { ...target };
   for (const [key, list] of Object.entries(incoming)) {
-    const kind: ScopeContentKind = key.startsWith('todos:') ? 'todos' : 'notes';
+    const kind = kindOf(key);
     const byId = new Map<string, IScopeItem>();
     for (const item of [...sortItems(kind, target[key]), ...sortItems(kind, list)]) {
       const kept = byId.get(item.id);

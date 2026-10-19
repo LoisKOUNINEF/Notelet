@@ -1,7 +1,7 @@
 import { Component, html, raw } from '../../../core/index.js';
 import { chromeApiService } from '../../services/chrome-api/chrome-api.service.js';
 import { errorMessage } from '../../lib/errors.js';
-import { confirmService } from '../../services/confirm/confirm.service.js';
+import { DeleteDataComponent } from '../delete-data/delete-data.component.js';
 import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
 import { settingsService } from '../../services/settings/settings.service.js';
@@ -33,10 +33,22 @@ const SUCCESS: Record<StorageAreaName, string> = {
 };
 
 export class SettingsPanelComponent extends Component<HTMLElement, ISettingsPanelView> {
+  private _deleteData: DeleteDataComponent | null = null;
+
   constructor(mountTarget: HTMLElement) {
     super({ templateFn, mountTarget, config: SettingsPanelComponent.view(false, false) });
     // Also follows a change made in another window.
     this.listen('storage-area-changed', () => this.setBusy(false));
+  }
+
+  // Kept across this panel's renders (the storage-area switch): its age and counts stay.
+  public override registerChildren(): Nutin.ComponentConfig[] {
+    return [{ selector: 'delete-data', factory: (el) => (this._deleteData = new DeleteDataComponent(el)), keep: 'delete-data' }];
+  }
+
+  protected override onAfterRender(): void {
+    super.onAfterRender();
+    this._deleteData?.update({ busy: this.config.busy });
   }
 
   private static view(busy: boolean, confirming: boolean): ISettingsPanelView {
@@ -81,23 +93,6 @@ export class SettingsPanelComponent extends Component<HTMLElement, ISettingsPane
       // Back to the area actually in use, whether the move worked or not.
       this.setBusy(false);
       this.element.querySelector<HTMLInputElement>(`input[value="${settingsService.storageArea}"]`)?.focus();
-    }
-  }
-
-  private async _deleteEverything(): Promise<void> {
-    const synced = settingsService.storageArea === 'sync';
-    const confirmed = await confirmService.ask({
-      title: 'Delete all your notes and to-dos?',
-      message: `This can't be undone.${synced ? ' They\'ll also be removed from your other computers.' : ''}`,
-      confirmLabel: 'Delete everything',
-    });
-    if (!confirmed) return;
-
-    try {
-      await scopeStoreService.clearEverything();
-      notifierService.success('All your notes and to-dos were deleted.');
-    } catch (error) {
-      notifierService.error(`Couldn't delete your notes. ${errorMessage(error)}`);
     }
   }
 

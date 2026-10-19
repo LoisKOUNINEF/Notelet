@@ -173,6 +173,61 @@ describe('ScopeStoreService', () => {
     expect(settingsService.doneExpanded).toBe(true);
   });
 
+  it('lists every note and to-do of the area, with its kind', async () => {
+    await scopeStoreService.addNote('page', keys.page, 'A');
+    await scopeStoreService.addTodo('site', keys.site, 'B');
+    await scopeStoreService.addNote('page', 'https://other.org/x', 'C');
+    await settingsService.setDoneExpanded(true);
+
+    const all = await scopeStoreService.listEverything();
+    expect(all.map(({ kind, item }) => `${kind}:${item.text}`).sort()).toEqual(['notes:A', 'notes:C', 'todos:B']);
+  });
+
+  it('deletes what wasn\'t edited since a date, everywhere, and puts it back', async () => {
+    const now = spyOn(Date, 'now').andReturn(1000);
+    const oldNote = await scopeStoreService.addNote('page', keys.page, 'Old note');
+    const oldTodo = await scopeStoreService.addTodo('site', keys.site, 'Old to-do');
+    await scopeStoreService.addNote('page', 'https://other.org/x', 'Old, alone in its list');
+    const edited = await scopeStoreService.addNote('page', keys.page, 'Old but edited');
+    now.andReturn(5000);
+    await scopeStoreService.update('notes', edited, { text: 'Edited since' });
+    await scopeStoreService.addTodo('site', keys.site, 'New to-do');
+    now.restore();
+    await settingsService.setDoneExpanded(true);
+    const set = spyOn(fake.storage.local, 'set');
+
+    const removed = await scopeStoreService.removeOlderThan(2000);
+    expect(set.callCount).toBe(1);
+    set.restore();
+    expect(Object.values(removed).flat().map((i) => i.text).sort()).toEqual(['Old note', 'Old to-do', 'Old, alone in its list']);
+    let content = await scopeStoreService.load(keys);
+    expect(content.page.notes.map((n) => n.text)).toEqual(['Edited since']);
+    expect(content.site.todos.map((t) => t.text)).toEqual(['New to-do']);
+    expect(fake.storage.local.data.has('notes:page:https://other.org/x')).toBe(false);
+    expect(fake.storage.local.data.has('settings')).toBe(true);
+
+    // Undone, next to what was added meanwhile.
+    await scopeStoreService.addNote('page', keys.page, 'Added meanwhile');
+    await scopeStoreService.restoreRemoved(removed);
+    content = await scopeStoreService.load(keys);
+    expect(content.page.notes.map((n) => n.text).sort()).toEqual(['Added meanwhile', 'Edited since', 'Old note']);
+    expect(content.site.todos.map((t) => t.id)).toContain(oldTodo.id);
+    expect(content.page.notes.find((n) => n.id === oldNote.id).updatedAt).toBe(1000);
+    expect(fake.storage.local.data.get('notes:page:https://other.org/x').map((n) => n.text)).toEqual(['Old, alone in its list']);
+  });
+
+  it('writes nothing when nothing is old enough, and restores nothing twice', async () => {
+    const note = await scopeStoreService.addNote('page', keys.page, 'Recent');
+    const set = spyOn(fake.storage.local, 'set');
+    expect(await scopeStoreService.removeOlderThan(0)).toEqual({});
+    await scopeStoreService.restoreRemoved({});
+    expect(set.callCount).toBe(0);
+    set.restore();
+
+    await scopeStoreService.restoreRemoved({ [`notes:page:${keys.page}`]: [note] });
+    expect((await scopeStoreService.load(keys)).page.notes.length).toBe(1);
+  });
+
   it('runs writes one at a time, so concurrent adds are all kept', async () => {
     await Promise.all(['a', 'b', 'c'].map((text) => scopeStoreService.addNote('page', keys.page, text)));
     expect((await scopeStoreService.load(keys)).page.notes.length).toBe(3);
