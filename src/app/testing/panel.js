@@ -11,12 +11,7 @@ import { notifierService } from '#root/dist/src/app/services/notifier/notifier.s
 import { settingsService } from '#root/dist/src/app/services/settings/settings.service.js';
 import { installFakeChrome, uninstallFakeChrome } from './fake-chrome.js';
 
-export const KEYS = {
-  page: 'https://example.com/docs',
-  site: 'example.com',
-  pageLabel: 'example.com/docs',
-  siteLabel: 'example.com',
-};
+export { KEYS } from './fixtures.js';
 
 // The pipe registry is app-wide: pipes are registered once for the whole run.
 let pipesRegistered = false;

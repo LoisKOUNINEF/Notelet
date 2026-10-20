@@ -1,0 +1,6 @@
+<button class="button button--small item-menu__trigger" id="${id}-more" type="button" tabindex="0" aria-label="More actions for: ${name}">⋯</button>
+<div class="item-menu__overlays">
+  <a11y-dropdown id="${id}-menu" anchor="${id}-more" placement="bottom-end">
+    ${actions.map((action) => html`<div role="menuitem" tabindex="-1" data-action="${action.value}">${action.label}</div>`)}
+  </a11y-dropdown>
+</div>

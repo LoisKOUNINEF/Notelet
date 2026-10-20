@@ -1,8 +1,7 @@
 import { Component, html } from '../../../core/index.js';
+import { runAction } from '../../lib/actions.js';
+import { requireElement } from '../../lib/dom.js';
 import { getDraft, getJsonDraft, setDraft, setJsonDraft } from '../../lib/drafts.js';
-import { errorMessage } from '../../lib/errors.js';
-import { clearRequestedFocus, requestFocus } from '../../lib/focus.js';
-import { notifierService } from '../../services/notifier/notifier.service.js';
 import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
 import { ChecklistFieldsComponent } from '../checklist-fields/checklist-fields.component.js';
 
@@ -19,6 +18,9 @@ interface ITodoComposerView {
 }
 
 const templateFn = ({ scope, draft, listMode }: ITodoComposerView) => html`__TEMPLATE_PLACEHOLDER__`;
+
+// Its text field: where the focus goes once a to-do leaves the list.
+export const TODO_COMPOSER_INPUT = '.todo-composer__input';
 
 /**
  * The quick add, on top of the to-dos. A single to-do: one line, Enter adds it. "List" turns it
@@ -41,9 +43,8 @@ export class TodoComposerComponent extends Component<HTMLElement, ITodoComposerV
     this._items = items;
   }
 
-  // Always rendered by the template.
   private get input(): HTMLInputElement {
-    return this.element.querySelector<HTMLInputElement>('.todo-composer__input')!;
+    return requireElement(this.element, TODO_COMPOSER_INPUT);
   }
 
   public override registerChildren(): Nutin.ComponentConfig[] {
@@ -56,7 +57,7 @@ export class TodoComposerComponent extends Component<HTMLElement, ITodoComposerV
         onEscape: () => this.input.focus(),
         onLastRemoved: () => {
           this.setListMode(false);
-          this.element.querySelector<HTMLElement>('.todo-composer__list')!.focus();
+          requireElement(this.element, '.todo-composer__list').focus();
         },
         onChange: () => this.saveItemsDraft(),
       })),
@@ -71,7 +72,7 @@ export class TodoComposerComponent extends Component<HTMLElement, ITodoComposerV
     input.addEventListener('input', onInput);
     this.eventListeners.push([input, 'input', onInput]);
     // In list mode Enter in an item adds the next one: Ctrl/Cmd+Enter adds the list from anywhere.
-    const form = this.element.querySelector('form')!;
+    const form = requireElement<HTMLFormElement>(this.element, 'form');
     const onKeydown = (event: Event) => {
       const { key, ctrlKey, metaKey } = event as KeyboardEvent;
       if (key !== 'Enter' || !(ctrlKey || metaKey)) return;
@@ -92,7 +93,7 @@ export class TodoComposerComponent extends Component<HTMLElement, ITodoComposerV
   private _addListItem(): void {
     if (!this.config.listMode) this.setListMode(true);
     const named = this.input.value.trim() !== '';
-    this._checklist!.add(undefined, named);
+    this.checklist.add(undefined, named);
     if (!named) this.input.focus();
   }
 
@@ -100,27 +101,25 @@ export class TodoComposerComponent extends Component<HTMLElement, ITodoComposerV
     const input = this.input;
     const text = input.value.trim();
     if (!text) return;
-    const fields = this._checklist!.values();
+    const checklist = this.checklist;
+    const fields = checklist.values();
     // Items left empty are dropped: none left, it's a single to-do.
     const items = fields.map((field) => ({ ...field, text: field.text.trim() })).filter((field) => field.text);
 
     // Ready for the next one right away; restored if the save fails.
     input.value = '';
     setDraft(draftId(this._scope, this._key), '');
-    this._checklist!.reset([]);
+    checklist.reset([]);
     this.setListMode(false);
-    requestFocus('.todo-composer__input');
-    try {
-      await scopeStoreService.addTodo(this._scope, this._key, text, items);
-    } catch (error) {
-      // The focus stays here; a later re-render mustn't bring it back here from elsewhere.
-      clearRequestedFocus();
-      setDraft(draftId(this._scope, this._key), text);
-      if (fields.length > 0) this.setListMode(true);
-      this._checklist!.reset(fields);
-      this.input.value = text;
-      notifierService.error(`Couldn't add the to-do. ${errorMessage(error)}`);
-    }
+    await runAction('Couldn\'t add the to-do.', () => scopeStoreService.addTodo(this._scope, this._key, text, items), {
+      focus: [TODO_COMPOSER_INPUT],
+      onError: () => {
+        setDraft(draftId(this._scope, this._key), text);
+        if (fields.length > 0) this.setListMode(true);
+        checklist.reset(fields);
+        this.input.value = text;
+      },
+    });
   }
 
   // Re-rendered with the other label, placeholder and buttons; what's typed comes back from its draft.
@@ -128,6 +127,12 @@ export class TodoComposerComponent extends Component<HTMLElement, ITodoComposerV
     if (listMode === this.config.listMode) return;
     this.config = { ...this.config, draft: this.input.value, listMode };
     this.render();
+  }
+
+  // Created with the first render (see registerChildren), kept across the others.
+  private get checklist(): ChecklistFieldsComponent {
+    if (!this._checklist) throw new Error('The checklist fields are rendered with the composer.');
+    return this._checklist;
   }
 
   private saveItemsDraft(): void {

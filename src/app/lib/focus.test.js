@@ -1,4 +1,4 @@
-import { applyRequestedFocus, byData, clearRequestedFocus, hasRequestedFocus, requestFocus } from '#root/dist/src/app/lib/focus.js';
+import { applyRequestedFocus, byData, clearRequestedFocus, hasRequestedFocus, renderKeepingFocus, requestFocus } from '#root/dist/src/app/lib/focus.js';
 
 describe('requestFocus / applyRequestedFocus', () => {
   let app;
@@ -58,5 +58,47 @@ describe('requestFocus / applyRequestedFocus', () => {
     expect(hasRequestedFocus()).toBe(false);
     requestFocus('.a');
     expect(hasRequestedFocus()).toBe(true);
+  });
+});
+
+describe('renderKeepingFocus', () => {
+  let root;
+  // Rebuilds the root's controls, as a Nutin render does.
+  const render = (disabled = '') => () => {
+    root.innerHTML = `<button class="a" ${disabled === 'a' ? 'disabled' : ''}>A</button><button class="b">B</button>`;
+  };
+
+  beforeEach(() => {
+    root = document.getElementById('app').appendChild(document.createElement('div'));
+    render()();
+  });
+
+  afterEach(() => {
+    clearRequestedFocus();
+    root.remove();
+  });
+
+  it('gives the focus back to the rebuilt control', () => {
+    root.querySelector('.b').focus();
+    renderKeepingFocus(root, ['.a', '.b'], render());
+    expect(document.activeElement).toBe(root.querySelector('.b'));
+  });
+
+  it('moves it to the next control when that one got disabled', () => {
+    root.querySelector('.a').focus();
+    renderKeepingFocus(root, ['.a', '.b'], render('a'));
+    expect(document.activeElement).toBe(root.querySelector('.b'));
+  });
+
+  it('leaves it alone when an action asked for it elsewhere, or it was elsewhere', () => {
+    root.querySelector('.a').focus();
+    requestFocus('.b');
+    renderKeepingFocus(root, ['.a', '.b'], render());
+    expect(document.activeElement).not.toBe(root.querySelector('.a'));
+
+    clearRequestedFocus();
+    document.body.focus();
+    renderKeepingFocus(root, ['.a', '.b'], render());
+    expect(root.contains(document.activeElement)).toBe(false);
   });
 });

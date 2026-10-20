@@ -12,30 +12,7 @@
 
   ${settingsPage ? html`
   <div class="sidebar__settings" id="sidebar-settings">
-    ${settingsPage === 'sites' ? html`<div data-component="site-manager"></div>` : html`<div data-component="settings-panel"></div>`}
-  </div>` : !keys ? html`
-  <div class="sidebar__unavailable" role="status">
-    <p class="sidebar__unavailable-title">Notes aren't available on this page.</p>
-    <p class="sidebar__unavailable-text">Open a website to see its notes or write some.</p>
-  </div>` : html`
-  <p class="sidebar__location" title="${location.full}">
-    <span class="a11y-visually-hidden">Current ${scope}: </span><span class="sidebar__location-text">${location.text}</span>
-  </p>
-  <div class="sidebar__tabs">
-    <div data-component="scope-tabs"></div>
-    <div class="sidebar__tabs-card">
-      <div data-component="kind-tabs"></div>
-    </div>
-  </div>
-  <div class="sidebar__panel" id="sidebar-panel" role="tabpanel" aria-labelledby="scope-tab-${scope}">
-    ${scope === 'site' ? html`<div data-component="site-pages"></div>` : ''}
-    <div class="sidebar__kind-panel" id="sidebar-kind-panel" role="tabpanel" aria-labelledby="kind-tab-${kind}">
-      ${kind === 'todos'
-        ? (loaded ? html`<div data-component="todo-list"></div>` : '')
-        : html`
-      <div data-component="note-composer"></div>
-      ${loaded ? html`<div data-component="note-list"></div>` : ''}`}
-    </div>
-  </div>`}
+    <div data-component="${settingsPage === 'sites' ? 'site-manager' : 'settings-panel'}"></div>
+  </div>` : html`<div data-component="${available ? 'scope-panel' : 'page-unavailable'}"></div>`}
   <div data-component="confirm-dialog"></div>
 </div>

@@ -28,8 +28,10 @@ export function isAge(value: string): value is Age {
   return AGES.some((age) => age.value === value);
 }
 
+const BY_AGE = Object.fromEntries(AGES.map((option) => [option.value, option])) as Record<Age, IAgeOption>;
+
 export function ageOption(age: Age): IAgeOption {
-  return AGES.find((option) => option.value === age)!;
+  return BY_AGE[age];
 }
 
 /**

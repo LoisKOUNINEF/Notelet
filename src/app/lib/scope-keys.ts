@@ -47,7 +47,7 @@ export function getScopeKeys(url: string | null | undefined): IScopeKeys | null 
     page: `${parsed.protocol}//${host}${pathname}${query}`,
     site,
     // The page key without its protocol, the home page's `/` shown.
-    pageLabel: `${host}${pathname || '/'}${query}`,
+    pageLabel: readable(`${host}${pathname || '/'}${query}`),
     siteLabel: site,
   };
 }
@@ -63,9 +63,24 @@ export function pageLabelOf(pageKey: string): string {
   try {
     const { pathname, search } = new URL(pageKey);
     const label = `${pathname === '/' ? '' : pathname}${search}`;
-    return label || '/';
+    return readable(label) || '/';
   } catch {
     return pageKey;
+  }
+}
+
+// Invisible and direction-changing characters: decoded, they could make a label look like another.
+const HIDDEN_CHARACTERS = /[\u0000-\u001f\u007f-\u009f\u00ad\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]/;
+
+// A label as people read it, `/café` rather than `/caf%C3%A9` (labels only: keys stay encoded).
+// Characters with a meaning in URLs (`%2F`, `%3F`...) stay encoded, like in the address bar, and
+// so does a label that can't be decoded or would decode to hidden characters.
+function readable(label: string): string {
+  try {
+    const decoded = decodeURI(label);
+    return HIDDEN_CHARACTERS.test(decoded) ? label : decoded;
+  } catch {
+    return label;
   }
 }
 
@@ -74,9 +89,9 @@ export function storageKey(kind: ScopeContentKind, scope: NoteScope, key: string
   return `${kind}:${scope}:${key}`;
 }
 
-// Every item holding notes or to-dos (unlike `settings`).
+// Every item holding notes or to-dos (unlike the settings).
 export function isScopeContentKey(key: string): boolean {
-  return key.startsWith('notes:') || key.startsWith('todos:');
+  return kindOf(key) !== null;
 }
 
 // A page key's host (already without `www.`), or null for a malformed key.
@@ -100,7 +115,8 @@ export function isSitePageKey(storageItem: string, site: string): boolean {
   return isScopeContentKey(storageItem) && storageItem.split(':')[1] === 'page' && siteOf(storageItem) === site;
 }
 
-// Which kind a storage item holds (`notes:…` or `todos:…`).
-export function kindOf(key: string): ScopeContentKind {
-  return key.startsWith('todos:') ? 'todos' : 'notes';
+// Which kind a storage item holds (`notes:…` or `todos:…`), or null for any other item.
+export function kindOf(key: string): ScopeContentKind | null {
+  if (key.startsWith('notes:')) return 'notes';
+  return key.startsWith('todos:') ? 'todos' : null;
 }

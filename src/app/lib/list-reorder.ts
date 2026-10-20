@@ -111,7 +111,8 @@ export class ListReorder {
     const id = this.handleId(event.target);
     if (!id) return;
 
-    if (!this._grab) {
+    const grab = this._grab;
+    if (!grab) {
       if (event.key === ' ' || event.key === 'Enter') {
         event.preventDefault();
         this.pickUp(id);
@@ -119,20 +120,20 @@ export class ListReorder {
       return;
     }
 
-    const { order } = this._grab;
-    const index = order.indexOf(this._grab.id);
-    const targets: Record<string, number> = { ArrowUp: index - 1, ArrowDown: index + 1, Home: 0, End: order.length - 1 };
+    const index = grab.order.indexOf(grab.id);
+    const targets: Record<string, number> = { ArrowUp: index - 1, ArrowDown: index + 1, Home: 0, End: grab.order.length - 1 };
+    const target = targets[event.key];
 
-    if (event.key in targets) {
+    if (target !== undefined) {
       event.preventDefault();
-      this.moveTo(targets[event.key]!);
+      this.moveTo(grab, target);
     } else if (event.key === ' ' || event.key === 'Enter') {
       event.preventDefault();
-      void this.drop();
+      void this.drop(grab);
     } else if (event.key === 'Escape') {
       event.preventDefault();
       event.stopPropagation();
-      this.cancel();
+      this.cancel(grab);
     }
   }
 
@@ -140,7 +141,7 @@ export class ListReorder {
   // the handle itself happen while previewing.
   private onFocusout(): void {
     if (!this._grab || this._previewing) return;
-    void this.drop();
+    void this.drop(this._grab);
   }
 
   private pickUp(id: string): void {
@@ -150,8 +151,7 @@ export class ListReorder {
     announce(`Picked up ${this.host.textOf(id)}. Position ${order.indexOf(id) + 1} of ${order.length}.`);
   }
 
-  private moveTo(index: number): void {
-    const grab = this._grab!;
+  private moveTo(grab: IKeyboardGrab, index: number): void {
     const order = moveId(grab.order, grab.id, index);
     if (order.join() === grab.order.join()) return;
     grab.order = order;
@@ -159,8 +159,7 @@ export class ListReorder {
     announce(`Moved to position ${order.indexOf(grab.id) + 1} of ${order.length}.`);
   }
 
-  private async drop(): Promise<void> {
-    const { id, original, order } = this._grab!;
+  private async drop({ id, original, order }: IKeyboardGrab): Promise<void> {
     this._grab = null;
     const text = this.host.textOf(id);
     if (order.join() === original.join()) {
@@ -173,8 +172,7 @@ export class ListReorder {
     this.settle(await this.host.commit(order, id));
   }
 
-  private cancel(): void {
-    const { id } = this._grab!;
+  private cancel({ id }: IKeyboardGrab): void {
     this._grab = null;
     this.preview(id);
     announce('Reorder cancelled.');
@@ -196,13 +194,16 @@ export class ListReorder {
     const id = this.handleId(event.target);
     if (!id || this._grab || !event.isPrimary || event.button > 0) return;
     const handle = event.target as HTMLElement;
-    const items = Array.from(this.host.root.querySelector(this.host.listSelector)!.children) as HTMLElement[];
+    const items = Array.from(this.host.root.querySelector(this.host.listSelector)?.children ?? []) as HTMLElement[];
     const from = items.findIndex((item) => item.contains(handle));
     const rects = items.map((item) => item.getBoundingClientRect());
+    const dragged = items[from];
+    const rect = rects[from];
+    if (!dragged || !rect) return;
 
     event.preventDefault();
     handle.setPointerCapture?.(event.pointerId);
-    items[from]!.classList.add(this.host.draggingClass);
+    dragged.classList.add(this.host.draggingClass);
     window.addEventListener('blur', this._onWindowBlur);
     this._drag = {
       id,
@@ -212,7 +213,7 @@ export class ListReorder {
       midpoints: rects.map((rect) => rect.top + rect.height / 2),
       from,
       to: from,
-      height: rects[from]!.height,
+      height: rect.height,
     };
   }
 

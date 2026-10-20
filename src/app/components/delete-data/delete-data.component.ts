@@ -1,12 +1,16 @@
-import { Component, html, raw } from '../../../core/index.js';
+import { html, raw } from '../../../core/index.js';
+import { runAction } from '../../lib/actions.js';
 import { AGES, DEFAULT_AGE, ageOption, cutoff, isAge, type Age } from '../../lib/ages.js';
 import { errorMessage } from '../../lib/errors.js';
+import { renderKeepingFocus } from '../../lib/focus.js';
 import { removeOverlays } from '../../lib/overlays.js';
 import { countList } from '../../lib/plural.js';
+import { kindOf } from '../../lib/scope-keys.js';
 import { confirmService } from '../../services/confirm/confirm.service.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
 import { scopeStoreService, type IStoredItem } from '../../services/scope-store/scope-store.service.js';
 import { settingsService } from '../../services/settings/settings.service.js';
+import { AppComponent } from '../base/app-component.js';
 
 interface ICounts {
   notes: number;
@@ -38,7 +42,7 @@ const FOCUSABLE = ['.delete-data__select', '.delete-data__older-button', '.delet
  * disabled when that's none. Counts follow every change (here or in another window), and the
  * minutes passing while Settings stays open.
  */
-export class DeleteDataComponent extends Component<HTMLElement, IDeleteDataView> {
+export class DeleteDataComponent extends AppComponent<HTMLElement, IDeleteDataView> {
   private _age: Age = DEFAULT_AGE;
   // null while loading; also kept null after a failed load (counts unknown, buttons usable).
   private _items: IStoredItem[] | null = null;
@@ -46,17 +50,18 @@ export class DeleteDataComponent extends Component<HTMLElement, IDeleteDataView>
   private _busy = false;
   // Only the latest load's result is shown.
   private _loadId = 0;
-  private _destroyed = false;
 
   constructor(mountTarget: HTMLElement) {
     super({ templateFn, mountTarget, config: DeleteDataComponent.emptyView() });
     this.config = this.view();
     this.listen('scope-content-changed', () => void this.load());
     this.listen('storage-area-changed', () => void this.load());
-    // An item can cross the cutoff while Settings stays open. Only re-rendered when a count
-    // changed: a re-render rebuilds the <select>, which would close its popup if it's open.
+    // An item can cross the cutoff while Settings stays open. Only re-rendered when what the
+    // "older than" button says changed: a re-render rebuilds the <select>, which would close its
+    // popup if it's open.
     this.listen('minute-tick', () => {
-      if (JSON.stringify(this.view()) !== JSON.stringify(this.config)) this.refresh();
+      const { olderText, olderNothing } = this.view();
+      if (olderText !== this.config.olderText || olderNothing !== this.config.olderNothing) this.refresh();
     });
     void this.load();
   }
@@ -104,20 +109,17 @@ export class DeleteDataComponent extends Component<HTMLElement, IDeleteDataView>
     });
     if (!confirmed) return;
 
-    try {
-      // From the moment it's confirmed: the popup may have stayed open a while.
-      const removed = await scopeStoreService.removeOlderThan(cutoff(this._age, Date.now()));
-      const items = Object.values(removed).flat();
-      if (items.length === 0) {
-        notifierService.info(`Nothing older than ${age.label} to delete.`);
-        return;
-      }
-      const todoKeys = Object.keys(removed).filter((key) => key.startsWith('todos:'));
-      const todos = todoKeys.reduce((sum, key) => sum + removed[key]!.length, 0);
-      notifierService.undoable(`${countText({ notes: items.length - todos, todos })} deleted.`, () => scopeStoreService.restoreRemoved(removed), `Couldn't restore them.`);
-    } catch (error) {
-      notifierService.error(`Couldn't delete the older notes. ${errorMessage(error)}`);
+    // From the moment it's confirmed: the popup may have stayed open a while.
+    const removed = await runAction('Couldn\'t delete the older notes.', () => scopeStoreService.removeOlderThan(cutoff(this._age, Date.now())));
+    if (!removed) return;
+    const lists = Object.entries(removed);
+    const notes = lists.filter(([key]) => kindOf(key) === 'notes').reduce((sum, [, items]) => sum + items.length, 0);
+    const todos = lists.filter(([key]) => kindOf(key) === 'todos').reduce((sum, [, items]) => sum + items.length, 0);
+    if (notes + todos === 0) {
+      notifierService.info(`Nothing older than ${age.label} to delete.`);
+      return;
     }
+    notifierService.undoable(`${countText({ notes, todos })} deleted.`, () => scopeStoreService.restoreRemoved(removed), 'Couldn\'t restore them.');
   }
 
   private async _deleteEverything(): Promise<void> {
@@ -131,12 +133,11 @@ export class DeleteDataComponent extends Component<HTMLElement, IDeleteDataView>
     });
     if (!confirmed) return;
 
-    try {
+    const cleared = await runAction('Couldn\'t delete your notes.', async () => {
       await scopeStoreService.clearEverything();
-      notifierService.success('All your notes and to-dos were deleted.');
-    } catch (error) {
-      notifierService.error(`Couldn't delete your notes. ${errorMessage(error)}`);
-    }
+      return true;
+    });
+    if (cleared) notifierService.success('All your notes and to-dos were deleted.');
   }
 
   // Null when unknown (still loading, or the load failed).
@@ -176,27 +177,13 @@ export class DeleteDataComponent extends Component<HTMLElement, IDeleteDataView>
   }
 
   protected override onBeforeDestroy(): void {
-    this._destroyed = true;
     removeOverlays(this.element, '.delete-data__overlays');
     super.onBeforeDestroy();
   }
 
-  // Re-renders with fresh counts, keeping keyboard focus on the control that had it (or the
-  // next one still usable: a button just disabled can't keep it).
+  // Re-renders with fresh counts, keeping keyboard focus on the control that had it.
   private refresh(): void {
-    // Settings closed while counting: nothing left to show the counts in.
-    if (this._destroyed) return;
-    const active = document.activeElement;
-    const focused = active instanceof HTMLElement && this.element.contains(active)
-      ? FOCUSABLE.findIndex((selector) => active.matches(selector))
-      : -1;
-    this.config = this.view();
-    this.render();
-    if (focused === -1) return;
-    const target = [...FOCUSABLE.slice(focused), ...FOCUSABLE.slice(0, focused)]
-      .map((selector) => this.element.querySelector<HTMLElement & { disabled?: boolean }>(selector))
-      .find((el) => el && !el.disabled);
-    target?.focus();
+    renderKeepingFocus(this.element, FOCUSABLE, () => this.rerender(this.view()));
   }
 }
 

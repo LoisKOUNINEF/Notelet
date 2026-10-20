@@ -1,4 +1,5 @@
 import { Component, html } from '../../../core/index.js';
+import { requireElement } from '../../lib/dom.js';
 import { byData } from '../../lib/focus.js';
 import { ChecklistFieldComponent, type IChecklistFieldOptions } from '../checklist-field/checklist-field.component.js';
 
@@ -128,7 +129,7 @@ export class ChecklistFieldsComponent extends Component<HTMLElement, IChecklistF
     this._fields = this._fields.map((field) => ({
       ...field,
       // Every field is rendered.
-      text: this.element.querySelector<HTMLInputElement>(`${byData('item-id', field.id)} .checklist-field__input`)!.value,
+      text: requireElement<HTMLInputElement>(this.element, `${byData('item-id', field.id)} .checklist-field__input`).value,
     }));
   }
 
@@ -144,7 +145,7 @@ export class ChecklistFieldsComponent extends Component<HTMLElement, IChecklistF
   }
 
   private focusField(id: string): void {
-    this.fieldOf(id)!.focus();
+    this.fieldOf(id)?.focus();
   }
 }
 

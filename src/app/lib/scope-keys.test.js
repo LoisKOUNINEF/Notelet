@@ -1,4 +1,4 @@
-import { getScopeKeys, pageLabelOf, storageKey, isScopeContentKey, isSitePageKey } from '#root/dist/src/app/lib/scope-keys.js';
+import { getScopeKeys, pageLabelOf, storageKey, isScopeContentKey, isSitePageKey, kindOf } from '#root/dist/src/app/lib/scope-keys.js';
 
 describe('getScopeKeys', () => {
   it('keys a page by its URL and a site by its host', () => {
@@ -52,6 +52,20 @@ describe('getScopeKeys', () => {
     }
   });
 
+  it('shows encoded characters as they read, in labels only', () => {
+    const keys = getScopeKeys('https://example.com/caf%C3%A9/men%C3%BC?q=cr%C3%A8me');
+    expect(keys.page).toBe('https://example.com/caf%C3%A9/men%C3%BC?q=cr%C3%A8me');
+    expect(keys.pageLabel).toBe('example.com/café/menü?q=crème');
+    expect(pageLabelOf(keys.page)).toBe('/café/menü?q=crème');
+  });
+
+  it('leaves encoded what has a meaning in URLs, can\'t be decoded or would hide characters', () => {
+    expect(pageLabelOf('https://example.com/a%2Fb%3Fc')).toBe('/a%2Fb%3Fc');
+    expect(pageLabelOf('https://example.com/%E0%A4%A')).toBe('/%E0%A4%A');
+    expect(pageLabelOf('https://example.com/pay%E2%80%AEtxt.exe')).toBe('/pay%E2%80%AEtxt.exe');
+    expect(pageLabelOf('https://example.com/a%0Ab')).toBe('/a%0Ab');
+  });
+
   it('keeps the language of deeper pages, and query strings of a localized home page', () => {
     expect(getScopeKeys('https://example.com/en/docs').page).toBe('https://example.com/en/docs');
     const keys = getScopeKeys('https://example.com/en?tab=2');
@@ -97,6 +111,7 @@ describe('storageKey', () => {
     expect(isScopeContentKey(storageKey('notes', 'site', 'example.com'))).toBe(true);
     expect(isScopeContentKey(storageKey('todos', 'page', 'https://example.com/a'))).toBe(true);
     expect(isScopeContentKey('settings')).toBe(false);
+    expect(isScopeContentKey('settings:contentKind')).toBe(false);
   });
 });
 
@@ -108,5 +123,13 @@ describe('isSitePageKey', () => {
     expect(isSitePageKey('notes:page:https://other.org/x', 'example.com')).toBe(false);
     expect(isSitePageKey('notes:page:not a url', 'example.com')).toBe(false);
     expect(isSitePageKey('settings', 'example.com')).toBe(false);
+  });
+});
+
+describe('kindOf', () => {
+  it('tells the kind of a notes or to-dos item, and null for anything else', () => {
+    expect(kindOf('notes:page:https://example.com/a')).toBe('notes');
+    expect(kindOf('todos:site:example.com')).toBe('todos');
+    expect(kindOf('settings:storageArea')).toBe(null);
   });
 });

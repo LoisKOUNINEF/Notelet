@@ -3,13 +3,15 @@ import { SidebarComponent } from '#root/dist/src/app/components/sidebar/sidebar.
 import { scopeStoreService } from '#root/dist/src/app/services/scope-store/scope-store.service.js';
 import { KEYS, keydown, settle, startPanel } from '../../testing/panel.js';
 
+// A note's item in the page.
+const item = (note) => $(`[data-note-id="${note.id}"]`);
+
 // Items are tested in their list, in the panel: their actions go through the store and come back as a new list.
 describe('NoteItemComponent', () => {
   let panel;
   let sidebar;
   let notes;
 
-  const item = (note) => $(`[data-note-id="${note.id}"]`);
   const menuItem = (note, action) => document.getElementById(`note-${note.id}-menu`)?.querySelector(`[data-action="${action}"]`);
   const texts = () => $$('.note-item__text').map((el) => el.textContent);
   const stored = async () => scopeStoreService.load(KEYS);
@@ -42,8 +44,8 @@ describe('NoteItemComponent', () => {
     expect(el.querySelector('.note-item__meta').textContent).not.toContain('Edited');
 
     const textId = el.querySelector('.note-item__text').id;
-    el.querySelectorAll('.note-item__actions button:not(.note-item__more)').forEach((button) => expect(button.getAttribute('aria-describedby')).toBe(textId));
-    expect(el.querySelector('.note-item__more').getAttribute('aria-label')).toBe('More actions for: First');
+    el.querySelectorAll('.note-item__actions button:not(.item-menu__trigger)').forEach((button) => expect(button.getAttribute('aria-describedby')).toBe(textId));
+    expect(el.querySelector('.item-menu__trigger').getAttribute('aria-label')).toBe('More actions for: First');
     expect(menuItem(notes[0], 'move').textContent).toBe('Move to this site');
   });
 
@@ -258,7 +260,7 @@ describe('NoteItemComponent', () => {
   });
 
   it('doesn\'t open the editor from its buttons, nor when text in it is selected', async () => {
-    item(notes[1]).querySelector('.note-item__more').click();
+    item(notes[1]).querySelector('.item-menu__trigger').click();
     item(notes[1]).querySelector('.note-item__handle').click();
     expect(item(notes[1]).querySelector('.note-editor')).toBeFalsy();
 
@@ -277,7 +279,7 @@ describe('NoteItemComponent', () => {
     expect(heading.tagName).toBe('H2');
     expect(heading.textContent).toBe('Ideas');
     expect(el.querySelector('.note-item__edit').getAttribute('aria-describedby')).toBe(heading.id);
-    expect(el.querySelector('.note-item__more').getAttribute('aria-label')).toBe('More actions for: Ideas');
+    expect(el.querySelector('.item-menu__trigger').getAttribute('aria-label')).toBe('More actions for: Ideas');
     expect(item(notes[0]).querySelector('.note-item__name')).toBeFalsy();
 
     heading.click();
@@ -301,7 +303,6 @@ describe('NoteItemComponent - naming and time', () => {
   let panel;
   let sidebar;
 
-  const item = (note) => $(`[data-note-id="${note.id}"]`);
   const mount = async () => {
     sidebar = new SidebarComponent('#app');
     sidebar.render();
@@ -323,11 +324,11 @@ describe('NoteItemComponent - naming and time', () => {
     await scopeStoreService.addNote('page', KEYS.page, '\n  Starts after a blank line\nMore');
     await mount();
 
-    const label = item(note).querySelector('.note-item__more').getAttribute('aria-label');
+    const label = item(note).querySelector('.item-menu__trigger').getAttribute('aria-label');
     expect(label.startsWith('More actions for: A very long first line')).toBe(true);
     expect(label.endsWith('…')).toBe(true);
     expect(label.length).toBe('More actions for: '.length + 60);
-    expect($$('.note-item__more').map((b) => b.getAttribute('aria-label'))).toContain('More actions for: Starts after a blank line');
+    expect($$('.item-menu__trigger').map((b) => b.getAttribute('aria-label'))).toContain('More actions for: Starts after a blank line');
   });
 
   it('keeps its relative time true as minutes pass, without re-rendering', async () => {
@@ -367,7 +368,7 @@ describe('NoteItemComponent - actions menu', () => {
 
   it('shows Edit, Delete and a "More actions" trigger opening the other actions', () => {
     expect([...item().querySelectorAll('.note-item__actions button')].map((b) => b.textContent)).toEqual(['Edit', 'Delete', '⋯']);
-    const trigger = item().querySelector('.note-item__more');
+    const trigger = item().querySelector('.item-menu__trigger');
     expect(trigger.getAttribute('aria-label')).toBe('More actions for: Plain');
     expect(menu().getAttribute('anchor')).toBe(trigger.id);
     expect(actions()).toEqual(['Move to this site']);
@@ -400,7 +401,6 @@ describe('NoteItemComponent - folding', () => {
   let lines;
   let named;
 
-  const item = (note) => $(`[data-note-id="${note.id}"]`);
   const toggle = (note) => item(note).querySelector('.note-item__toggle');
   const stored = async (note) => (await scopeStoreService.load(KEYS)).page.notes.find((n) => n.id === note.id);
 

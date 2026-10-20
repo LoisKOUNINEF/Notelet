@@ -1,5 +1,6 @@
 import { Component, html } from '../../../core/index.js';
 import { announce } from '../../lib/announce.js';
+import { requireElement } from '../../lib/dom.js';
 import { setEditDraft } from '../../lib/drafts.js';
 import { ChecklistFieldsComponent } from '../checklist-fields/checklist-fields.component.js';
 
@@ -113,14 +114,14 @@ export class ListEditorComponent extends Component<HTMLElement, IListEditorView>
         caption: true,
         className: 'list-editor__items',
         onEscape: () => this._cancel(),
-        onLastRemoved: () => this.element.querySelector<HTMLElement>('.list-editor__add-item')!.focus(),
+        onLastRemoved: () => requireElement(this.element, '.list-editor__add-item').focus(),
         onTakeOut: (item) => {
           this._takenOut = [...this._takenOut, item];
           this.refresh();
         },
         // The name's label says whether it's a list's.
         onChange: () => {
-          if ((this._checklist!.count > 0) !== this.config.hasItems) this.refresh();
+          if ((this.checklist.count > 0) !== this.config.hasItems) this.refresh();
         },
       })),
       keep: 'fields',
@@ -128,7 +129,13 @@ export class ListEditorComponent extends Component<HTMLElement, IListEditorView>
   }
 
   private get input(): HTMLInputElement {
-    return this.element.querySelector<HTMLInputElement>('.list-editor__input')!;
+    return requireElement(this.element, '.list-editor__input');
+  }
+
+  // Created with the first render (see registerChildren), kept across the others.
+  private get checklist(): ChecklistFieldsComponent {
+    if (!this._checklist) throw new Error('The checklist fields are rendered with the editor.');
+    return this._checklist;
   }
 
   private _onKeydown(event: KeyboardEvent): void {
@@ -139,7 +146,7 @@ export class ListEditorComponent extends Component<HTMLElement, IListEditorView>
   }
 
   private _addField(): void {
-    this._checklist!.add();
+    this.checklist.add();
   }
 
   // "Put back": a taken-out item returns to the end of the fields.
@@ -148,7 +155,7 @@ export class ListEditorComponent extends Component<HTMLElement, IListEditorView>
     if (!item) return;
     this._takenOut = this._takenOut.filter((taken) => taken.id !== id);
     this.refresh();
-    this._checklist!.add(item);
+    this.checklist.add(item);
   }
 
   private _save(): void {
@@ -166,7 +173,7 @@ export class ListEditorComponent extends Component<HTMLElement, IListEditorView>
   // What's been typed, back into the state.
   private collect(): void {
     this._text = this.input.value;
-    this._fields = this._checklist!.values();
+    this._fields = this.checklist.values();
   }
 
   // Re-renders (the items' fields are kept), with what's been typed in the name.
@@ -178,5 +185,5 @@ export class ListEditorComponent extends Component<HTMLElement, IListEditorView>
 }
 
 function sameFields(a: IChecklistItem[], b: IChecklistItem[]): boolean {
-  return a.length === b.length && a.every((item, i) => item.id === b[i]!.id && item.text === b[i]!.text);
+  return a.length === b.length && a.every((item, i) => item.id === b[i]?.id && item.text === b[i]?.text);
 }

@@ -84,6 +84,20 @@ describe('ChromeApiService', () => {
     expect(fake.tabs.updated).toEqual([]);
   });
 
+  it('opens only web pages and the browser settings the panel links to', async () => {
+    for (const url of ['javascript:alert(1)', 'data:text/html,hi', 'chrome://settings/passwords', 'file:///etc/hosts', 'not a url']) {
+      let error = null;
+      await chromeApiService.openTab(url).catch((e) => { error = e; });
+      expect(error.message).toBe(`Can't open ${url}.`);
+      error = null;
+      await chromeApiService.openInActiveTab(url).catch((e) => { error = e; });
+      expect(error.message).toBe(`Can't open ${url}.`);
+    }
+    await chromeApiService.openTab('https://example.com/');
+    expect(fake.tabs.created).toEqual([{ url: 'https://example.com/' }]);
+    expect(fake.tabs.updated).toEqual([]);
+  });
+
   it('tells Chrome from Firefox by the extension\'s URL', () => {
     expect(chromeApiService.browser()).toBe('chrome');
     installFakeChrome({ browser: 'firefox' });

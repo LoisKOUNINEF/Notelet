@@ -5,6 +5,7 @@
 // tools/builder stays untouched, and dist/src (which the tests use) too.
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { spawnSync } from 'child_process';
 import esbuild from 'esbuild';
 import { print, errorExit, getFilesRecursive } from '../utils/index.js';
@@ -106,16 +107,38 @@ function removeCompressedFiles() {
 }
 
 // The archive the store takes (Chrome Web Store, addons.mozilla.org): dist/<browser>'s content at
-// the zip's root.
+// the zip's root. Reproducible: same sources, same bytes (sorted entries, fixed timestamps, no
+// extra attributes), so CI can check it and the store upload matches the GitHub Release's.
 function zipForStore() {
   const { name, version } = JSON.parse(fs.readFileSync(path.resolve('package.json'), 'utf-8'));
   const archive = path.resolve('dist', `${name}-${browser}-${version}.zip`);
   fs.rmSync(archive, { force: true });
-  const result = spawnSync('zip', ['-r', '-X', '-q', archive, '.', '-x', '*.map', '.DS_Store'], { cwd: OUTPUT, stdio: 'inherit' });
+  const files = fs.readdirSync(OUTPUT, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => path.relative(OUTPUT, path.join(entry.parentPath, entry.name)).split(path.sep).join('/'))
+    .filter((file) => !file.endsWith('.map') && path.basename(file) !== '.DS_Store')
+    .sort();
+  const mtime = buildTimestamp();
+  files.forEach((file) => fs.utimesSync(path.join(OUTPUT, file), mtime, mtime));
+  const result = spawnSync('zip', ['-X', '-D', '-q', archive, '-@'], {
+    cwd: OUTPUT,
+    input: files.join('\n'),
+    stdio: ['pipe', 'inherit', 'inherit'],
+    env: { ...process.env, TZ: 'UTC' },
+  });
   if (result.error || result.status !== 0) {
     throw new Error(`Couldn't create ${path.relative(process.cwd(), archive)}: the "zip" command is needed. ${result.error?.message ?? ''}`);
   }
-  print.boldSuccess(`Store package: ${path.relative(process.cwd(), archive)}\n`);
+  const checksum = crypto.createHash('sha256').update(fs.readFileSync(archive)).digest('hex');
+  fs.writeFileSync(`${archive}.sha256`, `${checksum}  ${path.basename(archive)}\n`);
+  print.boldSuccess(`Store package: ${path.relative(process.cwd(), archive)} (sha256 ${checksum})\n`);
+}
+
+// SOURCE_DATE_EPOCH (CI sets it to the commit's time) or a fixed date: zip can't store times
+// before 1980.
+function buildTimestamp() {
+  const epoch = Number(process.env.SOURCE_DATE_EPOCH);
+  return new Date(Number.isFinite(epoch) && epoch > 315532800 ? epoch * 1000 : Date.UTC(1980, 1, 1));
 }
 
 packageExtension().catch((err) => {

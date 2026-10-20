@@ -1,10 +1,13 @@
-import { Component, html, raw } from '../../../core/index.js';
-import { chromeApiService } from '../../services/chrome-api/chrome-api.service.js';
+import { html, raw } from '../../../core/index.js';
+import { runAction } from '../../lib/actions.js';
+import { requireElement } from '../../lib/dom.js';
 import { errorMessage } from '../../lib/errors.js';
-import { DeleteDataComponent } from '../delete-data/delete-data.component.js';
-import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
+import { chromeApiService } from '../../services/chrome-api/chrome-api.service.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
+import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
 import { settingsService } from '../../services/settings/settings.service.js';
+import { AppComponent } from '../base/app-component.js';
+import { DeleteDataComponent } from '../delete-data/delete-data.component.js';
 
 interface IAreaOption {
   value: StorageAreaName;
@@ -25,6 +28,10 @@ interface ISettingsPanelView {
 }
 
 const templateFn = ({ areas, busy, pending, browser, syncedWith }: ISettingsPanelView) => html`__TEMPLATE_PLACEHOLDER__`;
+
+// Where the focus goes when the settings open, and back from "Manage by site".
+export const SETTINGS_TITLE = '#settings-title';
+export const MANAGE_SITES_BUTTON = '.settings-panel__manage-sites';
 
 const SYNCED_WITH: Record<BrowserName, string> = {
   chrome: 'your Chrome profile',
@@ -56,14 +63,12 @@ export interface ISettingsPanelOptions {
   onManageSites?: () => void;
 }
 
-export class SettingsPanelComponent extends Component<HTMLElement, ISettingsPanelView> {
+export class SettingsPanelComponent extends AppComponent<HTMLElement, ISettingsPanelView> {
   private _deleteData: DeleteDataComponent | null = null;
   private _onManageSites: () => void;
-  // Closed (destroyed): a move between storage areas ending later mustn't re-render it.
-  private _destroyed = false;
 
   constructor(mountTarget: HTMLElement, { onManageSites = () => {} }: ISettingsPanelOptions = {}) {
-    super({ templateFn, mountTarget, config: SettingsPanelComponent.view(false, null) });
+    super({ templateFn, mountTarget, config: SettingsPanelComponent.viewOf(false, null) });
     this._onManageSites = onManageSites;
     // Also follows a change made in another window.
     this.listen('storage-area-changed', () => this.setBusy(false));
@@ -79,7 +84,7 @@ export class SettingsPanelComponent extends Component<HTMLElement, ISettingsPane
     this._deleteData?.update({ busy: this.config.busy });
   }
 
-  private static view(busy: boolean, pending: StorageAreaName | null): ISettingsPanelView {
+  private static viewOf(busy: boolean, pending: StorageAreaName | null): ISettingsPanelView {
     // While asking, the choice just made stays shown.
     const selected = pending ?? settingsService.storageArea;
     const browser = chromeApiService.browser();
@@ -97,9 +102,8 @@ export class SettingsPanelComponent extends Component<HTMLElement, ISettingsPane
   private _setArea(value: string): void {
     const area = AREA_VALUES.find((option) => option === value);
     if (!area) return;
-    this.config = SettingsPanelComponent.view(false, area === settingsService.storageArea ? null : area);
-    this.render();
-    this.element.querySelector<HTMLInputElement>(`input[value="${area}"]`)!.focus();
+    this.rerender(SettingsPanelComponent.viewOf(false, area === settingsService.storageArea ? null : area));
+    this.areaRadio(area).focus();
   }
 
   private async _apply(): Promise<void> {
@@ -108,7 +112,7 @@ export class SettingsPanelComponent extends Component<HTMLElement, ISettingsPane
 
   private _cancel(): void {
     this.setBusy(false);
-    this.element.querySelector<HTMLInputElement>(`input[value="${settingsService.storageArea}"]`)!.focus();
+    this.areaRadio(settingsService.storageArea).focus();
   }
 
   private async migrate(area: StorageAreaName): Promise<void> {
@@ -121,7 +125,7 @@ export class SettingsPanelComponent extends Component<HTMLElement, ISettingsPane
     } finally {
       // Back to the area actually in use, whether the move worked or not.
       this.setBusy(false);
-      this.element.querySelector<HTMLInputElement>(`input[value="${settingsService.storageArea}"]`)?.focus();
+      if (!this.destroyed) this.areaRadio(settingsService.storageArea).focus();
     }
   }
 
@@ -130,22 +134,14 @@ export class SettingsPanelComponent extends Component<HTMLElement, ISettingsPane
   }
 
   private async _openChromeSettings(url: string): Promise<void> {
-    try {
-      await chromeApiService.openTab(url);
-    } catch (error) {
-      notifierService.error(`Couldn't open Chrome's settings. ${errorMessage(error)}`);
-    }
+    await runAction('Couldn\'t open Chrome\'s settings.', () => chromeApiService.openTab(url));
   }
 
-  protected override onBeforeDestroy(): void {
-    this._destroyed = true;
-    super.onBeforeDestroy();
-  }
-
-  // A destroyed panel would recreate its delete section, which nothing would then ever destroy.
   private setBusy(busy: boolean): void {
-    if (this._destroyed) return;
-    this.config = SettingsPanelComponent.view(busy, null);
-    this.render();
+    this.rerender(SettingsPanelComponent.viewOf(busy, null));
+  }
+
+  private areaRadio(area: StorageAreaName): HTMLInputElement {
+    return requireElement(this.element, `input[name="storage-area"][value="${area}"]`);
   }
 }

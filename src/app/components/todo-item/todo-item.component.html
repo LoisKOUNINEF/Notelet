@@ -15,21 +15,7 @@ ${items.length > 0 ? html`
 <div class="todo-item__actions">
   ${todo.done ? '' : html`<button class="button button--small todo-item__edit" type="button" tabindex="0" aria-describedby="todo-${todo.id}-text" data-event="click:_edit">Edit</button>`}
   <button class="button button--small button--danger todo-item__delete" type="button" tabindex="0" aria-describedby="todo-${todo.id}-text" data-event="click:_delete">Delete</button>
-  ${todo.done ? '' : html`<button class="button button--small todo-item__more" id="todo-${todo.id}-more" type="button" tabindex="0" aria-label="More actions for: ${todo.text}">⋯</button>`}
+  ${todo.done ? '' : html`<span data-component="item-menu"></span>`}
 </div>
 ${items.length > 0 && !collapsed ? html`<ul class="todo-item__checklist" id="todo-${todo.id}-items" data-catalog="checklist" aria-label="${todo.text}"></ul>` : ''}
-${!todo.done && items.length > 0 && !collapsed ? html`
-<form class="todo-item__add-item" data-event="submit:_addItem">
-  <a11y-input class="todo-item__add-item-field">
-    <a11y-label><span class="a11y-visually-hidden">Add an item to ${todo.text}</span></a11y-label>
-    <input class="todo-item__add-item-input" type="text" autocomplete="off" placeholder="Add an item…">
-  </a11y-input>
-  <button class="button button--small todo-item__add-item-submit" type="submit" tabindex="0">Add<span class="a11y-visually-hidden">${' item'}</span></button>
-</form>` : ''}
-${todo.done ? '' : html`
-<div class="todo-item__overlays">
-  <a11y-dropdown id="todo-${todo.id}-menu" anchor="todo-${todo.id}-more" placement="bottom-end">
-    ${canMoveIntoList ? html`<div role="menuitem" tabindex="-1" data-action="move-into-list">Move into a list…</div>` : ''}
-    <div role="menuitem" tabindex="-1" data-action="move">Move to ${moveTarget}</div>
-  </a11y-dropdown>
-</div>`}`}
+${!todo.done && items.length > 0 && !collapsed ? html`<div class="todo-item__add-item" data-component="checklist-add"></div>` : ''}`}

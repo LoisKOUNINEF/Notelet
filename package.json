@@ -15,6 +15,8 @@
     "package:extension:chrome": "npm run build:prod -- -y && node tools/extension/package-extension.js --browser chrome --prod --zip",
     "package:extension:firefox": "npm run build:prod -- -y && node tools/extension/package-extension.js --browser firefox --prod --zip",
     "package:extension": "npm run build:prod -- -y && node tools/extension/package-extension.js --browser chrome --prod --zip && node tools/extension/package-extension.js --browser firefox --prod --zip",
+    "validate:extension": "node tools/extension/validate-extension.js --browser chrome && node tools/extension/validate-extension.js --browser firefox",
+    "lint:extension": "web-ext lint --source-dir dist/firefox",
     "serve": "npm run build && node tools/dev/serve.js",
     "serve:only": "node tools/dev/serve.js",
     "serve:prod": "npm run build:prod && node tools/dev/serve.js",
@@ -34,7 +36,8 @@
     "jsdom": "^30.1.1",
     "linkedom": "^0.18.13",
     "sass": "^1.89.0",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "web-ext": "10.8.0"
   },
   "engines": {
     "node": ">=24"

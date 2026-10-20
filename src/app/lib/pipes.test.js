@@ -1,4 +1,4 @@
-import { formatTimeAgo } from '#root/dist/src/app/lib/pipes.js';
+import { formatDateTime, formatTimeAgo } from '#root/dist/src/app/lib/pipes.js';
 
 describe('formatTimeAgo', () => {
   const now = Date.UTC(2026, 9, 18, 12, 0, 0);
@@ -27,5 +27,24 @@ describe('formatTimeAgo', () => {
 
   it('returns anything else unchanged', () => {
     expect(formatTimeAgo('soon', now, 'en')).toBe('soon');
+  });
+
+  it('reads in the panel\'s language (its lang attribute) by default, not the browser\'s', () => {
+    const root = document.documentElement;
+    const lang = root.lang;
+    root.lang = 'fr';
+    try {
+      expect(formatTimeAgo(ago(24 * 3600), now)).toBe('hier');
+    } finally {
+      root.lang = lang;
+    }
+    expect(formatTimeAgo(ago(24 * 3600), now)).toBe('yesterday');
+  });
+});
+
+describe('formatDateTime', () => {
+  it('formats in the panel\'s language', () => {
+    const time = Date.UTC(2026, 9, 18, 12, 0, 0);
+    expect(formatDateTime(time)).toBe(new Date(time).toLocaleString('en'));
   });
 });

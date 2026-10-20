@@ -1,4 +1,6 @@
+import type { ModalElement } from 'a11y-elements/overlays/modal';
 import { Component, html } from '../../../core/index.js';
+import { requireElement } from '../../lib/dom.js';
 import { delegateActions, removeOverlays } from '../../lib/overlays.js';
 import { confirmService, type IChoice, type IChooseOptions, type IConfirmDialog, type IConfirmOptions } from '../../services/confirm/confirm.service.js';
 
@@ -46,11 +48,12 @@ export class ConfirmDialogComponent extends Component<HTMLElement, IConfirmDialo
     this.answer(null);
     this.config = view;
     this.render();
-    const modal = this.modal!;
+    const modal = this.modal;
+    if (!modal) return Promise.resolve(null);
     return new Promise((resolve) => {
       this._answer = resolve;
       modal.open = true;
-      modal.querySelector<HTMLElement>(focused)!.focus();
+      requireElement(modal, focused).focus();
     });
   }
 
@@ -82,8 +85,9 @@ export class ConfirmDialogComponent extends Component<HTMLElement, IConfirmDialo
     super.onBeforeDestroy();
   }
 
-  private get modal(): (HTMLElement & { open: boolean }) | null {
-    return document.getElementById(MODAL_ID) as (HTMLElement & { open: boolean }) | null;
+  // On <body> once connected (an overlay), so found by its id.
+  private get modal(): ModalElement | null {
+    return document.getElementById(MODAL_ID) as ModalElement | null;
   }
 
   // Answers first: the close event that follows then finds nothing left to cancel.

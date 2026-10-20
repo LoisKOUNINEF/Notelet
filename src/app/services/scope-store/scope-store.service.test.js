@@ -104,13 +104,17 @@ describe('ScopeStoreService', () => {
   it('moves a note between page and site in a single write', async () => {
     const note = await scopeStoreService.addNote('page', keys.page, 'Whole site');
     const set = spyOn(fake.storage.local, 'set');
+    const now = spyOn(Date, 'now').andReturn(note.updatedAt + 60_000);
 
     const moved = await scopeStoreService.move('notes', note, keys);
+    now.restore();
     expect(set.callCount).toBe(1);
     set.restore();
 
     expect(moved.scope).toBe('site');
     expect(moved.key).toBe('example.com');
+    // Not an edit: "Edited" and "Delete all older than" go by updatedAt.
+    expect(moved.updatedAt).toBe(note.updatedAt);
     let notes = await scopeStoreService.load(keys);
     expect(notes.page.notes).toEqual([]);
     expect(notes.site.notes.map((n) => n.id)).toEqual([note.id]);
@@ -175,7 +179,7 @@ describe('ScopeStoreService', () => {
     await scopeStoreService.clearEverything();
     expect(remove.callCount).toBe(1);
     remove.restore();
-    expect([...fake.storage.local.data.keys()]).toEqual(['settings']);
+    expect([...fake.storage.local.data.keys()]).toEqual(['settings:doneExpanded']);
     expect(settingsService.doneExpanded).toBe(true);
   });
 
@@ -210,7 +214,7 @@ describe('ScopeStoreService', () => {
     expect(content.page.notes.map((n) => n.text)).toEqual(['Edited since']);
     expect(content.site.todos.map((t) => t.text)).toEqual(['New to-do']);
     expect(fake.storage.local.data.has('notes:page:https://other.org/x')).toBe(false);
-    expect(fake.storage.local.data.has('settings')).toBe(true);
+    expect(fake.storage.local.data.has('settings:doneExpanded')).toBe(true);
 
     // Undone, next to what was added meanwhile.
     await scopeStoreService.addNote('page', keys.page, 'Added meanwhile');
@@ -270,7 +274,7 @@ describe('ScopeStoreService', () => {
     remove.restore();
     expect(Object.keys(removed).sort()).toEqual(['notes:page:https://example.com/a', 'notes:site:example.com', 'todos:site:example.com']);
     expect([...fake.storage.local.data.keys()].sort()).toEqual([
-      'notes:page:https://blog.example.com/x', 'notes:page:https://example.org/a', 'settings',
+      'notes:page:https://blog.example.com/x', 'notes:page:https://example.org/a', 'settings:doneExpanded',
     ]);
 
     await scopeStoreService.restoreRemoved(removed);
@@ -307,12 +311,12 @@ describe('ScopeStoreService', () => {
   it('says which notes and to-dos changed, leaving the settings out', async () => {
     const changed = [];
     bus.subscribe('scope-content-changed', ({ keys }) => changed.push(keys));
-    await fake.storage.local.set({ settings: {}, 'notes:site:other.com': [], 'todos:page:https://other.com/a': [] });
+    await fake.storage.local.set({ 'settings:doneExpanded': true, 'notes:site:other.com': [], 'todos:page:https://other.com/a': [] });
     expect(changed).toEqual([['notes:site:other.com', 'todos:page:https://other.com/a']]);
   });
 
   it('does not emit scope-content-changed for settings or for the area not in use', async () => {
-    await fake.storage.local.set({ settings: { storageArea: 'local' } });
+    await fake.storage.local.set({ 'settings:storageArea': 'local' });
     await fake.storage.sync.set({ 'notes:site:example.com': [] });
     expect(changes).toBe(0);
   });
@@ -355,7 +359,7 @@ describe('ScopeStoreService', () => {
         'todos:site:example.com',
       ]);
       expect((await scopeStoreService.load(keys)).site.todos.map((t) => t.text)).toEqual(['C']);
-      expect([...fake.storage.local.data.keys()]).toEqual(['settings']);
+      expect([...fake.storage.local.data.keys()]).toEqual(['settings:storageArea']);
       expect((await scopeStoreService.load(keys)).page.notes.map((n) => n.text)).toEqual(['A']);
     });
 
@@ -727,6 +731,23 @@ describe('ScopeStoreService - to-do lists', () => {
     expect(todos.find((t) => t.id === list.id).items.length).toBe(1);
   });
 
+  it('undoes a move into a list without undoing what was done to the list since', async () => {
+    const list = await scopeStoreService.addTodo('page', keys.page, 'Trip', [item('a', 'Passport')]);
+    const single = await scopeStoreService.addTodo('page', keys.page, 'Charger');
+    const moved = await scopeStoreService.moveIntoList(single, list);
+    await scopeStoreService.updateWith('todos', moved.list, (current) => ({
+      items: current.items.map((i) => (i.id === 'a' ? { ...i, done: true } : i)),
+    }));
+
+    await scopeStoreService.moveOutOfList(single, list, moved.itemId);
+    const todos = await stored();
+    expect(todos.find((t) => t.id === single.id)).toEqual(single);
+    const back = todos.find((t) => t.id === list.id);
+    expect(back.items.map((i) => [i.text, i.done])).toEqual([['Passport', true]]);
+    // Its one item left is checked: the list is done now.
+    expect(back.done).toBe(true);
+  });
+
   it('moves nothing into a list when either is gone, or the to-do is itself a list', async () => {
     const list = await scopeStoreService.addTodo('page', keys.page, 'Trip', [item('a', 'Passport')]);
     const other = await scopeStoreService.addTodo('page', keys.page, 'Shopping', [item('b', 'Milk')]);
@@ -1084,5 +1105,36 @@ describe('ScopeStoreService - switching areas across devices', () => {
     fake.storage.local.data.set(pageItem, [null, 'text', { id: 1 }, { text: 'no id', createdAt: 1 }, note('ok', 'Valid', 1)]);
     const { page } = await scopeStoreService.load(keys);
     expect(page.notes.map((n) => n.id)).toEqual(['ok']);
+  });
+
+  it('drops entries without a text or a usable creation time', async () => {
+    fake.storage.local.data.set(pageItem, [
+      { id: 'no-text', createdAt: 1, updatedAt: 1 },
+      { id: 'number-text', text: 42, createdAt: 1, updatedAt: 1 },
+      { id: 'bad-time', text: 'Bad', createdAt: Number.MAX_VALUE, updatedAt: 1 },
+      note('ok', 'Valid', 1),
+    ]);
+    const { page } = await scopeStoreService.load(keys);
+    expect(page.notes.map((n) => n.id)).toEqual(['ok']);
+  });
+
+  it('repairs the fields it can rather than dropping the item', async () => {
+    fake.storage.local.data.set(pageItem, [{ id: 'n', text: 'Note', createdAt: 5, updatedAt: 'later', name: 3, position: 'top' }]);
+    fake.storage.local.data.set('todos:page:https://example.com/a', [
+      { id: 't', text: 'List', createdAt: 5, done: 'yes', doneAt: 'never', items: [{ id: 'a', text: 'Ok', done: true }, { id: 'b' }, null] },
+      { id: 'u', text: 'Single', createdAt: 6, updatedAt: 6, done: false, doneAt: null, items: 'none' },
+    ]);
+    const { page } = await scopeStoreService.load(keys);
+
+    expect(page.notes).toEqual([{ id: 'n', text: 'Note', createdAt: 5, updatedAt: 5 }]);
+    const [list, single] = page.todos;
+    expect(list).toEqual({ id: 't', text: 'List', createdAt: 5, updatedAt: 5, done: false, doneAt: null, items: [{ id: 'a', text: 'Ok', done: true }] });
+    expect(single.items).toBeUndefined();
+  });
+
+  it('keeps to-dos checked before doneAt existed', async () => {
+    fake.storage.local.data.set('todos:page:https://example.com/a', [{ id: 't', text: 'Old', createdAt: 1, updatedAt: 2, done: true }]);
+    const { page } = await scopeStoreService.load(keys);
+    expect(page.todos.map((t) => [t.id, t.done, t.doneAt])).toEqual([['t', true, null]]);
   });
 });

@@ -1,5 +1,6 @@
 import { Component, html } from '../../../core/index.js';
 import { announce } from '../../lib/announce.js';
+import { requireElement } from '../../lib/dom.js';
 import { setEditDraft } from '../../lib/drafts.js';
 
 // What an edit in progress holds, kept as a draft if the editor goes away unsaved.
@@ -82,11 +83,11 @@ export class NoteEditorComponent extends Component<HTMLElement, INoteEditorView>
   }
 
   private get textarea(): HTMLTextAreaElement {
-    return this.element.querySelector<HTMLTextAreaElement>('.note-editor__input')!;
+    return requireElement(this.element, '.note-editor__input');
   }
 
   private get nameInput(): HTMLInputElement {
-    return this.element.querySelector<HTMLInputElement>('.note-editor__name')!;
+    return requireElement(this.element, '.note-editor__name');
   }
 
   // In the name, Enter goes on to the text; Ctrl+Enter and Escape work as in the text.
@@ -102,7 +103,7 @@ export class NoteEditorComponent extends Component<HTMLElement, INoteEditorView>
   private _onKeydown(event: KeyboardEvent): void {
     if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
       event.preventDefault();
-      this.element.querySelector('form')!.requestSubmit();
+      requireElement<HTMLFormElement>(this.element, 'form').requestSubmit();
     } else if (event.key === 'Escape') {
       // Don't let Escape also reach the panel (it would close an open overlay).
       event.stopPropagation();

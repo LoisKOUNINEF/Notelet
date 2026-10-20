@@ -80,7 +80,8 @@ describe('ChecklistItemComponent', () => {
     const [stored] = (await scopeStoreService.load(KEYS)).page.todos;
     panel.fake.storage.local.data.set(`todos:page:${KEYS.page}`, [{ ...stored, items: undefined }]);
     await check('a');
-    expect((await scopeStoreService.load(KEYS)).page.todos[0].items).toEqual([]);
+    // Still a single to-do: no empty list of items written to it.
+    expect((await scopeStoreService.load(KEYS)).page.todos[0].items).toBeUndefined();
   });
 
   it('moves the list to "Done" once its last item is checked, and back when one is unchecked', async () => {

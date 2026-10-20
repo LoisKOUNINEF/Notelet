@@ -20,19 +20,26 @@ export class ActiveTabService extends Service<ActiveTabService> {
     return this._keys;
   }
 
+  // A failed first read rejects, so the panel says so (rather than "not available on this page");
+  // the next tab switch or navigation tries again.
   public async init(): Promise<void> {
     this._keys = null;
     this.registerCleanup(chromeApiService.onTabsChanged(() => void this.refresh()));
-    await this.refresh();
+    await this.read(true);
   }
 
   // A failed read (the extension being reloaded under the panel...) keeps the last keys.
-  public async refresh(): Promise<void> {
+  public refresh(): Promise<void> {
+    return this.read(false);
+  }
+
+  private async read(rethrow: boolean): Promise<void> {
     const refreshId = ++this._refreshId;
     let url: string | null;
     try {
       url = await chromeApiService.getActiveTabUrl();
-    } catch {
+    } catch (error) {
+      if (rethrow) throw error;
       return;
     }
     const keys = getScopeKeys(url);

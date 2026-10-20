@@ -1,9 +1,8 @@
 import { Component, html, raw } from '../../../core/index.js';
-import { errorMessage } from '../../lib/errors.js';
+import { runAction } from '../../lib/actions.js';
+import { applyRequestedFocus, byData, renderKeepingFocus, requestFocus } from '../../lib/focus.js';
 import { countList, plural } from '../../lib/plural.js';
-import { applyRequestedFocus, byData, requestFocus } from '../../lib/focus.js';
 import { chromeApiService } from '../../services/chrome-api/chrome-api.service.js';
-import { notifierService } from '../../services/notifier/notifier.service.js';
 
 export interface ISitePagesConfig {
   // null while they're being listed (the first time for this site): a spinner shows.
@@ -36,12 +35,12 @@ export class SitePagesComponent extends Component<HTMLElement, ISitePagesView> {
   private _expanded = false;
 
   constructor(mountTarget: HTMLElement, { pages, currentPage }: ISitePagesConfig) {
-    super({ templateFn, mountTarget, config: SitePagesComponent.view(pages, currentPage, false) });
+    super({ templateFn, mountTarget, config: SitePagesComponent.viewOf(pages, currentPage, false) });
     this._pages = pages;
     this._currentPage = currentPage;
   }
 
-  private static view(pages: ISitePage[] | null, currentPage: string, expanded: boolean): ISitePagesView {
+  private static viewOf(pages: ISitePage[] | null, currentPage: string, expanded: boolean): ISitePagesView {
     return {
       loading: pages === null,
       pages: (pages ?? []).map((page) => ({ ...page, current: page.key === currentPage, countText: countText(page) })),
@@ -68,22 +67,18 @@ export class SitePagesComponent extends Component<HTMLElement, ISitePagesView> {
   }
 
   private async _open(url: string): Promise<void> {
-    try {
-      await chromeApiService.openInActiveTab(url);
-    } catch (error) {
-      notifierService.error(`Couldn't open the page. ${errorMessage(error)}`);
-    }
+    await runAction('Couldn\'t open the page.', () => chromeApiService.openInActiveTab(url));
   }
 
-  // Rebuilt on every render: whatever had the focus gets it back (unless the action asked otherwise).
+  // Rebuilt on every render: whatever had the focus gets it back (a page link, or the toggle if
+  // that link is gone), unless the action asked otherwise.
   private refresh(): void {
-    const active = document.activeElement;
-    if (active instanceof HTMLElement && this.element.contains(active)) {
-      if (active.matches('.site-pages__toggle')) requestFocus('.site-pages__toggle');
-      else if (active.dataset.url) requestFocus(`.site-pages__page${byData('url', active.dataset.url)}`, '.site-pages__toggle');
-    }
-    this.config = SitePagesComponent.view(this._pages, this._currentPage, this._expanded);
-    this.render();
+    const url = (document.activeElement as HTMLElement | null)?.dataset?.url;
+    const page = url ? [`.site-pages__page${byData('url', url)}`] : [];
+    renderKeepingFocus(this.element, [...page, '.site-pages__toggle'], () => {
+      this.config = SitePagesComponent.viewOf(this._pages, this._currentPage, this._expanded);
+      this.render();
+    });
   }
 }
 

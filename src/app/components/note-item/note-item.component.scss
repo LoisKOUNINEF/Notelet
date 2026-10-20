@@ -57,13 +57,6 @@
   gap: var(--space-1);
 }
 
-.note-item__more {
-  min-width: 1.75rem;
-  justify-content: center;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-}
-
 // An optional name, set in the editor.
 .note-item__name {
   font-family: var(--font-display);

@@ -34,3 +34,21 @@ export function hasRequestedFocus(): boolean {
 export function byData(name: string, value: string): string {
   return `[data-${name}="${value.replace(/["\\]/g, '\\$&')}"]`;
 }
+
+/**
+ * Runs `render`, which rebuilds the controls `selectors` match, then gives the focus back to the
+ * one that had it, or the next one still usable (a control just disabled can't keep it). Leaves it
+ * alone when the action that caused the render asked for it elsewhere (requestFocus), or when it
+ * survived the render.
+ */
+export function renderKeepingFocus(root: HTMLElement, selectors: string[], render: () => void): void {
+  const active = document.activeElement;
+  const index = active instanceof HTMLElement && root.contains(active) ? selectors.findIndex((selector) => active.matches(selector)) : -1;
+  const requested = hasRequestedFocus();
+  render();
+  if (index === -1 || requested || root.contains(document.activeElement)) return;
+  [...selectors.slice(index), ...selectors.slice(0, index)]
+    .map((selector) => root.querySelector<HTMLElement>(selector))
+    .find((el) => el !== null && !(el as HTMLButtonElement).disabled)
+    ?.focus();
+}

@@ -1,5 +1,5 @@
 <div class="site-row__info">
   <span class="site-row__name" id="site-row-${site.site}-name">${site.site}${current ? html`<span class="site-row__current">${' (current)'}</span>` : ''}</span>
-  <span class="site-row__meta">${counts} · Edited <time datetime="${new Date(site.lastEdited).toISOString()}" title="${new Date(site.lastEdited).toLocaleString()}" data-pipe="timeAgo">${site.lastEdited}</time></span>
+  <span class="site-row__meta">${counts} · Edited <time datetime="${new Date(site.lastEdited).toISOString()}" title="${formatDateTime(site.lastEdited)}" data-pipe="timeAgo">${site.lastEdited}</time></span>
 </div>
 <button class="button button--small button--danger site-row__delete" type="button" tabindex="0" aria-describedby="site-row-${site.site}-name" data-event="click:_delete">Delete</button>

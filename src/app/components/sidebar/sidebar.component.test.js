@@ -28,7 +28,7 @@ describe('SidebarComponent', () => {
   it('shows the current page, both tabs and an empty list', async () => {
     await mount();
 
-    expect($('.sidebar__location-text').textContent).toBe('example.com/docs');
+    expect($('.scope-panel__location-text').textContent).toBe('example.com/docs');
     expect($('h1').textContent).toBe('Notelet');
     expect(tab('page').getAttribute('aria-selected')).toBe('true');
     expect(tab('site').getAttribute('aria-selected')).toBe('false');
@@ -51,15 +51,15 @@ describe('SidebarComponent', () => {
     await mount();
 
     // Both tab rows sit together, in one shaded block above the panels.
-    expect($$('.sidebar__tabs [role="tablist"]').map((el) => el.getAttribute('aria-label'))).toEqual(['Show notes for', 'Show']);
+    expect($$('.scope-panel__tabs [role="tablist"]').map((el) => el.getAttribute('aria-label'))).toEqual(['Show notes for', 'Show']);
     // The scope tabs open into a card holding the To-dos / Notes tabs.
-    expect($('.sidebar__tabs > div > .tabs').classList.contains('tabs--folder')).toBe(true);
-    expect($('.sidebar__tabs-card [role="tablist"]').getAttribute('aria-label')).toBe('Show');
-    expect($$('.sidebar__tabs [role="tab"]').map((el) => el.id)).toEqual(['scope-tab-page', 'scope-tab-site', 'kind-tab-notes', 'kind-tab-todos']);
+    expect($('.scope-panel__tabs > div > .tabs').classList.contains('tabs--folder')).toBe(true);
+    expect($('.scope-panel__tabs-card [role="tablist"]').getAttribute('aria-label')).toBe('Show');
+    expect($$('.scope-panel__tabs [role="tab"]').map((el) => el.id)).toEqual(['scope-tab-page', 'scope-tab-site', 'kind-tab-notes', 'kind-tab-todos']);
     expect(kindTab('notes').getAttribute('aria-selected')).toBe('true');
-    expect(kindTab('todos').getAttribute('aria-controls')).toBe('sidebar-kind-panel');
-    expect($('#sidebar-kind-panel').getAttribute('aria-labelledby')).toBe('kind-tab-notes');
-    expect($('#sidebar-kind-panel .note-composer__input')).toBeTruthy();
+    expect(kindTab('todos').getAttribute('aria-controls')).toBe('kind-tabpanel');
+    expect($('#kind-tabpanel').getAttribute('aria-labelledby')).toBe('kind-tab-notes');
+    expect($('#kind-tabpanel .note-composer__input')).toBeTruthy();
     expect($('.todo-composer__input')).toBeFalsy();
   });
 
@@ -69,11 +69,11 @@ describe('SidebarComponent', () => {
 
     expect(kindTab('todos').getAttribute('aria-selected')).toBe('true');
     expect(document.activeElement).toBe(kindTab('todos'));
-    expect($('#sidebar-kind-panel').getAttribute('aria-labelledby')).toBe('kind-tab-todos');
+    expect($('#kind-tabpanel').getAttribute('aria-labelledby')).toBe('kind-tab-todos');
     expect($('.todo-composer__input')).toBeTruthy();
     expect($('.note-composer__input')).toBeFalsy();
     await settle();
-    expect(panel.fake.storage.local.data.get('settings').contentKind).toBe('todos');
+    expect(panel.fake.storage.local.data.get('settings:contentKind')).toBe('todos');
 
     sidebar.destroy();
     await mount();
@@ -106,7 +106,7 @@ describe('SidebarComponent', () => {
 
   it('follows the kind picked in another window', async () => {
     await mount();
-    await panel.fake.storage.local.set({ settings: { storageArea: 'local', doneExpanded: false, contentKind: 'todos' } });
+    await panel.fake.storage.local.set({ 'settings:contentKind': 'todos' });
     await settle();
     expect(kindTab('todos').getAttribute('aria-selected')).toBe('true');
     expect($('.todo-composer__input')).toBeTruthy();
@@ -172,7 +172,7 @@ describe('SidebarComponent', () => {
     expect(get.calls).toEqual([[null]]);
     get.restore();
     expect(tab('site').getAttribute('aria-selected')).toBe('true');
-    expect($('.sidebar__location-text').textContent).toBe('example.com');
+    expect($('.scope-panel__location-text').textContent).toBe('example.com');
     expect(texts('.note-item__text')).toEqual(['About the site']);
     expect($('.note-composer label, .note-composer a11y-label').textContent).toContain('this site');
   });
@@ -262,7 +262,7 @@ describe('SidebarComponent', () => {
     panel.fake.activateTab('https://other.org/x');
     await settle();
 
-    expect($('.sidebar__location-text').textContent).toBe('other.org/x');
+    expect($('.scope-panel__location-text').textContent).toBe('other.org/x');
     expect(texts('.note-item__text')).toEqual(['Other page note']);
   });
 
@@ -390,12 +390,50 @@ describe('SidebarComponent', () => {
     expect($('.site-pages__toggle').textContent.trim()).toBe('Pages on this site (1)');
   });
 
+  it('keeps the site\'s lists as they are when navigating to another page of the site', async () => {
+    await scopeStoreService.addNote('site', KEYS.site, 'Site-wide');
+    await scopeStoreService.addNote('page', 'https://example.com/other', 'Other page');
+    await mount();
+    tab('site').click();
+    await settle();
+    // The kept components' roots, and the note in the list.
+    const list = $('.note-list').parentElement;
+    const note = $('.note-item');
+    const pages = $('.site-pages').parentElement;
+
+    panel.fake.navigate('https://example.com/other');
+    await settle();
+
+    expect($('.scope-panel__location-text').textContent).toBe('example.com');
+    expect($('.note-list').parentElement).toBe(list);
+    expect($('.note-item')).toBe(note);
+    expect($('.site-pages').parentElement).toBe(pages);
+    expect(texts('.note-item__text')).toEqual(['Site-wide']);
+    expect($('.site-pages__page--current .site-pages__label').textContent).toBe('/other');
+
+    tab('page').click();
+    await settle();
+    expect(texts('.note-item__text')).toEqual(['Other page']);
+  });
+
+  it('reloads the site\'s lists when navigating to another site', async () => {
+    await scopeStoreService.addNote('site', KEYS.site, 'Site-wide');
+    await scopeStoreService.addNote('site', 'example.org', 'Other site');
+    await mount();
+    tab('site').click();
+    await settle();
+
+    panel.fake.navigate('https://example.org/');
+    await settle();
+    expect(texts('.note-item__text')).toEqual(['Other site']);
+  });
+
   it('explains when the page can\'t have notes', async () => {
     await mount();
     panel.fake.navigate('chrome://extensions');
     await settle();
 
-    expect($('.sidebar__unavailable').textContent).toContain('Notes aren\'t available on this page.');
+    expect($('.page-unavailable').textContent).toContain('Notes aren\'t available on this page.');
     expect($('[role="tablist"]')).toBeFalsy();
     expect($('.note-composer')).toBeFalsy();
   });
@@ -478,7 +516,7 @@ describe('SidebarComponent', () => {
     await settle();
     get.restore();
 
-    expect($('.sidebar__location-text').textContent).toBe('other.org/x');
+    expect($('.scope-panel__location-text').textContent).toBe('other.org/x');
     expect(texts('.note-item__text')).toEqual(['New page note']);
   });
 

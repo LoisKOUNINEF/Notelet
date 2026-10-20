@@ -1,15 +1,18 @@
 import { Component, html, raw } from '../../../core/index.js';
 import { editOnClick } from '../../lib/card-click.js';
+import { runAction } from '../../lib/actions.js';
 import { getEditDraft } from '../../lib/drafts.js';
-import { errorMessage } from '../../lib/errors.js';
-import { byData, clearRequestedFocus, requestFocus } from '../../lib/focus.js';
-import { delegateActions, removeOverlays } from '../../lib/overlays.js';
+import { byData, clearRequestedFocus } from '../../lib/focus.js';
 import { confirmService } from '../../services/confirm/confirm.service.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
 import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
 import { settingsService } from '../../services/settings/settings.service.js';
+import { ChecklistAddComponent } from '../checklist-add/checklist-add.component.js';
 import { ChecklistItemComponent } from '../checklist-item/checklist-item.component.js';
+import { ItemMenuComponent, type IMenuAction } from '../item-menu/item-menu.component.js';
 import { ListEditorComponent, type IListEditDraft } from '../list-editor/list-editor.component.js';
+import { TODO_COMPOSER_INPUT } from '../todo-composer/todo-composer.component.js';
+import { todoCatalog } from '../todo-list/todo-list.selectors.js';
 
 // What the to-do list passes to each item, besides the to-do (see createCatalogComponents).
 export interface ITodoItemOptions {
@@ -33,13 +36,13 @@ interface ITodoItemView {
   editing: boolean;
   // A list folded down to its name and progress (see _toggleCollapsed).
   collapsed: boolean;
-  canMoveIntoList: boolean;
   reorderable: boolean;
   grabbed: boolean;
-  moveTarget: string;
 }
 
-const templateFn = ({ todo, items, doneCount, editing, collapsed, canMoveIntoList, reorderable, grabbed, moveTarget }: ITodoItemView) => html`__TEMPLATE_PLACEHOLDER__`;
+type TodoMenuAction = 'move' | 'move-into-list';
+
+const templateFn = ({ todo, items, doneCount, editing, collapsed, reorderable, grabbed }: ITodoItemView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 /**
  * One to-do: a checkbox labelled by its text, and its actions (a done one only offers Delete).
@@ -75,10 +78,8 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
         // An edit left open when this to-do last went away comes back, still open.
         editing: getEditDraft<IListEditDraft>('todo', todo.id) !== null,
         collapsed: items.length > 0 && !!todo.collapsed,
-        canMoveIntoList: !todo.done && items.length === 0 && options.hasLists,
         reorderable: options.reorderable,
         grabbed: options.grabbedId === todo.id,
-        moveTarget: todo.scope === 'page' ? 'this site' : 'this page',
       },
     });
     // Lets the list find this to-do's controls again after it re-renders (see requestFocus).
@@ -101,29 +102,30 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
         })),
       }];
     }
-    return this.createCatalogComponents({
-      items: this.config.collapsed ? [] : this.config.items,
-      selector: 'checklist',
-      elementName: 'checklist-item',
-      elementTag: 'li',
-      component: ChecklistItemComponent,
-      props: { todo: this._todo },
-    });
-  }
-
-  // The "⋯" menu is an overlay on <body> (see lib/overlays.ts).
-  protected override onBeforeRender(): void {
-    removeOverlays(this.element, '.todo-item__overlays');
-    super.onBeforeRender();
+    return [
+      ...this.createCatalogComponents({
+        items: this.config.collapsed ? [] : this.config.items,
+        selector: 'checklist',
+        elementName: 'checklist-item',
+        elementTag: 'li',
+        component: ChecklistItemComponent,
+        props: { todo: this._todo },
+      }),
+      { selector: 'checklist-add', factory: (el) => new ChecklistAddComponent(el, this._todo) },
+      {
+        selector: 'item-menu',
+        factory: (el) => new ItemMenuComponent<TodoMenuAction>(el, {
+          id: `todo-${this._todo.id}`,
+          name: this._todo.text,
+          actions: this.menuActions(),
+          onAction: (action) => void (action === 'move' ? this.move() : this.moveIntoList()),
+        }),
+      },
+    ];
   }
 
   protected override onAfterRender(): void {
     super.onAfterRender();
-    const menu = delegateActions(`todo-${this._todo.id}-menu`, (action) => {
-      if (action === 'move') void this.move();
-      else if (action === 'move-into-list') void this.moveIntoList();
-    });
-    if (menu) this.eventListeners.push(menu);
     // A list's items are checked by their checkboxes only: their text opens the list's editor too,
     // focused on that item's field (elsewhere on the list: on its name).
     if (!this.config.editing && !this._todo.done) {
@@ -131,25 +133,25 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
     }
   }
 
-  protected override onBeforeDestroy(): void {
-    removeOverlays(this.element, '.todo-item__overlays');
-    super.onBeforeDestroy();
+  // A single to-do can go into a list, when there's one; any to-do to the tab's other scope.
+  private menuActions(): IMenuAction<TodoMenuAction>[] {
+    const single = (this._todo.items ?? []).length === 0;
+    return [
+      ...(single && this._options.hasLists ? [{ value: 'move-into-list' as const, label: 'Move into a list…' }] : []),
+      { value: 'move', label: `Move to this ${this._todo.scope === 'page' ? 'site' : 'page'}` },
+    ];
   }
 
   private async _toggle(done: boolean): Promise<void> {
     // Checked into a collapsed "Done" group, it disappears: focus stays among the open ones.
     const hidden = done && !settingsService.doneExpanded;
-    if (hidden) this.requestFocusAfterLeaving();
-    else requestFocus(`${byData('todo-id', this._todo.id)} .todo-item__checkbox`);
-    try {
-      const updated = await scopeStoreService.update('todos', this._todo, { done });
-      if (hidden) {
-        notifierService.undoable('Marked as done.', () => scopeStoreService.update('todos', updated, { done: false }), `Couldn't update the to-do.`, 'success');
-      }
-    } catch (error) {
-      clearRequestedFocus();
-      notifierService.error(`Couldn't update the to-do. ${errorMessage(error)}`);
-      this.render();
+    const updated = await runAction('Couldn\'t update the to-do.', () => scopeStoreService.update('todos', this._todo, { done }), {
+      focus: hidden ? this.focusAfterLeaving() : [this.own('.todo-item__checkbox')],
+      // The checkbox shows what's stored again.
+      onError: () => this.render(),
+    });
+    if (updated && hidden) {
+      notifierService.undoable('Marked as done.', () => scopeStoreService.update('todos', updated, { done: false }), 'Couldn\'t update the to-do.', 'success');
     }
   }
 
@@ -159,15 +161,13 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
     this.config = { ...this.config, collapsed };
     this.render();
     this.element.querySelector<HTMLElement>('.todo-item__toggle')?.focus();
-    requestFocus(`${byData('todo-id', this._todo.id)} .todo-item__toggle`);
-    try {
-      await scopeStoreService.setCollapsed('todos', this._todo, collapsed);
-    } catch (error) {
-      clearRequestedFocus();
-      this.config = { ...this.config, collapsed: !collapsed };
-      this.render();
-      notifierService.error(`Couldn't update the list. ${errorMessage(error)}`);
-    }
+    await runAction('Couldn\'t update the list.', () => scopeStoreService.setCollapsed('todos', this._todo, collapsed), {
+      focus: [this.own('.todo-item__toggle')],
+      onError: () => {
+        this.config = { ...this.config, collapsed: !collapsed };
+        this.render();
+      },
+    });
   }
 
   private _edit(): void {
@@ -188,14 +188,10 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
     // Comes back through `scope-content-changed` as a new list item, in view mode: this one goes
     // away with no draft to keep.
     this._editor?.close();
-    requestFocus(`${byData('todo-id', this._todo.id)} .todo-item__edit`, `${byData('todo-id', this._todo.id)} .todo-item__delete`);
-    try {
-      await scopeStoreService.editList(this._todo, text, items, takenOut);
-    } catch (error) {
-      this._editor?.reopen();
-      clearRequestedFocus();
-      notifierService.error(`Couldn't save the to-do. ${errorMessage(error)}`);
-    }
+    await runAction('Couldn\'t save the to-do.', () => scopeStoreService.editList(this._todo, text, items, takenOut), {
+      focus: [this.own('.todo-item__edit'), this.own('.todo-item__delete')],
+      onError: () => this._editor?.reopen(),
+    });
   }
 
   private cancel(): void {
@@ -204,86 +200,63 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
     this.element.querySelector<HTMLElement>('.todo-item__edit')?.focus();
   }
 
-  private async _addItem(): Promise<void> {
-    const input = this.element.querySelector<HTMLInputElement>('.todo-item__add-item-input')!;
-    const text = input.value.trim();
-    if (!text) return;
-
-    // The list comes back with the item as a new list item: focus the field again there.
-    requestFocus(`${byData('todo-id', this._todo.id)} .todo-item__add-item-input`);
-    try {
-      await scopeStoreService.updateWith('todos', this._todo, (current) => ({
-        items: [...(current.items ?? []), { id: crypto.randomUUID(), text, done: false }],
-      }));
-    } catch (error) {
-      clearRequestedFocus();
-      notifierService.error(`Couldn't add the item. ${errorMessage(error)}`);
-    }
-  }
-
   // "Move into a list…": a single to-do becomes the last item of a list picked in a popup.
   private async moveIntoList(): Promise<void> {
     const lists = this._options.lists();
     const listId = await confirmService.choose({
       title: `Move “${this._todo.text}” into a list`,
       message: 'It becomes the list\'s last item.',
-      choices: lists.map((list) => ({
-        value: list.id,
-        label: `${list.text} · ${list.items!.filter((item) => item.done).length} of ${list.items!.length} done`,
-      })),
+      choices: lists.map((list) => {
+        const items = list.items ?? [];
+        return { value: list.id, label: `${list.text} · ${items.filter((item) => item.done).length} of ${items.length} done` };
+      }),
     });
     const list = lists.find(({ id }) => id === listId);
     if (!list) return;
 
-    this.requestFocusAfterLeaving();
-    try {
-      const moved = await scopeStoreService.moveIntoList(this._todo, list);
-      if (!moved) {
-        clearRequestedFocus();
-        return;
-      }
-      notifierService.undoable(`Moved into ${list.text}.`, () => scopeStoreService.restoreMany('todos', moved.before), `Couldn't move it back.`);
-    } catch (error) {
+    const moved = await runAction('Couldn\'t move the to-do.', () => scopeStoreService.moveIntoList(this._todo, list), {
+      focus: this.focusAfterLeaving(),
+    });
+    if (!moved) {
+      // Nothing moved (either is gone): nothing re-renders to take the focus.
       clearRequestedFocus();
-      notifierService.error(`Couldn't move the to-do. ${errorMessage(error)}`);
+      return;
     }
+    notifierService.undoable(`Moved into ${list.text}.`, () => scopeStoreService.moveOutOfList(this._todo, list, moved.itemId), 'Couldn\'t move it back.');
   }
 
   private async _delete(): Promise<void> {
     const todo = this._todo;
-    this.requestFocusAfterLeaving();
-    try {
+    const deleted = await runAction('Couldn\'t delete the to-do.', async () => {
       await scopeStoreService.remove('todos', todo);
-      notifierService.undoable('To-do deleted.', () => scopeStoreService.restore('todos', todo), `Couldn't restore the to-do.`);
-    } catch (error) {
-      clearRequestedFocus();
-      notifierService.error(`Couldn't delete the to-do. ${errorMessage(error)}`);
-    }
+      return true;
+    }, { focus: this.focusAfterLeaving() });
+    if (deleted) notifierService.undoable('To-do deleted.', () => scopeStoreService.restore('todos', todo), 'Couldn\'t restore the to-do.');
   }
 
   private async move(): Promise<void> {
     const target = this._todo.scope === 'page' ? 'site' : 'page';
-    this.requestFocusAfterLeaving();
-    try {
-      await scopeStoreService.move('todos', this._todo, this._options.keys);
-      notifierService.success(`Moved to this ${target}'s to-dos.`);
-    } catch (error) {
-      clearRequestedFocus();
-      notifierService.error(`Couldn't move the to-do. ${errorMessage(error)}`);
-    }
+    const moved = await runAction('Couldn\'t move the to-do.', () => scopeStoreService.move('todos', this._todo, this._options.keys), {
+      focus: this.focusAfterLeaving(),
+    });
+    if (moved) notifierService.success(`Moved to this ${target}'s to-dos.`);
+  }
+
+  // One of this to-do's controls, found again once the list has re-rendered it.
+  private own(control: string): string {
+    return `${byData('todo-id', this._todo.id)} ${control}`;
   }
 
   // Once this to-do leaves its group, the next one there takes its index; else the previous one,
-  // else the quick add. Each group is its own catalog, with its own indexes. A to-do's first
-  // control is its checkbox, a list's its first item's.
-  private requestFocusAfterLeaving(): void {
-    const group = `[data-catalog="${this._group}-todos"]`;
+  // else the quick add. A to-do's first control is its checkbox, a list's its first item's.
+  private focusAfterLeaving(): string[] {
+    const group = todoCatalog(this._group);
     const first = ':is(.todo-item__checkbox, .checklist-item__checkbox)';
-    requestFocus(
+    return [
       `${group} > [data-index="${this._index}"] ${first}`,
       `${group} > [data-index="${this._index - 1}"] ${first}`,
-      '.todo-composer__input',
-    );
+      TODO_COMPOSER_INPUT,
+    ];
   }
 
   private setEditing(editing: boolean): void {
@@ -294,5 +267,5 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
 }
 
 function sameItems(a: IChecklistItem[], b: IChecklistItem[]): boolean {
-  return a.length === b.length && a.every((item, i) => item.id === b[i]!.id && item.text === b[i]!.text && item.done === b[i]!.done);
+  return a.length === b.length && a.every((item, i) => item.id === b[i]?.id && item.text === b[i]?.text && item.done === b[i]?.done);
 }

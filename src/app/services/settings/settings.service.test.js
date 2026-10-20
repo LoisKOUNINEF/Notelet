@@ -31,17 +31,17 @@ describe('SettingsService', () => {
   });
 
   it('loads the saved storage area', async () => {
-    fake.storage.local.data.set('settings', { storageArea: 'sync' });
+    fake.storage.local.data.set('settings:storageArea', 'sync');
     await settingsService.init();
     expect(settingsService.storageArea).toBe('sync');
   });
 
-  it('saves the storage area in local storage and emits storage-area-changed', async () => {
+  it('saves the storage area in its own local item and emits storage-area-changed', async () => {
     await settingsService.init();
     await settingsService.setStorageArea('sync');
 
     expect(settingsService.storageArea).toBe('sync');
-    expect(fake.storage.local.data.get('settings')).toEqual({ storageArea: 'sync', doneExpanded: false, contentKind: 'notes', sitesOrder: 'recent' });
+    expect([...fake.storage.local.data]).toEqual([['settings:storageArea', 'sync']]);
     expect(fake.storage.sync.data.size).toBe(0);
     expect(areaEvents).toEqual(['sync']);
   });
@@ -54,7 +54,7 @@ describe('SettingsService', () => {
 
   it('follows a change made in another window', async () => {
     await settingsService.init();
-    await fake.storage.local.set({ settings: { storageArea: 'sync' } });
+    await fake.storage.local.set({ 'settings:storageArea': 'sync' });
 
     expect(settingsService.storageArea).toBe('sync');
     expect(areaEvents).toEqual(['sync']);
@@ -72,7 +72,7 @@ describe('SettingsService', () => {
 
     await settingsService.setDoneExpanded(true);
     expect(settingsService.doneExpanded).toBe(true);
-    expect(fake.storage.local.data.get('settings')).toEqual({ storageArea: 'local', doneExpanded: true, contentKind: 'notes', sitesOrder: 'recent' });
+    expect(fake.storage.local.data.get('settings:doneExpanded')).toBe(true);
     expect(areaEvents).toEqual([]);
 
     settingsService.dispose();
@@ -92,7 +92,7 @@ describe('SettingsService', () => {
     expect(settingsService.contentKind).toBe('notes');
 
     await settingsService.setContentKind('todos');
-    expect(fake.storage.local.data.get('settings').contentKind).toBe('todos');
+    expect(fake.storage.local.data.get('settings:contentKind')).toBe('todos');
 
     settingsService.dispose();
     await settingsService.init();
@@ -104,7 +104,7 @@ describe('SettingsService', () => {
     let changes = 0;
     const onChange = () => changes++;
     bus.subscribe('settings-changed', onChange);
-    await fake.storage.local.set({ settings: { storageArea: 'local', doneExpanded: false, contentKind: 'todos' } });
+    await fake.storage.local.set({ 'settings:contentKind': 'todos' });
 
     expect(settingsService.contentKind).toBe('todos');
     expect(changes).toBe(1);
@@ -118,5 +118,59 @@ describe('SettingsService', () => {
     settingsService.dispose();
     await settingsService.init();
     expect(settingsService.sitesOrder).toBe('az');
+  });
+
+  it('splits settings saved in a single item, then removes it', async () => {
+    fake.storage.local.data.set('settings', { storageArea: 'sync', contentKind: 'todos', doneExpanded: 'yes' });
+    await settingsService.init();
+
+    expect(settingsService.storageArea).toBe('sync');
+    expect(settingsService.contentKind).toBe('todos');
+    expect(settingsService.doneExpanded).toBe(false);
+    expect(Object.fromEntries(fake.storage.local.data)).toEqual({ 'settings:storageArea': 'sync', 'settings:contentKind': 'todos' });
+  });
+
+  it('prefers a setting\'s own item over the single one it came from', async () => {
+    fake.storage.local.data.set('settings', { storageArea: 'local' });
+    fake.storage.local.data.set('settings:storageArea', 'sync');
+    await settingsService.init();
+    expect(settingsService.storageArea).toBe('sync');
+  });
+
+  it('ignores stored values a setting can\'t hold', async () => {
+    fake.storage.local.data.set('settings:contentKind', 'pictures');
+    fake.storage.local.data.set('settings:sitesOrder', 3);
+    await settingsService.init();
+    expect(settingsService.contentKind).toBe('notes');
+    expect(settingsService.sitesOrder).toBe('recent');
+
+    await fake.storage.local.set({ 'settings:storageArea': 'cloud' });
+    expect(settingsService.storageArea).toBe('local');
+    expect(areaEvents).toEqual([]);
+  });
+
+  it('keeps both of two settings saved at once', async () => {
+    await settingsService.init();
+    await Promise.all([settingsService.setDoneExpanded(true), settingsService.setContentKind('todos')]);
+    expect(settingsService.doneExpanded).toBe(true);
+    expect(settingsService.contentKind).toBe('todos');
+  });
+
+  it('doesn\'t write back another window\'s storage area when saving something else', async () => {
+    await settingsService.init();
+    // Another window switched to sync while this one hasn't heard of it yet.
+    fake.storage.local.data.set('settings:storageArea', 'sync');
+    await settingsService.setDoneExpanded(true);
+    expect(fake.storage.local.data.get('settings:storageArea')).toBe('sync');
+  });
+
+  it('emits settings-changed once per change, its own storage echo included', async () => {
+    await settingsService.init();
+    let changes = 0;
+    const onChange = () => changes++;
+    bus.subscribe('settings-changed', onChange);
+    await settingsService.setContentKind('todos');
+    await settingsService.setContentKind('todos');
+    expect(changes).toBe(1);
   });
 });

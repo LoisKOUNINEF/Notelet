@@ -1,10 +1,12 @@
-import { Component, html, raw } from '../../../core/index.js';
+import { html, raw } from '../../../core/index.js';
+import { runAction } from '../../lib/actions.js';
 import { errorMessage } from '../../lib/errors.js';
-import { applyRequestedFocus } from '../../lib/focus.js';
+import { applyRequestedFocus, renderKeepingFocus } from '../../lib/focus.js';
 import { activeTabService } from '../../services/active-tab/active-tab.service.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
 import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
 import { settingsService } from '../../services/settings/settings.service.js';
+import { AppComponent } from '../base/app-component.js';
 import { SiteRowComponent, type ISiteRowOptions } from '../site-row/site-row.component.js';
 
 export interface ISiteManagerOptions {
@@ -19,6 +21,10 @@ interface ISiteManagerView {
 }
 
 const templateFn = ({ loading, empty, orders }: ISiteManagerView) => html`__TEMPLATE_PLACEHOLDER__`;
+
+// Where the focus goes when this page opens.
+export const SITE_MANAGER_TITLE = '#site-manager-title';
+const ORDER_SELECT = '.site-manager__select';
 
 const ORDERS: { value: SitesOrder; label: string }[] = [
   { value: 'recent', label: 'Recent → old' },
@@ -35,20 +41,19 @@ const COMPARE: Record<SitesOrder, (a: ISiteSummary, b: ISiteSummary) => number> 
 };
 
 // Controls rebuilt on every render (the order changing, the list reloading) whose focus is kept.
-const FOCUSABLE = ['.site-manager__select', '.site-manager__back'];
+const FOCUSABLE = [ORDER_SELECT, '.site-manager__back'];
 
 /**
  * Settings' "Manage by site" page: every site with notes or to-dos (its pages' included), in the
  * order picked (a setting), each with a "Delete" for all of it. Follows every change, here or in
  * another window; the rows are kept across those reloads.
  */
-export class SiteManagerComponent extends Component<HTMLElement, ISiteManagerView> {
+export class SiteManagerComponent extends AppComponent<HTMLElement, ISiteManagerView> {
   private _sites: ISiteSummary[] | null = null;
   private _order: SitesOrder = settingsService.sitesOrder;
   private _onBack: () => void;
-  private readonly _rowOptions: ISiteRowOptions = { currentSite: activeTabService.keys?.site ?? null };
+  private _rowOptions: ISiteRowOptions = { currentSite: activeTabService.keys?.site ?? null, lastFocus: ORDER_SELECT };
   private _loadId = 0;
-  private _destroyed = false;
 
   constructor(mountTarget: HTMLElement, { onBack }: ISiteManagerOptions) {
     super({ templateFn, mountTarget, config: { loading: true, empty: false, orders: [] } });
@@ -56,6 +61,13 @@ export class SiteManagerComponent extends Component<HTMLElement, ISiteManagerVie
     this.config = this.view();
     this.listen('scope-content-changed', () => void this.load());
     this.listen('storage-area-changed', () => void this.load());
+    // Another tab or page: new row options rebuild the rows, "(current)" moving with it.
+    this.listen('active-scope-changed', ({ keys }) => {
+      const currentSite = keys?.site ?? null;
+      if (currentSite === this._rowOptions.currentSite) return;
+      this._rowOptions = { ...this._rowOptions, currentSite };
+      this.refresh();
+    });
     void this.load();
   }
 
@@ -74,11 +86,6 @@ export class SiteManagerComponent extends Component<HTMLElement, ISiteManagerVie
   protected override onAfterRender(): void {
     super.onAfterRender();
     applyRequestedFocus(this.element);
-  }
-
-  protected override onBeforeDestroy(): void {
-    this._destroyed = true;
-    super.onBeforeDestroy();
   }
 
   private async load(): Promise<void> {
@@ -102,11 +109,7 @@ export class SiteManagerComponent extends Component<HTMLElement, ISiteManagerVie
     if (!order || order === this._order) return;
     this._order = order;
     this.refresh();
-    try {
-      await settingsService.setSitesOrder(order);
-    } catch (error) {
-      notifierService.error(`Couldn't save that setting. ${errorMessage(error)}`);
-    }
+    await runAction('Couldn\'t save that setting.', () => settingsService.setSitesOrder(order));
   }
 
   private _back(): void {
@@ -122,14 +125,8 @@ export class SiteManagerComponent extends Component<HTMLElement, ISiteManagerVie
   }
 
   // Re-renders, keeping the focus on the order or "Back" if one had it (the rows keep theirs).
-  // A destroyed page would rebuild rows nothing would then destroy.
   private refresh(): void {
-    if (this._destroyed) return;
-    const active = document.activeElement;
-    const focused = active instanceof HTMLElement ? FOCUSABLE.find((selector) => active.matches(selector)) : undefined;
-    this.config = this.view();
-    this.render();
-    if (focused) this.element.querySelector<HTMLElement>(focused)?.focus();
+    renderKeepingFocus(this.element, FOCUSABLE, () => this.rerender(this.view()));
   }
 }
 

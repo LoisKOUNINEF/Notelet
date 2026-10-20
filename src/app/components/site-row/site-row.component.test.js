@@ -9,7 +9,7 @@ describe('SiteRowComponent', () => {
   const site = { site: 'example.com', notes: 2, todos: 1, lastEdited: Date.now() - 2 * 24 * 3600 * 1000 };
   const mount = (currentSite = null) => {
     const placeholder = document.getElementById('app').appendChild(document.createElement('div'));
-    row = new SiteRowComponent(placeholder, { ...site, index: 0 }, { currentSite });
+    row = new SiteRowComponent(placeholder, { ...site, index: 0 }, { currentSite, lastFocus: '.site-manager__select' });
     row.render();
   };
 

@@ -8,6 +8,9 @@ const SYNC_QUOTA_BYTES = 102400;
 const SYNC_QUOTA_BYTES_PER_ITEM = 8192;
 const SYNC_MAX_ITEMS = 512;
 
+// What the panel may open: web pages (stored page keys), and the browser settings it links to.
+const BROWSER_PAGES = new Set(['chrome://settings/appearance', 'chrome://extensions/shortcuts']);
+
 /**
  * The only place that touches `chrome.*`: a thin, typed surface over the few extension APIs
  * the app uses. `chrome` is read on every call, so tests can install a fake global
@@ -71,14 +74,26 @@ export class ChromeApiService extends Service<ChromeApiService> {
   }
 
   public async openTab(url: string): Promise<void> {
+    if (!isWebPage(url) && !BROWSER_PAGES.has(url)) throw new Error(`Can't open ${url}.`);
     await chrome.tabs.create({ url });
   }
 
   // Navigates the tab shown next to the panel (which then follows it, see onTabsChanged).
   public async openInActiveTab(url: string): Promise<void> {
+    if (!isWebPage(url)) throw new Error(`Can't open ${url}.`);
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab?.id === undefined) throw new Error('No active tab.');
     await chrome.tabs.update(tab.id, { url });
+  }
+}
+
+// An http(s) URL: never a script, data or extension URL, whatever storage holds.
+function isWebPage(url: string): boolean {
+  try {
+    const { protocol } = new URL(url);
+    return protocol === 'http:' || protocol === 'https:';
+  } catch {
+    return false;
   }
 }
 

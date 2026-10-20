@@ -1,19 +1,20 @@
 import { Component, html } from '../../../core/index.js';
-import { byData, clearRequestedFocus, requestFocus } from '../../lib/focus.js';
-import { errorMessage } from '../../lib/errors.js';
+import { runAction } from '../../lib/actions.js';
 import { editOnClick } from '../../lib/card-click.js';
-import { delegateActions, removeOverlays } from '../../lib/overlays.js';
-import { formatTimeAgo } from '../../lib/pipes.js';
-import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
-import { notifierService } from '../../services/notifier/notifier.service.js';
-import { NoteEditorComponent, type INoteEditDraft } from '../note-editor/note-editor.component.js';
+import { requireElement } from '../../lib/dom.js';
 import { getEditDraft } from '../../lib/drafts.js';
+import { byData } from '../../lib/focus.js';
+import { formatDateTime, formatTimeAgo } from '../../lib/pipes.js';
+import { notifierService } from '../../services/notifier/notifier.service.js';
+import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
+import { ItemMenuComponent } from '../item-menu/item-menu.component.js';
+import { NOTE_COMPOSER_INPUT } from '../note-composer/note-composer.component.js';
+import { NoteEditorComponent, type INoteEditDraft } from '../note-editor/note-editor.component.js';
 
 interface INoteItemView {
   note: INote;
   editing: boolean;
   edited: boolean;
-  moveTarget: string;
   reorderable: boolean;
   grabbed: boolean;
   // How the handle and the "⋯" trigger name this note (see noteLabel).
@@ -35,7 +36,7 @@ export interface INoteItemOptions {
   grabbedId: string | null;
 }
 
-const templateFn = ({ note, editing, edited, moveTarget, reorderable, grabbed, name, canCollapse, collapsed, summary }: INoteItemView) => html`__TEMPLATE_PLACEHOLDER__`;
+const templateFn = ({ note, editing, edited, reorderable, grabbed, name, canCollapse, collapsed, summary }: INoteItemView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 /**
  * One note: its name if it has one, its text, when it was last edited, and its actions (Edit,
@@ -58,7 +59,7 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
       tagName: 'article',
       props: { className: 'note-item' },
       // An edit left open when this note last went away comes back, still open.
-      config: NoteItemComponent.view(note, options, getEditDraft('note', note.id) !== null),
+      config: NoteItemComponent.viewOf(note, options, getEditDraft('note', note.id) !== null),
     });
     // Lets the list find this note's controls again after it re-renders (see requestFocus).
     this.element.dataset.noteId = note.id;
@@ -72,7 +73,7 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
     });
   }
 
-  private static view(note: INote, options: INoteItemOptions, editing: boolean): INoteItemView {
+  private static viewOf(note: INote, options: INoteItemOptions, editing: boolean): INoteItemView {
     const lines = note.text.split('\n').filter((line) => line.trim());
     const canCollapse = note.name ? lines.length > 0 : lines.length > 1;
     return {
@@ -82,7 +83,6 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
       note,
       editing,
       edited: note.updatedAt !== note.createdAt,
-      moveTarget: note.scope === 'page' ? 'this site' : 'this page',
       reorderable: options.reorderable,
       grabbed: options.grabbedId === note.id,
       name: noteLabel(note),
@@ -101,27 +101,20 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
         })),
       }];
     }
-    return [];
-  }
-
-  // The "⋯" menu is an overlay on <body> (see lib/overlays.ts).
-  protected override onBeforeRender(): void {
-    removeOverlays(this.element, '.note-item__overlays');
-    super.onBeforeRender();
+    return [{
+      selector: 'item-menu',
+      factory: (el) => new ItemMenuComponent(el, {
+        id: `note-${this._note.id}`,
+        name: this.config.name,
+        actions: [{ value: 'move', label: `Move to this ${this._note.scope === 'page' ? 'site' : 'page'}` }],
+        onAction: () => void this.move(),
+      }),
+    }];
   }
 
   protected override onAfterRender(): void {
     super.onAfterRender();
-    const menu = delegateActions(`note-${this._note.id}-menu`, (action) => {
-      if (action === 'move') void this.move();
-    });
-    if (menu) this.eventListeners.push(menu);
     if (!this.config.editing) this.eventListeners.push(editOnClick(this.element, () => this._edit()));
-  }
-
-  protected override onBeforeDestroy(): void {
-    removeOverlays(this.element, '.note-item__overlays');
-    super.onBeforeDestroy();
   }
 
   private _edit(): void {
@@ -132,7 +125,7 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
   private cancel(): void {
     this._editor?.close();
     this.setView(false);
-    this.element.querySelector<HTMLElement>('.note-item__edit')!.focus();
+    requireElement(this.element, '.note-item__edit').focus();
   }
 
   // Folded right away; the stored note then comes back as a new list item, focus on its arrow.
@@ -141,15 +134,13 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
     this.config = { ...this.config, collapsed };
     this.render();
     this.element.querySelector<HTMLElement>('.note-item__toggle')?.focus();
-    requestFocus(`${byData('note-id', this._note.id)} .note-item__toggle`);
-    try {
-      await scopeStoreService.setCollapsed('notes', this._note, collapsed);
-    } catch (error) {
-      clearRequestedFocus();
-      this.config = { ...this.config, collapsed: !collapsed };
-      this.render();
-      notifierService.error(`Couldn't update the note. ${errorMessage(error)}`);
-    }
+    await runAction('Couldn\'t update the note.', () => scopeStoreService.setCollapsed('notes', this._note, collapsed), {
+      focus: [this.own('.note-item__toggle')],
+      onError: () => {
+        this.config = { ...this.config, collapsed: !collapsed };
+        this.render();
+      },
+    });
   }
 
   private async save(text: string, name: string): Promise<void> {
@@ -161,54 +152,48 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
     // The saved note comes back through `scope-content-changed` as a new list item, in view mode:
     // this one goes away with no draft to keep.
     this._editor?.close();
-    requestFocus(`${byData('note-id', this._note.id)} .note-item__edit`);
-    try {
-      // No name: none stored (storage drops `undefined`).
-      await scopeStoreService.update('notes', this._note, { text, name: name || undefined });
-    } catch (error) {
-      this._editor?.reopen();
-      clearRequestedFocus();
-      notifierService.error(`Couldn't save the note. ${errorMessage(error)}`);
-    }
+    // No name: none stored (storage drops `undefined`).
+    await runAction('Couldn\'t save the note.', () => scopeStoreService.update('notes', this._note, { text, name: name || undefined }), {
+      focus: [this.own('.note-item__edit')],
+      onError: () => this._editor?.reopen(),
+    });
   }
 
   private async move(): Promise<void> {
     const target = this._note.scope === 'page' ? 'site' : 'page';
-    this.requestFocusAfterLeaving();
-    try {
-      await scopeStoreService.move('notes', this._note, this._options.keys);
-      notifierService.success(`Moved to this ${target}'s notes.`);
-    } catch (error) {
-      clearRequestedFocus();
-      notifierService.error(`Couldn't move the note. ${errorMessage(error)}`);
-    }
+    const moved = await runAction('Couldn\'t move the note.', () => scopeStoreService.move('notes', this._note, this._options.keys), {
+      focus: this.focusAfterLeaving(),
+    });
+    if (moved) notifierService.success(`Moved to this ${target}'s notes.`);
   }
 
   private async _delete(): Promise<void> {
     const note = this._note;
-    this.requestFocusAfterLeaving();
-    try {
+    const deleted = await runAction('Couldn\'t delete the note.', async () => {
       await scopeStoreService.remove('notes', note);
-      notifierService.undoable('Note deleted.', () => scopeStoreService.restore('notes', note), `Couldn't restore the note.`);
-    } catch (error) {
-      clearRequestedFocus();
-      notifierService.error(`Couldn't delete the note. ${errorMessage(error)}`);
-    }
+      return true;
+    }, { focus: this.focusAfterLeaving() });
+    if (deleted) notifierService.undoable('Note deleted.', () => scopeStoreService.restore('notes', note), 'Couldn\'t restore the note.');
+  }
+
+  // One of this note's controls, found again once the list has re-rendered it.
+  private own(control: string): string {
+    return `${byData('note-id', this._note.id)} ${control}`;
   }
 
   // Once this note leaves the list, the next one takes its index (applied once the list has
   // re-rendered); else the previous one, else the composer.
-  private requestFocusAfterLeaving(): void {
-    requestFocus(
+  private focusAfterLeaving(): string[] {
+    return [
       `[data-index="${this._index}"] .note-item__edit`,
       `[data-index="${this._index - 1}"] .note-item__edit`,
-      '.note-composer__input',
-    );
+      NOTE_COMPOSER_INPUT,
+    ];
   }
 
   private setView(editing: boolean): void {
     this._editor = null;
-    this.config = NoteItemComponent.view(this._note, this._options, editing);
+    this.config = NoteItemComponent.viewOf(this._note, this._options, editing);
     this.render();
   }
 }

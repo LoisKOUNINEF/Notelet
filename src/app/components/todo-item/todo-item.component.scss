@@ -61,16 +61,7 @@
 }
 
 .todo-item__add-item {
-  display: flex;
   flex-basis: 100%;
-  align-items: flex-end;
-  gap: var(--space-2);
-  padding-left: var(--space-3);
-}
-
-.todo-item__add-item-field {
-  flex: 1;
-  min-width: 0;
 }
 
 // The list editor takes the whole row.
@@ -84,18 +75,6 @@
   gap: var(--space-1);
 }
 
-.todo-item__form {
-  display: flex;
-  flex: 1;
-  align-items: flex-end;
-  gap: var(--space-1);
-}
-
-.todo-item__field {
-  flex: 1;
-  min-width: 0;
-}
-
 .todo-item__handle {
   @include reorder.handle;
   margin: 0 calc(-1 * var(--space-1)) 0 calc(-1 * var(--space-1));
@@ -103,13 +82,6 @@
 
 .todo-item__grip {
   @include reorder.grip;
-}
-
-.todo-item__more {
-  min-width: 1.75rem;
-  justify-content: center;
-  font-weight: 700;
-  letter-spacing: 0.05em;
 }
 
 // A list's arrow, before its name: folds it down to its name and progress.

@@ -71,7 +71,7 @@ describe('SettingsPanelComponent', () => {
   });
 
   it('follows a change made in another window', async () => {
-    await panel.fake.storage.local.set({ settings: { storageArea: 'sync' } });
+    await panel.fake.storage.local.set({ 'settings:storageArea': 'sync' });
     expect(radio('sync').checked).toBe(true);
   });
 

@@ -1,0 +1,42 @@
+.scope-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.scope-panel__location {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--font-small);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+// The scope tabs as folder tabs: the selected one opens into the card holding its To-dos / Notes.
+.scope-panel__tabs {
+  display: grid;
+}
+
+.scope-panel__tabs-card {
+  padding: var(--space-1);
+  border-radius: var(--radius);
+  background: var(--color-surface-muted);
+}
+
+.scope-panel__content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.scope-panel__kind {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+// On "This page" the content comes first in the panel: the same space below the tabs as on
+// "This site", where "Pages on this site" (shown or empty) sits before it with the panel's gap.
+.scope-panel__content > .scope-panel__kind:first-child {
+  margin-top: var(--space-4);
+}

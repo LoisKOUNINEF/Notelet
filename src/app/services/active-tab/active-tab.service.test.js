@@ -72,4 +72,18 @@ describe('ActiveTabService', () => {
     query.restore();
     expect(activeTabService.keys.page).toBe('https://example.com/a');
   });
+
+  it('reports a failed first read, then tries again on the next tab change', async () => {
+    activeTabService.dispose();
+    const query = spyOn(fake.tabs, 'query').andCallFake(async () => { throw new Error('Extension context invalidated.'); });
+    let failure = null;
+    await activeTabService.init().catch((error) => { failure = error; });
+    query.restore();
+    expect(failure.message).toBe('Extension context invalidated.');
+    expect(activeTabService.keys).toBe(null);
+
+    fake.activateTab('https://other.org/b');
+    await flushPromises();
+    expect(activeTabService.keys.page).toBe('https://other.org/b');
+  });
 });

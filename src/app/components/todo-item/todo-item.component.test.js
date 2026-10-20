@@ -3,6 +3,9 @@ import { scopeStoreService } from '#root/dist/src/app/services/scope-store/scope
 import { settingsService } from '#root/dist/src/app/services/settings/settings.service.js';
 import { KEYS, keydown, settle, startPanel } from '../../testing/panel.js';
 
+// A to-do's item in the page.
+const item = (todo) => $(`[data-todo-id="${todo.id}"]`);
+
 // Items are tested in their list, in the panel: their actions go through the store and come back as a new list.
 // A to-do's text is beside its checkbox, which it labels (aria-labelledby).
 describe('TodoItemComponent', () => {
@@ -10,7 +13,6 @@ describe('TodoItemComponent', () => {
   let sidebar;
   let todos;
 
-  const item = (todo) => $(`[data-todo-id="${todo.id}"]`);
   const checkbox = (todo) => item(todo).querySelector('.todo-item__checkbox');
   const labels = () => $$('.todo-item__text').map((el) => el.textContent);
   const stored = async () => (await scopeStoreService.load(KEYS)).page.todos;
@@ -49,7 +51,7 @@ describe('TodoItemComponent', () => {
     const checkId = el.querySelector('.todo-item__text').id;
     expect(checkbox(todos[0]).getAttribute('aria-labelledby')).toBe(checkId);
     // The reorder handle is described by the reorder help, and "⋯" names the to-do in its label.
-    el.querySelectorAll('button:not(.todo-item__handle):not(.todo-item__more)').forEach((button) => expect(button.getAttribute('aria-describedby')).toBe(checkId));
+    el.querySelectorAll('button:not(.todo-item__handle):not(.item-menu__trigger)').forEach((button) => expect(button.getAttribute('aria-describedby')).toBe(checkId));
   });
 
   it('with "Done" open, checks a to-do, moves it below the open ones and keeps focus on its checkbox', async () => {
@@ -286,7 +288,6 @@ describe('TodoItemComponent - actions menu', () => {
   let sidebar;
   let todos;
 
-  const item = (todo) => $(`[data-todo-id="${todo.id}"]`);
   const menuItem = (todo) => document.getElementById(`todo-${todo.id}-menu`).querySelector('[data-action="move"]');
   const content = async () => scopeStoreService.load(KEYS);
   const mount = async () => {
@@ -314,7 +315,7 @@ describe('TodoItemComponent - actions menu', () => {
   });
 
   it('has a "More actions" trigger per to-do, opening a menu with the move', () => {
-    const trigger = item(todos[0]).querySelector('.todo-item__more');
+    const trigger = item(todos[0]).querySelector('.item-menu__trigger');
     expect(trigger.getAttribute('aria-label')).toBe('More actions for: First');
     const menu = document.getElementById(`todo-${todos[0].id}-menu`);
     expect(menu.getAttribute('anchor')).toBe(trigger.id);
@@ -322,7 +323,7 @@ describe('TodoItemComponent - actions menu', () => {
   });
 
   it('moves a to-do to the top of the site\'s list, with focus on the next one', async () => {
-    item(todos[0]).querySelector('.todo-item__more').focus();
+    item(todos[0]).querySelector('.item-menu__trigger').focus();
     menuItem(todos[0]).click();
     await settle();
 
@@ -398,7 +399,6 @@ describe('TodoItemComponent - lists', () => {
   let list;
   let single;
 
-  const item = (todo) => $(`[data-todo-id="${todo.id}"]`);
   const stored = async (id) => (await scopeStoreService.load(KEYS)).page.todos.find((t) => t.id === id);
   const itemLabels = (todo) => [...item(todo).querySelectorAll('.checklist-item__text')].map((el) => el.textContent);
   const checkItem = async (todo, id) => {
@@ -444,10 +444,27 @@ describe('TodoItemComponent - lists', () => {
   });
 
   it('adds an item from the list, keeping focus in the field', async () => {
-    item(list).querySelector('.todo-item__add-item-input').value = 'Bread';
-    await submit(item(list).querySelector('.todo-item__add-item'));
+    item(list).querySelector('.checklist-add__input').value = 'Bread';
+    await submit(item(list).querySelector('.checklist-add'));
     expect((await stored(list.id)).items.map((i) => i.text)).toEqual(['Milk', 'Eggs', 'Bread']);
-    expect(document.activeElement).toBe(item(list).querySelector('.todo-item__add-item-input'));
+    expect(document.activeElement).toBe(item(list).querySelector('.checklist-add__input'));
+  });
+
+  it('adds an item once, however many times the form is sent before it\'s saved', async () => {
+    const form = item(list).querySelector('.checklist-add');
+    item(list).querySelector('.checklist-add__input').value = 'Bread';
+    form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+    form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+    await settle();
+    expect((await stored(list.id)).items.map((i) => i.text)).toEqual(['Milk', 'Eggs', 'Bread']);
+  });
+
+  it('gives the item back to its field when it can\'t be added', async () => {
+    panel.fake.storage.local.failNextSet = new Error('Quota exceeded.');
+    item(list).querySelector('.checklist-add__input').value = 'Bread';
+    await submit(item(list).querySelector('.checklist-add'));
+    expect(item(list).querySelector('.checklist-add__input').value).toBe('Bread');
+    expect(panel.toasts.map((t) => t.type)).toEqual(['error']);
   });
 
   it('moves to "Done" once every item is checked, then only offers Delete, items still checkable', async () => {
@@ -457,7 +474,7 @@ describe('TodoItemComponent - lists', () => {
     expect((await stored(list.id)).done).toBe(true);
     expect(item(list).closest('[data-catalog="done-todos"]')).toBeTruthy();
     expect([...item(list).querySelectorAll('.todo-item__actions button')].map((b) => b.textContent)).toEqual(['Delete']);
-    expect(item(list).querySelector('.todo-item__add-item')).toBeFalsy();
+    expect(item(list).querySelector('.checklist-add')).toBeFalsy();
 
     const box = item(list).querySelector('[data-item-id="b"] .checklist-item__checkbox');
     box.checked = false;
@@ -602,11 +619,13 @@ describe('TodoItemComponent - lists', () => {
     const toast = panel.toasts.at(-1);
     expect(toast.message).toBe('Moved into Groceries.');
 
+    // Undone after checking another item: that stays checked.
+    await checkItem(list, 'b');
     toast.onAction();
     await settle();
     const restored = (await scopeStoreService.load(KEYS)).page.todos;
     expect(restored.map((t) => t.text).sort()).toEqual(['Call back', 'Groceries']);
-    expect(restored.find((t) => t.id === list.id).items.length).toBe(2);
+    expect(restored.find((t) => t.id === list.id).items.map((i) => [i.text, i.done])).toEqual([['Milk', true], ['Eggs', true]]);
   });
 
   it('leaves the to-do where it is when the popup is cancelled', async () => {
@@ -617,7 +636,7 @@ describe('TodoItemComponent - lists', () => {
   });
 
   it('opens the list\'s editor on a click on an item\'s text; its checkbox and the add field don\'t', async () => {
-    item(list).querySelector('.todo-item__add-item-input').click();
+    item(list).querySelector('.checklist-add__input').click();
     await checkItem(list, 'b');
     expect(item(list).querySelector('.list-editor')).toBeFalsy();
 
@@ -663,7 +682,7 @@ describe('TodoItemComponent - lists', () => {
     await settle();
     expect(toggle().getAttribute('aria-expanded')).toBe('false');
     expect(item(list).querySelector('.todo-item__checklist')).toBeFalsy();
-    expect(item(list).querySelector('.todo-item__add-item')).toBeFalsy();
+    expect(item(list).querySelector('.checklist-add')).toBeFalsy();
     expect(item(list).querySelector('.todo-item__title').textContent).toBe('Groceries · 1 of 2 done');
     expect(document.activeElement).toBe(toggle());
     const saved = await stored(list.id);

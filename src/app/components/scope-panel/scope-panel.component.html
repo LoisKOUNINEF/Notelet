@@ -1,0 +1,19 @@
+<p class="scope-panel__location" title="${location.full}">
+  <span class="a11y-visually-hidden">Current ${scope}: </span><span class="scope-panel__location-text">${location.text}</span>
+</p>
+<div class="scope-panel__tabs">
+  <div data-component="scope-tabs"></div>
+  <div class="scope-panel__tabs-card">
+    <div data-component="kind-tabs"></div>
+  </div>
+</div>
+<div class="scope-panel__content" id="scope-tabpanel" role="tabpanel" aria-labelledby="scope-tab-${scope}">
+  ${scope === 'site' ? html`<div data-component="site-pages"></div>` : ''}
+  <div class="scope-panel__kind" id="kind-tabpanel" role="tabpanel" aria-labelledby="kind-tab-${kind}">
+    ${kind === 'todos'
+      ? (loaded ? html`<div data-component="todo-list"></div>` : '')
+      : html`
+    <div data-component="note-composer"></div>
+    ${loaded ? html`<div data-component="note-list"></div>` : ''}`}
+  </div>
+</div>

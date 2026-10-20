@@ -1,9 +1,8 @@
 import { Component, html } from '../../../core/index.js';
-import { clearRequestedFocus, requestFocus } from '../../lib/focus.js';
+import { runAction } from '../../lib/actions.js';
+import { requireElement } from '../../lib/dom.js';
 import { getDraft, setDraft } from '../../lib/drafts.js';
-import { errorMessage } from '../../lib/errors.js';
 import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
-import { notifierService } from '../../services/notifier/notifier.service.js';
 
 export interface INoteComposerConfig {
   scope: NoteScope;
@@ -16,6 +15,9 @@ interface INoteComposerView {
 }
 
 const templateFn = ({ label, draft }: INoteComposerView) => html`__TEMPLATE_PLACEHOLDER__`;
+
+// Its text field: where the focus goes once a note leaves the list.
+export const NOTE_COMPOSER_INPUT = '.note-composer__input';
 
 // A new note: its text, kept as a draft. Ctrl/Cmd+Enter (or "Add note") adds it.
 export class NoteComposerComponent extends Component<HTMLElement, INoteComposerView> {
@@ -35,9 +37,8 @@ export class NoteComposerComponent extends Component<HTMLElement, INoteComposerV
     this._key = key;
   }
 
-  // Always rendered by the template.
   private get input(): HTMLTextAreaElement {
-    return this.element.querySelector<HTMLTextAreaElement>('.note-composer__input')!;
+    return requireElement(this.element, NOTE_COMPOSER_INPUT);
   }
 
   protected override onAfterRender(): void {
@@ -52,7 +53,7 @@ export class NoteComposerComponent extends Component<HTMLElement, INoteComposerV
   private _onKeydown(event: KeyboardEvent): void {
     if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
       event.preventDefault();
-      this.element.querySelector('form')!.requestSubmit();
+      requireElement<HTMLFormElement>(this.element, 'form').requestSubmit();
     }
   }
 
@@ -65,16 +66,13 @@ export class NoteComposerComponent extends Component<HTMLElement, INoteComposerV
     // Ready for the next note right away; restored if the save fails.
     input.value = '';
     setDraft(draftId(this._scope, this._key), '');
-    requestFocus('.note-composer__input');
-    try {
-      await scopeStoreService.addNote(this._scope, this._key, text);
-    } catch (error) {
-      // The focus stays here; a later re-render mustn't bring it back here from elsewhere.
-      clearRequestedFocus();
-      input.value = typed;
-      setDraft(draftId(this._scope, this._key), typed);
-      notifierService.error(`Couldn't add the note. ${errorMessage(error)}`);
-    }
+    await runAction('Couldn\'t add the note.', () => scopeStoreService.addNote(this._scope, this._key, text), {
+      focus: [NOTE_COMPOSER_INPUT],
+      onError: () => {
+        input.value = typed;
+        setDraft(draftId(this._scope, this._key), typed);
+      },
+    });
   }
 }
 

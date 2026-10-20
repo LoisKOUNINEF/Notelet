@@ -4,12 +4,12 @@ import { confirmService } from '#root/dist/src/app/services/confirm/confirm.serv
 import { scopeStoreService } from '#root/dist/src/app/services/scope-store/scope-store.service.js';
 import { settingsService } from '#root/dist/src/app/services/settings/settings.service.js';
 import { keydown, KEYS, layOut as layOutItems, pointer, settle, spoken, startPanel, typeInto } from '../../testing/panel.js';
+import { todo } from '../../testing/fixtures.js';
 
 describe('TodoListComponent', () => {
   let panel;
   let list;
 
-  const todo = (id, text, done = false, createdAt = 1) => ({ id, scope: 'page', key: KEYS.page, text, done, doneAt: done ? createdAt : null, createdAt, updatedAt: createdAt });
   const mount = (todos) => {
     const placeholder = document.getElementById('app').appendChild(document.createElement('div'));
     list = new TodoListComponent(placeholder, { scope: 'page', keys: KEYS, todos });
@@ -193,7 +193,6 @@ describe('TodoListComponent - delete all', () => {
   let answer;
   let detach;
 
-  const todo = (id, text, done = false) => ({ id, scope: 'page', key: KEYS.page, text, done, doneAt: done ? 1 : null, createdAt: 1, updatedAt: 1 });
   const mount = (todos) => {
     const placeholder = document.getElementById('app').appendChild(document.createElement('div'));
     list = new TodoListComponent(placeholder, { scope: 'page', keys: KEYS, todos });
@@ -596,7 +595,7 @@ describe('TodoListComponent - reordering', () => {
     mount([done, todos[1], todos[2]]);
     expect($('#todo-done-items').hidden).toBe(true);
 
-    await panel.fake.storage.local.set({ settings: { storageArea: 'local', doneExpanded: true } });
+    await panel.fake.storage.local.set({ 'settings:doneExpanded': true });
     expect($('#todo-done-items').hidden).toBe(false);
   });
 

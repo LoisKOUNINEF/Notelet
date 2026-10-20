@@ -9,3 +9,10 @@ export function keepUnchanged<T extends IScopeItem & { collapsed?: boolean }>(pr
     return kept && kept.updatedAt === item.updatedAt && kept.collapsed === item.collapsed ? kept : item;
   });
 }
+
+// `items` in the order of `ids` (the ids a reorder shows), in one pass over each. An id with no
+// item is skipped.
+export function inOrder<T extends { id: string }>(items: T[], ids: string[]): T[] {
+  const byId = new Map(items.map((item) => [item.id, item]));
+  return ids.flatMap((id) => byId.get(id) ?? []);
+}

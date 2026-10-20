@@ -32,12 +32,21 @@ The sources are `src/extension/` (Chrome's manifest and the background script) a
 
 ## Release
 
-- `npm run package:extension`: production build, then `dist/notelet-chrome-<version>.zip` for the Chrome Web Store and `dist/notelet-firefox-<version>.zip` for addons.mozilla.org (needs the `zip` command). `package:extension:chrome` / `package:extension:firefox` make only one.
-- Store listing drafts, permission justifications and image requirements: [docs/store-listing.md](docs/store-listing.md). Privacy policy: [PRIVACY.md](PRIVACY.md).
+- `npm run package:extension`: production build, then `dist/notelet-chrome-<version>.zip` for the Chrome Web Store and `dist/notelet-firefox-<version>.zip` for addons.mozilla.org, each with a `.sha256` (needs the `zip` command). `package:extension:chrome` / `package:extension:firefox` make only one. The ZIPs are reproducible: with the same `SOURCE_DATE_EPOCH` (CI uses the commit's time), the same sources give the same bytes.
+- `npm run validate:extension` checks both packages (manifest, contents, versions); `npm run lint:extension` runs Mozilla's addons-linter on `dist/firefox`.
+- Store listing drafts, permission justifications and image requirements are kept outside this repository. Privacy policy: [PRIVACY.md](PRIVACY.md).
+
+### CI/CD
+
+- `.github/workflows/ci.yml` (every push and pull request): build with type-checking, unit tests, then for Chrome and Firefox: package, validate, addons-linter (Firefox), and a second build that must give the same ZIP. The ZIPs are kept as workflow artifacts.
+- `.github/workflows/release.yml` (tags `vX.Y.Z`): runs CI, checking that the tag matches the version, then creates the GitHub Release with both ZIPs and their checksums. The Chrome Web Store and addons.mozilla.org submissions then wait for approval in the `store` environment.
+- To release, bump `version` in `package.json` and `src/extension/manifest.json`, commit, then `git tag vX.Y.Z && git push origin vX.Y.Z`.
+- Third-party actions are pinned to commit SHAs; Dependabot (`.github/dependabot.yml`) opens weekly PRs to bump them.
 
 ## Known limitations
 
 - Switching the storage area (this device ↔ Chrome or Firefox sync) while another window is saving at that very moment can leave that one save in the previous area.
+- Each window has its own panel, and each panel saves on its own: if two windows change the same page's (or site's) notes, or its to-dos, at the very same moment, one of the two changes can be lost. Changes made one after the other are fine: each panel sees the other's.
 - Browser sync keeps one entry per page list: if two computers change the same page's notes (or to-dos) at the same time, the last write wins for that list. (Turning sync on merges lists item by item, the latest edit winning.)
 - Dragging a to-do doesn't follow the panel scrolling during the drag: positions are measured when it starts.
 

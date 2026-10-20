@@ -35,7 +35,7 @@ describe('SiteManagerComponent', () => {
     $('.site-manager__select').value = value;
     $('.site-manager__select').dispatchEvent(new window.Event('change', { bubbles: true }));
   };
-  const keys = () => [...panel.fake.storage.local.data.keys()].filter((key) => key !== 'settings').sort();
+  const keys = () => [...panel.fake.storage.local.data.keys()].filter((key) => !key.startsWith('settings')).sort();
 
   beforeEach(async () => {
     panel = await startPanel();
@@ -54,6 +54,17 @@ describe('SiteManagerComponent', () => {
     detach();
     manager.destroy();
     await panel.stop();
+  });
+
+  it('marks the site of the tab shown as current, following tab changes', async () => {
+    await mount();
+    panel.fake.activateTab('https://beta.org/x');
+    await settle();
+    expect(sites()).toEqual(['example.com', 'alpha.net', 'beta.org (current)']);
+
+    panel.fake.activateTab('chrome://extensions');
+    await settle();
+    expect(sites()).toEqual(['example.com', 'alpha.net', 'beta.org']);
   });
 
   it('lists each site with notes or to-dos, most recently edited first', async () => {

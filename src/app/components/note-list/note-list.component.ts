@@ -1,12 +1,12 @@
-import { Component, html } from '../../../core/index.js';
-import { errorMessage } from '../../lib/errors.js';
-import { applyRequestedFocus, byData, clearRequestedFocus, requestFocus } from '../../lib/focus.js';
-import { ListReorder } from '../../lib/list-reorder.js';
+import { html } from '../../../core/index.js';
+import { runAction } from '../../lib/actions.js';
 import { plural } from '../../lib/plural.js';
-import { keepUnchanged } from '../../lib/unchanged.js';
+import { inOrder } from '../../lib/unchanged.js';
 import { confirmService } from '../../services/confirm/confirm.service.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
 import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
+import { ItemOptionsCache, ReorderableList } from '../base/reorderable-list.js';
+import { NOTE_COMPOSER_INPUT } from '../note-composer/note-composer.component.js';
 import { NoteItemComponent, noteLabel, type INoteItemOptions } from '../note-item/note-item.component.js';
 
 export interface INoteListConfig {
@@ -30,157 +30,85 @@ const EMPTY_TEXT: Record<NoteScope, string> = {
 };
 
 /**
- * The notes of one scope. The sidebar keeps this list across its own renders and hands it
- * new notes through update(): only the notes that changed are re-created, so a note being
- * edited keeps its draft while another one is added or deleted. Notes are reordered by their
- * handles, like the open to-dos (see ListReorder).
+ * The notes of one scope. Only the notes that changed are re-created when new ones come in, so a
+ * note being edited keeps its draft while another one is added or deleted (see ReorderableList).
  */
-export class NoteListComponent extends Component<HTMLElement, INoteListView> {
-  private _scope: NoteScope;
-  private _key: string;
-  private _keys: IScopeKeys;
-  private _notes: INote[];
-  // One options object per combination, reused across renders: items are only kept while their
-  // options are unchanged (picking a note up changes them: the notes are rebuilt with its state).
-  private readonly _itemOptions = new Map<string, INoteItemOptions>();
-  // Handed over by update() while a reorder gesture runs, applied once it ends.
-  private _held: INote[] | null = null;
-  // Destroyed: async work finishing later (a save, a held update) mustn't re-render it.
-  private _destroyed = false;
-  private readonly _reorder = new ListReorder({
-    root: this.element,
-    listSelector: '[data-catalog="notes"]',
-    handleSelector: '.note-item__handle',
-    idAttribute: 'note-id',
-    draggingClass: 'note-list__item--dragging',
-    ids: () => this.config.notes.map((note) => note.id),
-    // Only ever asked about the notes it shows.
-    textOf: (id) => noteLabel(this._notes.find((note) => note.id === id)!),
-    preview: () => this.refresh(),
-    commit: (order, movedId) => this.saveOrder(order, movedId),
-    settle: (saved) => this.applyHeld(saved),
-  });
+export class NoteListComponent extends ReorderableList<INote, INoteListView> {
+  private readonly _scope: NoteScope;
+  private readonly _key: string;
+  private readonly _keys: IScopeKeys;
+  private readonly _itemOptions = new ItemOptionsCache<INoteItemOptions>();
 
   constructor(mountTarget: HTMLElement, { scope, keys, notes }: INoteListConfig) {
-    super({ templateFn, mountTarget, config: NoteListComponent.view(scope, notes, null) });
+    super({ templateFn, mountTarget, config: NoteListComponent.viewOf(scope, notes, null) }, notes, {
+      kind: 'notes',
+      scope,
+      key: keys[scope],
+      listSelector: '[data-catalog="notes"]',
+      handleSelector: '.note-item__handle',
+      idAttribute: 'note-id',
+      draggingClass: 'note-list__item--dragging',
+      failure: 'Couldn\'t reorder the notes.',
+    });
     this._scope = scope;
     this._key = keys[scope];
     this._keys = keys;
-    this._notes = notes;
   }
 
-  private static view(scope: NoteScope, notes: INote[], order: string[] | null): INoteListView {
+  private static viewOf(scope: NoteScope, notes: INote[], order: string[] | null): INoteListView {
     return {
       // While a note is picked up, the order it's being moved through.
-      notes: order ? order.map((id) => notes.find((note) => note.id === id)!) : notes,
+      notes: order ? inOrder(notes, order) : notes,
       reorderable: notes.length > 1,
       label: scope === 'page' ? 'Notes for this page' : 'Notes for this site',
       emptyText: EMPTY_TEXT[scope],
     };
   }
 
-  private itemOptions(reorderable: boolean, grabbedId: string | null): INoteItemOptions {
-    const id = `${reorderable}|${grabbedId}`;
-    let options = this._itemOptions.get(id);
-    if (!options) {
-      // Kept: the stable combinations, and the current grab's (an earlier grab's would pile up).
-      for (const cached of this._itemOptions.keys()) {
-        if (!cached.endsWith('|null')) this._itemOptions.delete(cached);
-      }
-      options = { keys: this._keys, reorderable, grabbedId };
-      this._itemOptions.set(id, options);
-    }
-    return options;
-  }
-
   public override registerChildren(): Nutin.ComponentConfig[] {
+    const { reorderable } = this.config;
+    const grabbedId = this.reorder.grabbedId;
     return this.createCatalogComponents({
       items: this.config.notes,
       selector: 'notes',
       elementName: 'note',
       elementTag: 'li',
       component: NoteItemComponent,
-      props: this.itemOptions(this.config.reorderable, this._reorder.grabbedId),
+      props: this._itemOptions.get([reorderable], grabbedId, () => ({ keys: this._keys, reorderable, grabbedId })),
       // An unchanged note keeps its item (and an edit in progress); an edited one has a new updatedAt.
       keepBy: (note: INote) => note.id,
     });
   }
 
-  public update(notes: INote[]): void {
-    if (this._reorder.active) {
-      this._held = notes;
-      return;
-    }
-    if (notes === this._notes) return;
-    this._notes = keepUnchanged(this._notes, notes);
-    this.refresh();
+  protected view(): INoteListView {
+    return NoteListComponent.viewOf(this._scope, this.items, this.reorder.previewOrder);
   }
 
-  protected override onAfterRender(): void {
-    super.onAfterRender();
-    // Delegated from the handles (inside the items): Nutin unbinds them with its own on re-render.
-    for (const [type, listener] of this._reorder.listeners()) {
-      this.element.addEventListener(type, listener);
-      this.eventListeners.push([this.element, type, listener]);
-    }
-    applyRequestedFocus(this.element);
+  protected shownIds(): string[] {
+    return this.config.notes.map((note) => note.id);
+  }
+
+  protected labelOf(note: INote): string {
+    return noteLabel(note);
+  }
+
+  protected reordered(notes: INote[], order: string[]): INote[] {
+    return inOrder(notes, order);
   }
 
   private async _deleteAll(): Promise<void> {
-    const count = this._notes.length;
     const confirmed = await confirmService.ask({
       title: `Delete all notes for this ${this._scope}?`,
-      message: `${plural(count, 'note')}. You can undo this right after.`,
+      message: `${plural(this.items.length, 'note')}. You can undo this right after.`,
       confirmLabel: 'Delete all',
     });
     if (!confirmed) return;
 
-    requestFocus('.note-composer__input');
-    try {
-      const removed = await scopeStoreService.removeAll('notes', this._scope, this._key);
-      notifierService.undoable(`${plural(removed.length, 'note')} deleted.`, () => scopeStoreService.restoreMany('notes', removed), `Couldn't restore the notes.`);
-    } catch (error) {
-      clearRequestedFocus();
-      notifierService.error(`Couldn't delete the notes. ${errorMessage(error)}`);
+    const removed = await runAction('Couldn\'t delete the notes.', () => scopeStoreService.removeAll('notes', this._scope, this._key), {
+      focus: [NOTE_COMPOSER_INPUT],
+    });
+    if (removed) {
+      notifierService.undoable(`${plural(removed.length, 'note')} deleted.`, () => scopeStoreService.restoreMany('notes', removed), 'Couldn\'t restore the notes.');
     }
-  }
-
-  private async saveOrder(order: string[], movedId: string): Promise<boolean> {
-    // Shown right away in the new order; the stored list then comes back the same.
-    const previous = this._notes;
-    this._notes = order.map((id) => previous.find((note) => note.id === id)!);
-    requestFocus(`${byData('note-id', movedId)} .note-item__handle`);
-    this.refresh();
-    try {
-      await scopeStoreService.reorder('notes', this._scope, this._key, order);
-      return true;
-    } catch (error) {
-      this._notes = previous;
-      this.refresh();
-      notifierService.error(`Couldn't reorder the notes. ${errorMessage(error)}`);
-      return false;
-    }
-  }
-
-  // After a saved reorder, what was held predates it: the reload our write triggers brings the
-  // stored list (other windows' changes included). Otherwise the held update is the latest.
-  private applyHeld(saved: boolean): void {
-    const held = this._held;
-    this._held = null;
-    if (held && !saved) this.update(held);
-  }
-
-  protected override onBeforeDestroy(): void {
-    this._destroyed = true;
-    this._reorder.dispose();
-    super.onBeforeDestroy();
-  }
-
-  // A destroyed component would rebuild its items, which nothing would then ever destroy.
-  private refresh(): void {
-    if (this._destroyed) return;
-    this.config = NoteListComponent.view(this._scope, this._notes, this._reorder.previewOrder);
-    this.render();
   }
 }
-
