@@ -1,0 +1,136 @@
+name: Release
+
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    name: Checks and builds
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+    with:
+      tag: ${{ github.ref_name }}
+
+  github-release:
+    name: GitHub Release
+    needs: ci
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: notelet-*
+          path: dist
+          merge-multiple: true
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          shopt -s extglob
+          assets=(dist/notelet-@(chrome|firefox)-*.zip dist/notelet-@(chrome|firefox)-*.zip.sha256)
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release upload "$TAG" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes --title "Notelet $TAG"
+          fi
+
+  chrome-web-store:
+    name: Chrome Web Store
+    needs: github-release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: store
+    permissions: {}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: notelet-chrome
+          path: dist
+
+      - name: Upload and submit for review
+        env:
+          CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+          PUBLISHER_ID: ${{ secrets.CWS_PUBLISHER_ID }}
+          EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+        run: |
+          set -euo pipefail
+          (cd dist && sha256sum --check --strict notelet-chrome-*.zip.sha256)
+          zip_file=$(ls dist/notelet-chrome-*.zip)
+          api="https://chromewebstore.googleapis.com"
+          item="publishers/$PUBLISHER_ID/items/$EXTENSION_ID"
+
+          token=$(curl --silent --show-error --fail-with-body https://oauth2.googleapis.com/token \
+            --data-urlencode "client_id=$CLIENT_ID" \
+            --data-urlencode "client_secret=$CLIENT_SECRET" \
+            --data-urlencode "refresh_token=$REFRESH_TOKEN" \
+            --data-urlencode "grant_type=refresh_token" | jq -r .access_token)
+          echo "::add-mask::$token"
+          auth="Authorization: Bearer $token"
+
+          upload=$(curl --silent --show-error --fail-with-body -X POST -H "$auth" \
+            -T "$zip_file" "$api/upload/v2/$item:upload")
+          echo "$upload" | jq .
+          state=$(echo "$upload" | jq -r .uploadState)
+          for _ in $(seq 1 30); do
+            [ "$state" = "IN_PROGRESS" ] || break
+            sleep 10
+            state=$(curl --silent --show-error --fail-with-body -H "$auth" "$api/v2/$item:fetchStatus" | jq -r .lastAsyncUploadState)
+          done
+          if [ "$state" != "SUCCEEDED" ]; then
+            echo "::error::Chrome Web Store upload state: $state"
+            exit 1
+          fi
+
+          curl --silent --show-error --fail-with-body -X POST -H "$auth" "$api/v2/$item:publish" | jq .
+
+  firefox-addons:
+    name: Firefox Add-ons
+    needs: github-release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: store
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: notelet-firefox
+          path: dist
+
+      - name: Upload and submit for review
+        env:
+          WEB_EXT_API_KEY: ${{ secrets.AMO_JWT_ISSUER }}
+          WEB_EXT_API_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          npx web-ext sign \
+            --channel listed \
+            --source-dir dist/firefox \
+            --upload-source-code "dist/notelet-source-${TAG#v}.zip" \
+            --artifacts-dir "$RUNNER_TEMP/web-ext" \
+            --approval-timeout 0
