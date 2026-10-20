@@ -11,11 +11,17 @@ const SYNC_MAX_ITEMS = 512;
 /**
  * The only place that touches `chrome.*`: a thin, typed surface over the few extension APIs
  * the app uses. `chrome` is read on every call, so tests can install a fake global
- * (see testing/fake-chrome.js), and a Firefox port only has to change this file.
+ * (see testing/fake-chrome.js). Firefox has the same `chrome.*` APIs; browser() tells them apart
+ * where the app says or offers something only one of them has.
  */
 export class ChromeApiService extends Service<ChromeApiService> {
   constructor() {
     super();
+  }
+
+  // Firefox's extension pages are served from moz-extension:// URLs.
+  public browser(): BrowserName {
+    return chrome.runtime?.getURL?.('').startsWith('moz-extension:') ? 'firefox' : 'chrome';
   }
 
   public async storageGet(area: StorageAreaName, keys: string[] | null): Promise<StorageItems> {

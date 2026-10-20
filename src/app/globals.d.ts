@@ -1,8 +1,11 @@
 // Notes are attached either to one page (its URL) or to a whole site (its domain).
 declare type NoteScope = 'page' | 'site';
 
-// Where notes are kept: this device only, or synced across the user's Chrome profiles.
+// Where notes are kept: this device only, or synced across the user's Chrome profiles (Firefox accounts).
 declare type StorageAreaName = 'local' | 'sync';
+
+// The browser the extension runs in (see ChromeApiService.browser()).
+declare type BrowserName = 'chrome' | 'firefox';
 
 // Epoch milliseconds (Date.now()). chrome.storage serializes to JSON, where a Date would become {}.
 declare type Timestamp = number;

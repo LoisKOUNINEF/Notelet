@@ -84,6 +84,14 @@ describe('ChromeApiService', () => {
     expect(fake.tabs.updated).toEqual([]);
   });
 
+  it('tells Chrome from Firefox by the extension\'s URL', () => {
+    expect(chromeApiService.browser()).toBe('chrome');
+    installFakeChrome({ browser: 'firefox' });
+    expect(chromeApiService.browser()).toBe('firefox');
+    delete globalThis.chrome.runtime;
+    expect(chromeApiService.browser()).toBe('chrome');
+  });
+
   it('has no active tab URL when no tab is found', async () => {
     const query = spyOn(fake.tabs, 'query').andCallFake(async () => []);
     expect(await chromeApiService.getActiveTabUrl()).toBe(null);

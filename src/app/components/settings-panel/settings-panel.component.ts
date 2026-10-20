@@ -19,19 +19,37 @@ interface ISettingsPanelView {
   // The option picked but not applied yet: the arrow keys check radios as they move, so picking
   // only previews; Apply (or "Remove synced copy", when leaving sync) moves the notes.
   pending: StorageAreaName | null;
+  // Says "Chrome profile" or "Firefox account", and where each browser's settings are.
+  browser: BrowserName;
+  syncedWith: string;
 }
 
-const templateFn = ({ areas, busy, pending }: ISettingsPanelView) => html`__TEMPLATE_PLACEHOLDER__`;
+const templateFn = ({ areas, busy, pending, browser, syncedWith }: ISettingsPanelView) => html`__TEMPLATE_PLACEHOLDER__`;
 
-const AREAS: Omit<IAreaOption, 'checked'>[] = [
-  { value: 'local', label: 'On this device', hint: 'Up to 10 MB of notes.' },
-  { value: 'sync', label: 'Synced with your Chrome profile', hint: 'On every computer you sign in to. Up to about 100 KB of notes.' },
-];
-
-const SUCCESS: Record<StorageAreaName, string> = {
-  local: 'Your notes are now kept on this device.',
-  sync: 'Your notes now sync with your Chrome profile.',
+const SYNCED_WITH: Record<BrowserName, string> = {
+  chrome: 'your Chrome profile',
+  firefox: 'your Firefox account',
 };
+
+const SYNC_HINT: Record<BrowserName, string> = {
+  chrome: 'On every computer you sign in to. Up to about 100 KB of notes.',
+  firefox: 'On every computer you sign in to, with Add-ons on in Firefox sync. Up to about 100 KB of notes.',
+};
+
+const AREA_VALUES: StorageAreaName[] = ['local', 'sync'];
+
+function areaOptions(browser: BrowserName): Omit<IAreaOption, 'checked'>[] {
+  return [
+    { value: 'local', label: 'On this device', hint: 'Up to 10 MB of notes.' },
+    { value: 'sync', label: `Synced with ${SYNCED_WITH[browser]}`, hint: SYNC_HINT[browser] },
+  ];
+}
+
+function success(area: StorageAreaName): string {
+  return area === 'local'
+    ? 'Your notes are now kept on this device.'
+    : `Your notes now sync with ${SYNCED_WITH[chromeApiService.browser()]}.`;
+}
 
 export interface ISettingsPanelOptions {
   // "Manage by site": the sidebar shows that page instead.
@@ -64,17 +82,20 @@ export class SettingsPanelComponent extends Component<HTMLElement, ISettingsPane
   private static view(busy: boolean, pending: StorageAreaName | null): ISettingsPanelView {
     // While asking, the choice just made stays shown.
     const selected = pending ?? settingsService.storageArea;
+    const browser = chromeApiService.browser();
     return {
       busy,
       pending,
-      areas: AREAS.map((area) => ({ ...area, checked: area.value === selected })),
+      browser,
+      syncedWith: SYNCED_WITH[browser],
+      areas: areaOptions(browser).map((area) => ({ ...area, checked: area.value === selected })),
     };
   }
 
   // Picked (by click or with the arrows): shown, with the step that applies it below; focus stays
   // on the radio so the arrows keep working. The area in use picked again: nothing pending.
   private _setArea(value: string): void {
-    const area = AREAS.find((option) => option.value === value)?.value;
+    const area = AREA_VALUES.find((option) => option === value);
     if (!area) return;
     this.config = SettingsPanelComponent.view(false, area === settingsService.storageArea ? null : area);
     this.render();
@@ -94,7 +115,7 @@ export class SettingsPanelComponent extends Component<HTMLElement, ISettingsPane
     this.setBusy(true);
     try {
       await scopeStoreService.migrateTo(area);
-      notifierService.success(SUCCESS[area]);
+      notifierService.success(success(area));
     } catch (error) {
       notifierService.error(errorMessage(error));
     } finally {

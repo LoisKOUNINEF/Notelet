@@ -24,13 +24,14 @@ let pipesRegistered = false;
 let currentBus = null;
 
 // `settings`: saved settings to start from, e.g. `{ contentKind: 'todos' }` to show the to-dos.
+// `browser`: 'firefox' to run as in Firefox (see fake-chrome.js).
 // The app's events go through a MockEventBus (`bus`), installed first so every subscription
 // lands there: emit on it to simulate an event, read its calls to check what was emitted.
-export async function startPanel({ url = 'https://example.com/docs', settings } = {}) {
+export async function startPanel({ url = 'https://example.com/docs', settings, browser } = {}) {
   const bus = new MockEventBus();
   useEventBus(bus);
   currentBus = bus;
-  const fake = installFakeChrome({ url });
+  const fake = installFakeChrome({ url, browser });
   if (settings) fake.storage.local.data.set('settings', settings);
   if (!pipesRegistered) {
     // Nutin's own tests may have registered the built-in pipes already.

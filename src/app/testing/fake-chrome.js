@@ -57,11 +57,15 @@ function createStorageArea(name, onChanged, quota = {}) {
   };
 }
 
-export function createFakeChrome({ url = 'https://example.com/' } = {}) {
+// `browser: 'firefox'` makes the extension's URLs moz-extension:// ones, as in Firefox.
+export function createFakeChrome({ url = 'https://example.com/', browser = 'chrome' } = {}) {
   const onChanged = createEvent();
   const activeTab = { id: 1, windowId: 1, active: true, url };
 
   const fake = {
+    runtime: {
+      getURL: (path) => `${browser === 'firefox' ? 'moz-extension' : 'chrome-extension'}://test/${path}`,
+    },
     storage: {
       onChanged,
       local: createStorageArea('local', onChanged),

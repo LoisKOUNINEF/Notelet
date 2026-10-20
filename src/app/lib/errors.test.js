@@ -13,6 +13,10 @@ describe('errorMessage', () => {
     expect(errorMessage(new Error('MAX_SUSTAINED_WRITE_OPERATIONS_PER_MINUTE quota exceeded'))).toContain('Wait a minute');
   });
 
+  it('explains Firefox\'s storage.sync quota error', () => {
+    expect(errorMessage(new Error('QuotaExceededError: storage.sync API call exceeded its quota limitations.'))).toContain('Sync storage is full');
+  });
+
   it('gives anything else as text, as chrome.* callbacks may reject with a string', () => {
     expect(errorMessage('Extension context invalidated.')).toBe('Extension context invalidated.');
     expect(errorMessage(undefined)).toBe('undefined');

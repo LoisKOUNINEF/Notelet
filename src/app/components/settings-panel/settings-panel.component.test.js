@@ -276,3 +276,40 @@ describe('SettingsPanelComponent - delete everything', () => {
     expect($('.delete-data__select').value).toBe('2w');
   });
 });
+
+describe('SettingsPanelComponent in Firefox', () => {
+  let panel;
+  let settings;
+
+  beforeEach(async () => {
+    panel = await startPanel({ browser: 'firefox' });
+    const placeholder = document.getElementById('app').appendChild(document.createElement('div'));
+    settings = new SettingsPanelComponent(placeholder);
+    settings.render();
+  });
+
+  afterEach(async () => {
+    settings.destroy();
+    await panel.stop();
+  });
+
+  it('syncs with the Firefox account', async () => {
+    const sync = $('input[name="storage-area"][value="sync"]');
+    expect(sync.closest('label').textContent).toContain('Synced with your Firefox account');
+    sync.checked = true;
+    sync.dispatchEvent(new window.Event('change', { bubbles: true }));
+    await settle();
+    expect($('#settings-confirm-text').textContent).toContain('will sync with your Firefox account');
+    $('.settings-panel__confirm-apply').click();
+    await settle();
+    expect(panel.toasts.at(-1)).toEqual({ message: 'Your notes now sync with your Firefox account.', type: 'success' });
+  });
+
+  it('explains where Firefox\'s sidebar side and shortcuts are set, without chrome:// buttons', () => {
+    const text = $('.settings-panel').textContent;
+    expect(text).toContain('Move sidebar to the right');
+    expect($('.settings-panel__shortcut-help').textContent).toContain('Manage Extension Shortcuts');
+    expect(text).not.toContain('Chrome');
+    expect($$('.settings-panel__section button').some((b) => b.textContent.includes('Chrome settings') || b.textContent === 'Change the shortcut')).toBe(false);
+  });
+});

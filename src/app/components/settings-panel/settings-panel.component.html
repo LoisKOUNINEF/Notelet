@@ -17,7 +17,7 @@
     <div class="settings-panel__confirm" role="group" aria-labelledby="settings-confirm-text">
       ${pending === 'local'
         ? html`<p class="settings-panel__confirm-text" id="settings-confirm-text">Remove your synced notes from all your devices? They'll be kept on this device only, and your other computers will lose them.</p>`
-        : html`<p class="settings-panel__confirm-text" id="settings-confirm-text">Your notes will sync with your Chrome profile: on every computer you sign in to, up to about 100 KB.</p>`}
+        : html`<p class="settings-panel__confirm-text" id="settings-confirm-text">Your notes will sync with ${syncedWith}: on every computer you sign in to, up to about 100 KB.</p>`}
       <div class="settings-panel__confirm-actions">
         ${pending === 'local'
           ? html`<button class="button button--danger settings-panel__confirm-remove" type="button" tabindex="0" data-event="click:_apply">Remove synced copy</button>`
@@ -29,14 +29,18 @@
 
   <div class="settings-panel__section">
     <h3 class="settings-panel__subtitle">Panel side</h3>
+    ${browser === 'firefox' ? html`
+    <p class="settings-panel__text">Firefox decides whether the sidebar is on the left or the right. To switch, pick "Move sidebar to the right" (or left) in the sidebar's menu or in Firefox settings.</p>` : html`
     <p class="settings-panel__text">Chrome decides whether the side panel opens on the left or the right.</p>
-    <button class="button" type="button" tabindex="0" data-event="click:_openChromeSettings:'chrome://settings/appearance'">Change it in Chrome settings</button>
+    <button class="button" type="button" tabindex="0" data-event="click:_openChromeSettings:'chrome://settings/appearance'">Change it in Chrome settings</button>`}
   </div>
 
   <div class="settings-panel__section">
     <h3 class="settings-panel__subtitle">Keyboard shortcut</h3>
     <p class="settings-panel__text"><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd> opens and closes the panel, as does the toolbar button.</p>
-    <button class="button" type="button" tabindex="0" data-event="click:_openChromeSettings:'chrome://extensions/shortcuts'">Change the shortcut</button>
+    ${browser === 'firefox' ? html`
+    <p class="settings-panel__text settings-panel__shortcut-help">To change it, open Add-ons and themes (<code>about:addons</code>), then ⚙ → Manage Extension Shortcuts.</p>` : html`
+    <button class="button" type="button" tabindex="0" data-event="click:_openChromeSettings:'chrome://extensions/shortcuts'">Change the shortcut</button>`}
   </div>
 
   <div class="settings-panel__section">
@@ -91,11 +95,11 @@
       </details>
       <details class="settings-panel__help-item">
         <summary>Syncing between computers</summary>
-        <p>Chrome sync holds about 100 KB in total, and a few hundred pages and sites. Switching moves all your notes, and stopping sync removes the synced copy from every computer.</p>
+        <p>${browser === 'firefox' ? 'Firefox' : 'Chrome'} sync holds about 100 KB in total, and a few hundred pages and sites. Switching moves all your notes, and stopping sync removes the synced copy from every computer.</p>
       </details>
       <details class="settings-panel__help-item">
         <summary>Why are notes unavailable on some pages?</summary>
-        <p>Only websites can have notes: Chrome's own pages (settings, new tab), files opened from your computer and other browser pages can't.</p>
+        <p>Only websites can have notes: the browser's own pages (settings, new tab), files opened from your computer and other browser pages can't.</p>
       </details>
       <details class="settings-panel__help-item">
         <summary>Keyboard shortcuts</summary>

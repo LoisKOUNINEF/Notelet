@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
-// Turns the Nutin build in dist/src into an unpacked Chrome extension.
-// Runs after `builder.js` (see the build:extension scripts), so tools/builder stays untouched.
+// Turns the Nutin build in dist/src into an unpacked extension for one browser, in dist/<browser>
+// (`--browser chrome|firefox`). Runs after `builder.js` (see the build:extension scripts), so
+// tools/builder stays untouched, and dist/src (which the tests use) too.
 import fs from 'fs';
 import path from 'path';
 import { spawnSync } from 'child_process';
@@ -10,14 +11,29 @@ import { print, errorExit, getFilesRecursive } from '../utils/index.js';
 
 const isProd = process.argv.includes('--prod');
 const zip = process.argv.includes('--zip');
+const browser = process.argv[process.argv.indexOf('--browser') + 1];
 const SOURCE = path.resolve('src', 'extension');
-const OUTPUT = path.resolve('dist', 'src');
+const BUILD = path.resolve('dist', 'src');
+const OUTPUT = path.resolve('dist', browser ?? '');
+
+// Firefox's add-on id: storage.sync and addons.mozilla.org need one, and it can never change.
+const GECKO_ID = 'notelet@kouninef.dev';
+const TARGETS = { chrome: 'chrome116', firefox: 'firefox140' };
+const LOAD_HINT = {
+  chrome: 'unpacked in chrome://extensions',
+  firefox: 'in about:debugging (This Firefox → Load Temporary Add-on → its manifest.json)',
+};
 
 async function packageExtension() {
-  if (!fs.existsSync(path.join(OUTPUT, 'index.html'))) {
+  if (!(browser in TARGETS)) {
+    throw new Error('Pass the browser to package for: --browser chrome or --browser firefox.');
+  }
+  if (!fs.existsSync(path.join(BUILD, 'index.html'))) {
     throw new Error('No build found in dist/src. Run the Nutin build first.');
   }
 
+  fs.rmSync(OUTPUT, { recursive: true, force: true });
+  fs.cpSync(BUILD, OUTPUT, { recursive: true });
   await bundleBackground();
   writeManifest();
   copyFontLicenses();
@@ -25,7 +41,7 @@ async function packageExtension() {
   fs.rmSync(path.join(OUTPUT, 'extension'), { recursive: true, force: true });
   if (isProd) removeCompressedFiles();
 
-  print.boldSuccess(`\nExtension ready: load ${path.relative(process.cwd(), OUTPUT)} unpacked in chrome://extensions\n`);
+  print.boldSuccess(`\nExtension ready: load ${path.relative(process.cwd(), OUTPUT)} ${LOAD_HINT[browser]}\n`);
   if (zip) zipForStore();
 }
 
@@ -36,19 +52,41 @@ async function bundleBackground() {
     bundle: true,
     format: 'esm',
     platform: 'browser',
-    target: ['chrome116'],
+    target: [TARGETS[browser]],
     minify: isProd,
     sourcemap: !isProd,
     legalComments: 'none',
   });
 }
 
-// The extension's version follows package.json's.
+// The extension's version follows package.json's. src/extension/manifest.json is Chrome's.
 function writeManifest() {
   const manifest = JSON.parse(fs.readFileSync(path.join(SOURCE, 'manifest.json'), 'utf-8'));
   const { version } = JSON.parse(fs.readFileSync(path.resolve('package.json'), 'utf-8'));
   manifest.version = version;
-  fs.writeFileSync(path.join(OUTPUT, 'manifest.json'), JSON.stringify(manifest, null, 2));
+  const output = browser === 'firefox' ? toFirefox(manifest) : manifest;
+  fs.writeFileSync(path.join(OUTPUT, 'manifest.json'), JSON.stringify(output, null, 2));
+}
+
+// Firefox has a sidebar instead of the side panel, and background scripts instead of a service
+// worker. The toolbar button toggles the sidebar (see background.ts), the shortcut does it natively.
+function toFirefox(manifest) {
+  const { side_panel: sidePanel, minimum_chrome_version: _, commands, ...rest } = manifest;
+  const { _execute_action: toggle, ...otherCommands } = commands ?? {};
+  return {
+    ...rest,
+    background: { scripts: ['background.js'], type: 'module' },
+    permissions: manifest.permissions.filter((permission) => permission !== 'sidePanel'),
+    sidebar_action: {
+      default_panel: sidePanel.default_path,
+      default_title: manifest.action.default_title,
+      default_icon: manifest.action.default_icon,
+    },
+    commands: { ...otherCommands, ...(toggle ? { _execute_sidebar_action: toggle } : {}) },
+    browser_specific_settings: {
+      gecko: { id: GECKO_ID, strict_min_version: '140.0', data_collection_permissions: { required: ['none'] } },
+    },
+  };
 }
 
 // The fonts' licenses (SIL OFL) must ship with them; the builder only copies the font files.
@@ -62,15 +100,16 @@ function copyFontLicenses() {
   });
 }
 
-// Pre-compressed copies only matter to a web server: Chrome reads the plain files.
+// Pre-compressed copies only matter to a web server: the browser reads the plain files.
 function removeCompressedFiles() {
   getFilesRecursive(OUTPUT, ['.gz', '.br']).forEach((file) => fs.rmSync(file));
 }
 
-// The archive the Chrome Web Store takes: dist/src's content at the zip's root.
+// The archive the store takes (Chrome Web Store, addons.mozilla.org): dist/<browser>'s content at
+// the zip's root.
 function zipForStore() {
   const { name, version } = JSON.parse(fs.readFileSync(path.resolve('package.json'), 'utf-8'));
-  const archive = path.resolve('dist', `${name}-${version}.zip`);
+  const archive = path.resolve('dist', `${name}-${browser}-${version}.zip`);
   fs.rmSync(archive, { force: true });
   const result = spawnSync('zip', ['-r', '-X', '-q', archive, '.', '-x', '*.map', '.DS_Store'], { cwd: OUTPUT, stdio: 'inherit' });
   if (result.error || result.status !== 0) {
