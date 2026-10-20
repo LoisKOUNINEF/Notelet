@@ -1,20 +1,20 @@
 {
   "manifest_version": 3,
-  "name": "Quicklet",
-  "description": "Quicklet: notes and to-dos for each page and each site, in Chrome's side panel.",
-  "version": "0.0.0",
+  "name": "Notelet",
+  "description": "Notelet: Notes & tasks, at a glance.",
+  "version": "0.1.0",
   "minimum_chrome_version": "116",
   "icons": {
-    "16": "assets/icons/quicklet-16.png",
-    "32": "assets/icons/quicklet-32.png",
-    "48": "assets/icons/quicklet-48.png",
-    "128": "assets/icons/quicklet-128.png"
+    "16": "assets/icons/notelet-16.png",
+    "32": "assets/icons/notelet-32.png",
+    "48": "assets/icons/notelet-48.png",
+    "128": "assets/icons/notelet-128.png"
   },
   "action": {
-    "default_title": "Quicklet",
+    "default_title": "Notelet",
     "default_icon": {
-      "16": "assets/icons/quicklet-16.png",
-      "32": "assets/icons/quicklet-32.png"
+      "16": "assets/icons/notelet-16.png",
+      "32": "assets/icons/notelet-32.png"
     }
   },
   "side_panel": {
@@ -30,7 +30,7 @@
       "suggested_key": {
         "default": "Alt+Shift+N"
       },
-      "description": "Open Quicklet"
+      "description": "Open Notelet"
     }
   }
 }

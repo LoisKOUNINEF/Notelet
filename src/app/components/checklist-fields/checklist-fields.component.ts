@@ -109,13 +109,14 @@ export class ChecklistFieldsComponent extends Component<HTMLElement, IChecklistF
     this.focusField(field.id);
   }
 
-  // Removed, or taken out (handed to onTakeOut): either way the field goes, focus to the previous one.
+  // Removed, or taken out (handed to onTakeOut; an empty one is just removed): either way the field goes,
+  // focus to the previous one.
   private remove(id: string, takeOut = false): void {
     this.collect();
     const index = this._fields.findIndex((f) => f.id === id);
     const field = this._fields[index];
     this._fields = this._fields.filter((f) => f.id !== id);
-    if (takeOut && field) this._options.onTakeOut?.(field);
+    if (takeOut && field?.text.trim()) this._options.onTakeOut?.(field);
     this.refresh();
     const previous = this._fields[Math.max(0, index - 1)];
     if (previous) this.focusField(previous.id);

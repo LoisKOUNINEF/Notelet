@@ -29,7 +29,7 @@ describe('SidebarComponent', () => {
     await mount();
 
     expect($('.sidebar__location-text').textContent).toBe('example.com/docs');
-    expect($('h1').textContent).toBe('Quicklet');
+    expect($('h1').textContent).toBe('Notelet');
     expect(tab('page').getAttribute('aria-selected')).toBe('true');
     expect(tab('site').getAttribute('aria-selected')).toBe('false');
     expect($('[role="tabpanel"]').getAttribute('aria-labelledby')).toBe('scope-tab-page');

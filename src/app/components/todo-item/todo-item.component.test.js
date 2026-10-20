@@ -570,6 +570,19 @@ describe('TodoItemComponent - lists', () => {
     expect(saved.text).toBe('Groceries');
   });
 
+  it('"Take out" on an empty item just removes it', () => {
+    item(list).querySelector('.todo-item__edit').click();
+    const editor = () => item(list).querySelector('.list-editor');
+    editor().querySelector('.list-editor__add-item').click();
+    editor().querySelector('.list-editor__add-item').click();
+    editor().querySelectorAll('.checklist-field__input')[3].value = '  ';
+    editor().querySelectorAll('.checklist-field__take-out')[3].click();
+    editor().querySelectorAll('.checklist-field__take-out')[2].click();
+    expect(editor().querySelector('.list-editor__taken-out')).toBeFalsy();
+    expect([...editor().querySelectorAll('.checklist-field__input')].map((f) => f.value)).toEqual(['Milk', 'Eggs']);
+    expect(document.activeElement).toBe(editor().querySelectorAll('.checklist-field__input')[1]);
+  });
+
   it('moves a single to-do into a list, picked in a popup, with Undo', async () => {
     const menu = document.getElementById(`todo-${single.id}-menu`);
     expect([...menu.querySelectorAll('[role="menuitem"]')].map((m) => m.textContent)).toEqual(['Move into a list…', 'Move to this site']);

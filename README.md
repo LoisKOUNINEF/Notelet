@@ -1,14 +1,10 @@
-# Quicklet - Built with Nutin
+# Notelet - Built with Nutin
+
+```text
+Notes & tasks, at a glance.
+```
 
 Notes and to-dos for each page and each site, in Chrome's side panel.
-
-## Development
-
-Requires Node.js 24 or later.
-
-- `npm run serve`: build and serve
-- `npm run dev`: build and serve with live reload
-- Both serve on port 9090 by default. Pass `-- --port 3000` (or set `PORT=3000`) to change it
 
 ## Build
 
@@ -26,7 +22,7 @@ After a rebuild, click the reload button on the extension's card. Its sources ar
 
 ## Release
 
-- `npm run package:extension`: production build, then `dist/quicklet-<version>.zip` for the Chrome Web Store (needs the `zip` command).
+- `npm run package:extension`: production build, then `dist/notelet-<version>.zip` for the Chrome Web Store (needs the `zip` command).
 - Store listing drafts, permission justifications and image requirements: [docs/store-listing.md](docs/store-listing.md). Privacy policy: [PRIVACY.md](PRIVACY.md).
 
 ## Known limitations
@@ -37,7 +33,7 @@ After a rebuild, click the reload button on the extension's card. Its sources ar
 
 ## Tests
 
-`npm run testin-nutin` runs Nutin's tests and the app's. App tests fake the `chrome.*` APIs with `src/app/testing/fake-chrome.js`.
+`npm run testin-nutin` runs tests. App tests fake the `chrome.*` APIs with `src/app/testing/fake-chrome.js`.
 
 ## Getting started
 
