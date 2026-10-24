@@ -235,11 +235,14 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
   }
 
   private async move(): Promise<void> {
-    const target = this._todo.scope === 'page' ? 'site' : 'page';
-    const moved = await runAction('Couldn\'t move the to-do.', () => scopeStoreService.move('todos', this._todo, this._options.keys), {
+    const todo = this._todo;
+    const target = todo.scope === 'page' ? 'site' : 'page';
+    const moved = await runAction('Couldn\'t move the to-do.', () => scopeStoreService.move('todos', todo, this._options.keys), {
       focus: this.focusAfterLeaving(),
     });
-    if (moved) notifierService.success(`Moved to this ${target}'s to-dos.`);
+    if (moved) {
+      notifierService.undoable(`Moved to this ${target}'s to-dos.`, () => scopeStoreService.moveBack('todos', moved, todo), 'Couldn\'t move the to-do back.', 'success');
+    }
   }
 
   // One of this to-do's controls, found again once the list has re-rendered it.

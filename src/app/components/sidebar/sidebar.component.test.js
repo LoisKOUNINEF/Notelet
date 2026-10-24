@@ -441,16 +441,24 @@ describe('SidebarComponent', () => {
   it('opens and closes the settings, moving focus with them', async () => {
     await mount();
     const toggle = () => $('.sidebar__settings-toggle');
+    const tooltips = () => $$('a11y-tooltip[anchor="sidebar-settings-toggle"]');
     expect(toggle().getAttribute('aria-expanded')).toBe('false');
+    expect(toggle().getAttribute('aria-label')).toBe('Settings');
+    expect(tooltips().map((tooltip) => tooltip.textContent)).toEqual(['Settings']);
 
     toggle().click();
     expect(toggle().getAttribute('aria-expanded')).toBe('true');
+    expect(toggle().getAttribute('aria-label')).toBe('Back to notes');
+    expect(tooltips().map((tooltip) => tooltip.textContent)).toEqual(['Back to notes']);
     expect($('#sidebar-settings .settings-panel')).toBeTruthy();
     expect($('[role="tablist"]')).toBeFalsy();
     expect(document.activeElement).toBe($('#settings-title'));
 
     toggle().click();
     expect(toggle().getAttribute('aria-expanded')).toBe('false');
+    expect(toggle().getAttribute('aria-label')).toBe('Settings');
+    // One tooltip, however many renders.
+    expect(tooltips().map((tooltip) => tooltip.textContent)).toEqual(['Settings']);
     expect($('[role="tablist"]')).toBeTruthy();
     expect(document.activeElement).toBe(toggle());
   });
@@ -462,7 +470,7 @@ describe('SidebarComponent', () => {
     $('.settings-panel__manage-sites').click();
     expect(document.activeElement).toBe($('#site-manager-title'));
     expect($('.settings-panel')).toBeFalsy();
-    expect($('.sidebar__settings-toggle').textContent).toBe('Back to notes');
+    expect($('.sidebar__settings-toggle').getAttribute('aria-label')).toBe('Back to notes');
     await settle();
     expect(texts('.site-row__name')).toEqual(['example.com (current)']);
 

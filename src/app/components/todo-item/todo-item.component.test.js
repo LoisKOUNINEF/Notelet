@@ -330,10 +330,25 @@ describe('TodoItemComponent - actions menu', () => {
     const stored = await content();
     expect(stored.page.todos.map((t) => t.text)).toEqual(['Second']);
     expect(stored.site.todos.map((t) => t.text)).toEqual(['First', 'Already on the site']);
-    expect(panel.toasts.at(-1)).toEqual({ message: 'Moved to this site\'s to-dos.', type: 'success' });
+    const toast = panel.toasts.at(-1);
+    expect(toast.message).toBe('Moved to this site\'s to-dos.');
+    expect(toast.type).toBe('success');
+    expect(toast.actionText).toBe('Undo');
     expect(document.activeElement).toBe(item(todos[1]).querySelector('.todo-item__checkbox'));
     expect($('#scope-tab-page .a11y-visually-hidden').textContent).toBe(', 1 to-do');
     expect($('#scope-tab-site .a11y-visually-hidden').textContent).toBe(', 2 to-dos');
+  });
+
+  it('undoes a move: the to-do is back at its place', async () => {
+    menuItem(todos[0]).click();
+    await settle();
+    panel.toasts.at(-1).onAction();
+    await settle();
+
+    const stored = await content();
+    expect(stored.page.todos.map((t) => t.text)).toEqual(['First', 'Second']);
+    expect(stored.site.todos.map((t) => t.text)).toEqual(['Already on the site']);
+    expect(item(todos[0])).toBeTruthy();
   });
 
   it('offers "Move to this page" on the site\'s to-dos', async () => {

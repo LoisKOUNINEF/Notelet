@@ -838,10 +838,11 @@ describe('ScopeStoreService - reordering to-dos', () => {
 describe('ScopeStoreService - reordering notes', () => {
   const keys = { page: 'https://example.com/a', site: 'example.com', pageLabel: '/a', siteLabel: 'example.com' };
   let notes;
+  let fake;
   const texts = async (scope = 'page') => (await scopeStoreService.load(keys))[scope].notes.map((n) => n.text);
 
   beforeEach(async () => {
-    installFakeChrome();
+    fake = installFakeChrome();
     await settingsService.init();
     scopeStoreService.init();
     const now = spyOn(Date, 'now');
@@ -896,6 +897,20 @@ describe('ScopeStoreService - reordering notes', () => {
     const moved = await scopeStoreService.move('notes', a, keys);
     expect(moved.position).toBeUndefined();
     expect(await texts('site')).toEqual(['A', 'Site note']);
+  });
+
+  it('undoes a move in one write: back at its old place, with its position', async () => {
+    await scopeStoreService.reorder('notes', 'page', keys.page, [notes[2].id, notes[1].id, notes[0].id]);
+    const page = (await scopeStoreService.load(keys)).page.notes;
+    const b = page.find((n) => n.text === 'B');
+    const moved = await scopeStoreService.move('notes', b, keys);
+    const set = spyOn(fake.storage.local, 'set');
+
+    await scopeStoreService.moveBack('notes', moved, b);
+    expect(set.callCount).toBe(1);
+    set.restore();
+    expect((await scopeStoreService.load(keys)).page.notes).toEqual(page);
+    expect(await texts('site')).toEqual([]);
   });
 });
 
@@ -954,6 +969,34 @@ describe('ScopeStoreService - moving to-dos', () => {
 
     await scopeStoreService.update('todos', moved, { done: false });
     expect(await siteTexts()).toEqual(['Done on the page', 'Open on the site']);
+  });
+
+  it('undoes a move without undoing what was done to the to-do since', async () => {
+    const now = spyOn(Date, 'now').andReturn(1000);
+    const first = await scopeStoreService.addTodo('page', keys.page, 'First');
+    now.andReturn(1001);
+    await scopeStoreService.addTodo('page', keys.page, 'Second');
+    now.restore();
+    await scopeStoreService.addTodo('site', keys.site, 'On the site');
+
+    const moved = await scopeStoreService.move('todos', first, keys);
+    await scopeStoreService.update('todos', moved, { text: 'First, edited' });
+    await scopeStoreService.moveBack('todos', moved, first);
+
+    const content = await scopeStoreService.load(keys);
+    expect(content.page.todos.map((t) => [t.text, t.scope, t.key])).toEqual([['First, edited', 'page', keys.page], ['Second', 'page', keys.page]]);
+    expect(await siteTexts()).toEqual(['On the site']);
+  });
+
+  it('moves nothing back once the to-do is gone', async () => {
+    const page = await scopeStoreService.addTodo('page', keys.page, 'Deleted after the move');
+    const moved = await scopeStoreService.move('todos', page, keys);
+    await scopeStoreService.remove('todos', moved);
+
+    await scopeStoreService.moveBack('todos', moved, page);
+    const content = await scopeStoreService.load(keys);
+    expect(content.page.todos).toEqual([]);
+    expect(content.site.todos).toEqual([]);
   });
 });
 

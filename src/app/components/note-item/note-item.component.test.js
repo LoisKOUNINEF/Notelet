@@ -146,10 +146,18 @@ describe('NoteItemComponent', () => {
 
     expect(texts()).toEqual(['Second', 'First']);
     expect((await stored()).site.notes.map((n) => n.id)).toEqual([notes[2].id]);
-    expect(panel.toasts.at(-1)).toEqual({ message: 'Moved to this site\'s notes.', type: 'success' });
+    const toast = panel.toasts.at(-1);
+    expect(toast.message).toBe('Moved to this site\'s notes.');
+    expect(toast.type).toBe('success');
+    expect(toast.actionText).toBe('Undo');
 
     $('#scope-tab-site').click();
     expect(menuItem(notes[2], 'move').textContent).toBe('Move to this page');
+
+    toast.onAction();
+    await settle();
+    expect((await stored()).page.notes.map((n) => n.id)).toEqual(notes.map((n) => n.id).reverse());
+    expect((await stored()).site.notes).toEqual([]);
   });
 
   it('reports a failed save and stays in edit mode', async () => {
@@ -216,7 +224,7 @@ describe('NoteItemComponent', () => {
     menuItem(siteNote, 'move').click();
     await settle();
 
-    expect(panel.toasts.at(-1)).toEqual({ message: 'Moved to this page\'s notes.', type: 'success' });
+    expect(panel.toasts.at(-1).message).toBe('Moved to this page\'s notes.');
     expect((await stored()).page.notes.map((n) => n.id)).toContain(siteNote.id);
     expect((await stored()).site.notes).toEqual([]);
   });

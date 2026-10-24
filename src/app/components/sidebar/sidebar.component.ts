@@ -2,6 +2,7 @@ import { Component, html } from '../../../core/index.js';
 import { runAction } from '../../lib/actions.js';
 import { errorMessage } from '../../lib/errors.js';
 import { applyRequestedFocus, renderKeepingFocus, requestFocus } from '../../lib/focus.js';
+import { removeOverlays } from '../../lib/overlays.js';
 import { isSitePageKey, storageKey } from '../../lib/scope-keys.js';
 import { activeTabService } from '../../services/active-tab/active-tab.service.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
@@ -111,6 +112,17 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
       // Asks before "Delete all" (see confirmService), from the lists and the settings alike.
       { selector: 'confirm-dialog', factory: (el) => new ConfirmDialogComponent(el), keep: 'confirm' },
     ];
+  }
+
+  // The Settings toggle's tooltip is an overlay on <body> (see lib/overlays.ts).
+  protected override onBeforeRender(): void {
+    removeOverlays(this.element, '.sidebar__overlays');
+    super.onBeforeRender();
+  }
+
+  protected override onBeforeDestroy(): void {
+    removeOverlays(this.element, '.sidebar__overlays');
+    super.onBeforeDestroy();
   }
 
   // A kept scope panel still shows what it had: hand it the current state, then place the focus.

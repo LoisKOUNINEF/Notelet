@@ -2,13 +2,25 @@
   <header class="sidebar__header">
     <h1 class="sidebar__title">Notelet</h1>
     <button
-      class="button button--small sidebar__settings-toggle"
+      class="button button--small button--icon sidebar__settings-toggle"
+      id="sidebar-settings-toggle"
       type="button"
       tabindex="0"
+      aria-label="${settingsPage ? 'Back to notes' : 'Settings'}"
       aria-expanded="${settingsPage ? 'true' : 'false'}"
       aria-controls="sidebar-settings"
-      data-event="click:_toggleSettings">${settingsPage ? 'Back to notes' : 'Settings'}</button>
+      data-event="click:_toggleSettings">${settingsPage ? html`
+      <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 12H5M12 19l-7-7 7-7"/>
+      </svg>` : html`
+      <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>`}</button>
   </header>
+  <div class="sidebar__overlays">
+    <a11y-tooltip anchor="sidebar-settings-toggle" placement="bottom-end">${settingsPage ? 'Back to notes' : 'Settings'}</a11y-tooltip>
+  </div>
 
   ${settingsPage ? html`
   <div class="sidebar__settings" id="sidebar-settings">

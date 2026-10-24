@@ -206,6 +206,25 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
     });
   }
 
+  // Undoes move(), in a single write: the item leaves the list it was moved to as it is now
+  // (edits made since stay), back to its old list at its old place. Gone since: left gone.
+  public moveBack<K extends ScopeContentKind>(kind: K, moved: IScopeItemKinds[K], original: IScopeItemKinds[K]): Promise<void> {
+    const from = storageKey(kind, moved.scope, moved.key);
+    const to = storageKey(kind, original.scope, original.key);
+
+    return this.enqueue(async () => {
+      const stored = await chromeApiService.storageGet(this.area, [from, to]);
+      const source = sortItems(kind, stored[from]);
+      const current = source.find((i) => i.id === moved.id);
+      if (!current) return;
+      const target = sortItems(kind, stored[to]).filter((i) => i.id !== moved.id);
+      const back = { ...current, scope: original.scope, key: original.key, position: original.position };
+      if (original.position === undefined) delete back.position;
+
+      await this.writeLists({ [to]: sortItems(kind, [...target, back]), [from]: source.filter((i) => i.id !== moved.id) });
+    });
+  }
+
   /**
    * Saves an edited to-do, in one write: its text and items (none left: a single to-do again).
    * The items `takenOut` of it become single to-dos, as they were (checked or not), the open ones

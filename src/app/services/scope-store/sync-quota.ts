@@ -20,18 +20,18 @@ const encoder = new TextEncoder();
 export function checkSyncQuota(items: Record<string, unknown>, quota: ISyncQuota): void {
   // One item per page and per site that has notes or to-dos.
   if (Object.keys(items).length > quota.items) {
-    throw new QuotaExceededError('Notes and to-dos are kept on too many pages to sync. Remove some and try again.');
+    throw new QuotaExceededError(`Notes and to-dos are kept on too many pages to sync (max: ${quota.items}; current: ${Object.keys(items).length}). Remove some and try again.`);
   }
   let total = 0;
   for (const [key, value] of Object.entries(items)) {
     const size = byteLength(key) + byteLength(JSON.stringify(value));
     if (size > quota.perItem) {
-      throw new QuotaExceededError('Some notes or to-do lists are too long to sync. Shorten or remove a few and try again.');
+      throw new QuotaExceededError(`Some items are too long to sync (max: ${quota.perItem}; current: ${size}). Shorten or remove it and try again.`);
     }
     total += size;
   }
   if (total > quota.total) {
-    throw new QuotaExceededError('Your notes and to-dos are too large to sync. Remove a few and try again.');
+    throw new QuotaExceededError(`Your notes and to-dos are too large to sync (max: ${quota.total}; current: ${total}). Remove a few and try again.`);
   }
 }
 

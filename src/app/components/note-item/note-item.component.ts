@@ -160,11 +160,14 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
   }
 
   private async move(): Promise<void> {
-    const target = this._note.scope === 'page' ? 'site' : 'page';
-    const moved = await runAction('Couldn\'t move the note.', () => scopeStoreService.move('notes', this._note, this._options.keys), {
+    const note = this._note;
+    const target = note.scope === 'page' ? 'site' : 'page';
+    const moved = await runAction('Couldn\'t move the note.', () => scopeStoreService.move('notes', note, this._options.keys), {
       focus: this.focusAfterLeaving(),
     });
-    if (moved) notifierService.success(`Moved to this ${target}'s notes.`);
+    if (moved) {
+      notifierService.undoable(`Moved to this ${target}'s notes.`, () => scopeStoreService.moveBack('notes', moved, note), 'Couldn\'t move the note back.', 'success');
+    }
   }
 
   private async _delete(): Promise<void> {

@@ -59,20 +59,16 @@
     <div class="settings-panel__help">
       <details class="settings-panel__help-item">
         <summary>Page or site? Notes or to-dos?</summary>
-        <p>The tabs on top pick the page or the whole site; the ones below pick its to-dos or its notes. The panel opens on the last To-dos or Notes tab you picked.</p>
+        <p>The tabs on top pick the page or the whole site; the ones below pick its to-dos or its notes. The panel opens on the last tab you picked.</p>
         <p>Click a note or a to-do to edit it (or use its "Edit"); only a to-do's checkbox checks it. In its editor, a note can also get a name, shown above its text.</p>
         <p>The arrow beside a note folds it down to its name, or its first line; a to-do list's folds it down to its name and progress. It stays folded until you unfold it.</p>
-        <p>Page notes and to-dos show on that page only. Site notes show on every page of the site (a subdomain like blog.example.com is a site of its own). "Move to this site" or "Move to this page", in a note's or to-do's "⋯" menu, switches it between the two.</p>
-      </details>
-      <details class="settings-panel__help-item">
-        <summary>When is it "the same page"?</summary>
-        <p>A <code>#section</code>, tracking parameters (<code>utm_…</code>, <code>fbclid</code>…), <code>www.</code> and a trailing <code>/</code> don't make a different page. A home page in a language, like <code>/en</code>, is the home page. Other parameters, like YouTube's <code>?v=…</code>, do make a different page.</p>
+        <p>Page notes and to-dos show on that page only. Site notes show on every page of the site (note: a subdomain is a site of its own). "Move to this site" or "Move to this page", in a note's or to-do's "⋯" menu, switches it between the two.</p>
       </details>
       <details class="settings-panel__help-item">
         <summary>To-do lists</summary>
         <p>A to-do can be a list: several things to check off under one name. In the to-dos' field, write the name, press "List", then one item per line (Enter adds the next one); Ctrl+Enter or "Add" adds the list.</p>
         <p>Check its items right in the list: it moves to "Done" once they all are. To turn a single to-do into a list, press its "Edit" and add items; remove them all and it's single again.</p>
-        <p>To put a to-do into a list, pick "Move into a list…" in its "⋯" menu. To get an item out, edit the list and press "Take out" next to it: once saved, it's a to-do of its own, right after the list. Notes are for text you want to keep.</p>
+        <p>To put a to-do into a list, pick "Move into a list…" in its "⋯" menu. To get an item out, edit the list and press "Take out" next to it: once saved, it's a to-do of its own, right after the list.</p>
       </details>
       <details class="settings-panel__help-item">
         <summary>Reordering notes and to-dos</summary>
@@ -87,7 +83,8 @@
       <details class="settings-panel__help-item">
         <summary>Deleted something by mistake?</summary>
         <p>Use "Undo" in the message shown right after deleting a note, a to-do, or all of a list's done to-dos, to-dos or notes. Once that message is gone, there's no trash to restore from.</p>
-        <p>"Delete all older than" and the deletes in "Manage by site", here in Settings, can be undone the same way. "Delete all notes and to-dos" can't.</p>
+        <p>"Delete all older than" and the deletes in "Manage by site", here in Settings, can be undone the same way.</p>
+        <p>"Delete all notes and to-dos" can't be undone.</p>
       </details>
       <details class="settings-panel__help-item">
         <summary>Text you haven't saved yet</summary>
@@ -96,6 +93,7 @@
       <details class="settings-panel__help-item">
         <summary>Syncing between computers</summary>
         <p>${browser === 'firefox' ? 'Firefox' : 'Chrome'} sync holds about 100 KB in total, and a few hundred pages and sites. Switching moves all your notes, and stopping sync removes the synced copy from every computer.</p>
+        <p>The default settings use local storage by default, which holds around 10 MB in total.</p>
       </details>
       <details class="settings-panel__help-item">
         <summary>Why are notes unavailable on some pages?</summary>
