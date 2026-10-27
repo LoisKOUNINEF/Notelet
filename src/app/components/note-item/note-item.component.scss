@@ -88,9 +88,14 @@
   @include disclosure.chevron;
 }
 
-// A folded, unnamed note: its first line, cut with an ellipsis.
+// A folded note: its first line, cut with an ellipsis, and dotted too when lines follow it (a
+// line cut by its width shows only its own dots). Screen readers skip the dots.
 .note-item__summary {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.note-item__summary--more::after {
+  content: '…' / '';
 }

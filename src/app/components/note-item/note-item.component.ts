@@ -1,7 +1,7 @@
-import { Component, html } from '../../../core/index.js';
+import { Component, html, raw } from '../../../core/index.js';
 import { runAction } from '../../lib/actions.js';
 import { editOnClick } from '../../lib/card-click.js';
-import { requireElement } from '../../lib/dom.js';
+import { overflowsOneLine, requireElement } from '../../lib/dom.js';
 import { getEditDraft } from '../../lib/drafts.js';
 import { byData } from '../../lib/focus.js';
 import { formatDateTime, formatTimeAgo } from '../../lib/pipes.js';
@@ -19,11 +19,14 @@ interface INoteItemView {
   grabbed: boolean;
   // How the handle and the "⋯" trigger name this note (see noteLabel).
   name: string;
-  // Folding would hide something (its text under a name, or lines after the first).
+  // Folding hides lines after the first: the arrow always shows. A single line gets it only while
+  // too long to fit on one (measured, see fitArrow).
   canCollapse: boolean;
   collapsed: boolean;
-  // Its text's first line: all an unnamed note shows when folded.
+  // Its text's first line: what a note shows (under its name, if any) when folded.
   summary: string;
+  // More lines follow the summary: it ends with dots.
+  more: boolean;
 }
 
 // What the note list passes to each item, besides the note (see createCatalogComponents).
@@ -36,12 +39,13 @@ export interface INoteItemOptions {
   grabbedId: string | null;
 }
 
-const templateFn = ({ note, editing, edited, reorderable, grabbed, name, canCollapse, collapsed, summary }: INoteItemView) => html`__TEMPLATE_PLACEHOLDER__`;
+const templateFn = ({ note, editing, edited, reorderable, grabbed, name, canCollapse, collapsed, summary, more }: INoteItemView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 /**
  * One note: its name if it has one, its text, when it was last edited, and its actions (Edit,
  * Delete, and the rest in a "⋯" menu). A click on it opens it for editing too, like Edit. Its arrow
- * folds it down to its name, or its first line (saved on the note). Edit mode swaps all that for
+ * folds it down to its name and first line (saved on the note), shown when that hides something:
+ * lines after the first, or the end of a line too long for one. Edit mode swaps all that for
  * the note editor in place; the list then keeps it as-is while other notes change.
  */
 export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
@@ -49,6 +53,7 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
   private _index: number;
   private _options: INoteItemOptions;
   private _editor: NoteEditorComponent | null = null;
+  private _resizeObserver: ResizeObserver | null = null;
 
   constructor(mountTarget: HTMLElement, config: INote & { index: number }, options: INoteItemOptions) {
     const { index, ...note } = config;
@@ -75,11 +80,11 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
 
   private static viewOf(note: INote, options: INoteItemOptions, editing: boolean): INoteItemView {
     const lines = note.text.split('\n').filter((line) => line.trim());
-    const canCollapse = note.name ? lines.length > 0 : lines.length > 1;
     return {
-      canCollapse,
-      collapsed: canCollapse && !!note.collapsed,
+      canCollapse: lines.length > 1,
+      collapsed: !!note.collapsed,
       summary: (lines[0] ?? '').trim(),
+      more: lines.length > 1,
       note,
       editing,
       edited: note.updatedAt !== note.createdAt,
@@ -112,9 +117,34 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
     }];
   }
 
+  protected override onBeforeRender(): void {
+    this._resizeObserver?.disconnect();
+    super.onBeforeRender();
+  }
+
   protected override onAfterRender(): void {
     super.onAfterRender();
-    if (!this.config.editing) this.eventListeners.push(editOnClick(this.element, () => this._edit()));
+    if (this.config.editing) return;
+    this.eventListeners.push(editOnClick(this.element, () => this._edit()));
+    if (this.config.canCollapse) return;
+    this.fitArrow();
+    // The article's width, which its arrow doesn't change: showing it can't undo the measure.
+    if (typeof ResizeObserver !== 'undefined') {
+      this._resizeObserver = new ResizeObserver(() => this.fitArrow());
+      this._resizeObserver.observe(this.element);
+    }
+  }
+
+  protected override onBeforeDestroy(): void {
+    this._resizeObserver?.disconnect();
+    super.onBeforeDestroy();
+  }
+
+  // A single line gets its arrow only while it doesn't fit on one line (wrapped, or cut when folded).
+  private fitArrow(): void {
+    const toggle = this.element.querySelector<HTMLElement>('.note-item__toggle');
+    const line = this.element.querySelector<HTMLElement>('.note-item__text, .note-item__summary');
+    if (toggle && line) toggle.hidden = !overflowsOneLine(line);
   }
 
   private _edit(): void {

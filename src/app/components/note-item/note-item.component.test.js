@@ -416,7 +416,7 @@ describe('NoteItemComponent - folding', () => {
     panel = await startPanel();
     oneLine = await scopeStoreService.addNote('page', KEYS.page, 'Just this');
     lines = await scopeStoreService.addNote('page', KEYS.page, '\nFirst line\nSecond line');
-    named = await scopeStoreService.update('notes', await scopeStoreService.addNote('page', KEYS.page, 'Body text'), { name: 'Ideas' });
+    named = await scopeStoreService.update('notes', await scopeStoreService.addNote('page', KEYS.page, 'Body text\nMore'), { name: 'Ideas' });
     sidebar = new SidebarComponent('#app');
     sidebar.render();
     await settle();
@@ -427,8 +427,12 @@ describe('NoteItemComponent - folding', () => {
     await panel.stop();
   });
 
-  it('offers to fold only when it would hide something', () => {
-    expect(toggle(oneLine)).toBeFalsy();
+  it('offers to fold only when it would hide something', async () => {
+    const namedOneLine = await scopeStoreService.update('notes', await scopeStoreService.addNote('page', KEYS.page, 'Just this'), { name: 'Short' });
+    await settle();
+    expect(toggle(oneLine).hidden).toBe(true);
+    expect(toggle(namedOneLine).hidden).toBe(true);
+    expect(toggle(lines).hidden).toBe(false);
     expect(toggle(lines).getAttribute('aria-expanded')).toBe('true');
     expect(toggle(lines).getAttribute('aria-label')).toBe('Details: First line');
     expect(toggle(lines).getAttribute('aria-controls')).toBe(item(lines).querySelector('.note-item__content').id);
@@ -444,6 +448,7 @@ describe('NoteItemComponent - folding', () => {
     expect(item(lines).querySelector('.note-item__text')).toBeFalsy();
     const summary = item(lines).querySelector('.note-item__summary');
     expect(summary.textContent).toBe('First line');
+    expect(summary.classList.contains('note-item__summary--more')).toBe(true);
     expect(item(lines).querySelector('.note-item__edit').getAttribute('aria-describedby')).toBe(summary.id);
     expect(document.activeElement).toBe(toggle(lines));
     const saved = await stored(lines);
@@ -453,20 +458,62 @@ describe('NoteItemComponent - folding', () => {
 
     toggle(lines).click();
     await settle();
+    expect(toggle(lines).getAttribute('aria-expanded')).toBe('true');
     expect(item(lines).querySelector('.note-item__text').textContent).toBe('\nFirst line\nSecond line');
     expect((await stored(lines)).collapsed).toBeUndefined();
   });
 
-  it('folds a named note down to its name, its actions still there, a click still editing it', async () => {
+  it('folds a named note down to its name and first line, its actions still there, a click still editing it', async () => {
     toggle(named).click();
     await settle();
     expect(item(named).querySelector('.note-item__name').textContent).toBe('Ideas');
     expect(item(named).querySelector('.note-item__text')).toBeFalsy();
-    expect(item(named).querySelector('.note-item__summary')).toBeFalsy();
+    expect(item(named).querySelector('.note-item__summary').textContent).toBe('Body text');
+    expect(item(named).querySelector('.note-item__edit').getAttribute('aria-describedby')).toBe(`note-${named.id}-name`);
     expect(item(named).querySelector('.note-item__edit')).toBeTruthy();
 
     item(named).querySelector('.note-item__name').click();
-    expect(item(named).querySelector('.note-editor__input').value).toBe('Body text');
+    expect(item(named).querySelector('.note-editor__input').value).toBe('Body text\nMore');
+  });
+
+  it('offers to fold a single line too long to fit on one, cut without more dots when folded', async () => {
+    // jsdom lays nothing out: every paragraph overflows its width here.
+    Object.defineProperty(HTMLParagraphElement.prototype, 'scrollWidth', { configurable: true, get: () => 500 });
+    Object.defineProperty(HTMLParagraphElement.prototype, 'clientWidth', { configurable: true, get: () => 100 });
+    try {
+      const long = await scopeStoreService.addNote('page', KEYS.page, 'A single line, too long to fit');
+      await settle();
+      expect(toggle(long).hidden).toBe(false);
+
+      toggle(long).click();
+      await settle();
+      const summary = item(long).querySelector('.note-item__summary');
+      expect(summary.textContent).toBe('A single line, too long to fit');
+      expect(summary.classList.contains('note-item__summary--more')).toBe(false);
+      expect(toggle(long).hidden).toBe(false);
+      expect((await stored(long)).collapsed).toBe(true);
+
+      toggle(long).click();
+      await settle();
+      expect(item(long).querySelector('.note-item__text').textContent).toBe('A single line, too long to fit');
+    } finally {
+      delete HTMLParagraphElement.prototype.scrollWidth;
+      delete HTMLParagraphElement.prototype.clientWidth;
+    }
+  });
+
+  it('is a disclosure button controlling the note\'s content, named after the note, its chevron hidden', async () => {
+    const controlled = () => document.getElementById(toggle(named).getAttribute('aria-controls'));
+    expect(toggle(named).tagName).toBe('BUTTON');
+    expect(toggle(named).getAttribute('type')).toBe('button');
+    expect(toggle(named).getAttribute('aria-label')).toBe('Details: Ideas');
+    expect(toggle(named).querySelector('.note-item__chevron').getAttribute('aria-hidden')).toBe('true');
+    expect(item(named).contains(controlled())).toBe(true);
+
+    toggle(named).click();
+    await settle();
+    expect(toggle(named).getAttribute('aria-expanded')).toBe('false');
+    expect(item(named).contains(controlled())).toBe(true);
   });
 
   it('shows a note folded in another window folded here too', async () => {
