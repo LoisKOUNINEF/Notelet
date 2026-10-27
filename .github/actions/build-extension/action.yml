@@ -1,7 +1,7 @@
 name: Build extension
 description: >-
-  Installs dependencies, packages the store ZIP for one browser, validates it (manifest, contents,
-  versions), lints the Firefox build, and checks that a second build gives the same bytes.
+  Installs dependencies, packages the store ZIP for one browser, validates and lints it (when
+  configured), and checks that a second build gives the same bytes.
 
 inputs:
   browser:
@@ -34,20 +34,23 @@ runs:
       env:
         BROWSER: ${{ inputs.browser }}
         NUTIN_ASSUME_YES: '1'
-      run: npm run "package:extension:$BROWSER"
+      run: |
+        npm run "package:extension:$BROWSER"
 
     - name: Validate
       shell: bash
       env:
         BROWSER: ${{ inputs.browser }}
         TAG: ${{ inputs.tag }}
-      run: node tools/extension/validate-extension.js --browser "$BROWSER" ${TAG:+--tag "$TAG"}
+      run: |
+        node tools/extension/validate-extension.js --browser "$BROWSER" ${TAG:+--tag "$TAG"}
 
     # Mozilla's addons-linter: errors fail, warnings are only reported.
     - name: Lint (addons-linter)
       if: inputs.browser == 'firefox'
       shell: bash
-      run: npm run lint:extension
+      run: |
+        npm run lint:extension
 
     - name: Check the build is reproducible
       shell: bash
@@ -55,8 +58,10 @@ runs:
         BROWSER: ${{ inputs.browser }}
         NUTIN_ASSUME_YES: '1'
       run: |
-        cp dist/*-"$BROWSER"-*.zip.sha256 "$RUNNER_TEMP/first.sha256"
+        cp dist/notelet-"$BROWSER"-*.zip.sha256 "$RUNNER_TEMP/first.sha256"
         rm -rf dist dist-build
-        npm run "package:extension:$BROWSER" > /dev/null
-        diff "$RUNNER_TEMP/first.sha256" dist/*-"$BROWSER"-*.zip.sha256
-        cat dist/*-"$BROWSER"-*.zip.sha256
+        {
+          npm run "package:extension:$BROWSER"
+        } > /dev/null
+        diff "$RUNNER_TEMP/first.sha256" dist/notelet-"$BROWSER"-*.zip.sha256
+        cat dist/notelet-"$BROWSER"-*.zip.sha256
