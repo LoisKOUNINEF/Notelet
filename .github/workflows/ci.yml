@@ -1,8 +1,9 @@
 name: CI
 
 on:
+  # branches get CI through their pull request: a push to a PR branch doesn't run it twice
   push:
-    branches: ['**']
+    branches: [main]
   pull_request:
   workflow_call:
     inputs:
@@ -36,10 +37,12 @@ jobs:
       - run: npm ci
 
       - name: Typecheck (build)
-        run: npm run build -- -y
+        run: |
+          npm run build -- -y
 
       - name: Unit tests
-        run: npm run testin-nutin:only
+        run: |
+          npm run testin-nutin:only
 
   build:
     name: Build (${{ matrix.browser }})
