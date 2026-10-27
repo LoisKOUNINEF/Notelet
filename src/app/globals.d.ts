@@ -37,7 +37,7 @@ declare interface IChecklistItem {
 declare interface INote extends IScopeItem {
   // Optional, set in the note editor: shown above the text, and names the note in labels.
   name?: string;
-  // Folded down to its name or first line (see NoteItemComponent). Not an edit: keeps updatedAt.
+  // Folded down to its name and first line (see NoteItemComponent). Not an edit: keeps updatedAt.
   collapsed?: boolean;
 }
 

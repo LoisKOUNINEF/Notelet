@@ -1,13 +1,12 @@
 ${editing ? html`<div data-component="note-editor"></div>` : html`
 <div class="note-item__main">
-  ${canCollapse ? html`
-  <button class="note-item__toggle" type="button" tabindex="0" aria-expanded="${collapsed ? 'false' : 'true'}" aria-controls="note-${note.id}-content" aria-label="Details: ${name}" data-event="click:_toggleCollapsed">
+  <button class="note-item__toggle" type="button" tabindex="0" aria-expanded="${collapsed ? 'false' : 'true'}" aria-controls="note-${note.id}-content" aria-label="Details: ${name}" data-event="click:_toggleCollapsed" ${canCollapse ? '' : raw('hidden')}>
     <span class="note-item__chevron" aria-hidden="true"></span>
-  </button>` : ''}
+  </button>
   <div class="note-item__content" id="note-${note.id}-content">
     ${note.name ? html`<h2 class="note-item__name" id="note-${note.id}-name">${note.name}</h2>` : ''}
     ${collapsed
-      ? (note.name ? '' : html`<p class="note-item__summary" id="note-${note.id}-summary">${summary}</p>`)
+      ? html`<p class="note-item__summary${more ? ' note-item__summary--more' : ''}" id="note-${note.id}-summary">${summary}</p>`
       : html`<p class="note-item__text" id="note-${note.id}-text">${note.text}</p>`}
   </div>
 </div>
