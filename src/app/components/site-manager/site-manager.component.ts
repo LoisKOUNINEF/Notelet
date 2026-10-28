@@ -1,6 +1,6 @@
 import { html, raw } from '../../../core/index.js';
 import { runAction } from '../../lib/actions.js';
-import { errorMessage } from '../../lib/errors.js';
+import { failureMessage } from '../../lib/errors.js';
 import { applyRequestedFocus, renderKeepingFocus } from '../../lib/focus.js';
 import { activeTabService } from '../../services/active-tab/active-tab.service.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
@@ -95,7 +95,7 @@ export class SiteManagerComponent extends AppComponent<HTMLElement, ISiteManager
       sites = await scopeStoreService.listSites();
     } catch (error) {
       if (loadId !== this._loadId) return;
-      notifierService.error(`Couldn't list your sites. ${errorMessage(error)}`);
+      notifierService.error(failureMessage('Couldn\'t list your sites.', error));
       // What was shown stays, or an empty list rather than a spinner left turning.
       sites = this._sites ?? [];
     }

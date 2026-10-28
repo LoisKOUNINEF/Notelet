@@ -1,5 +1,5 @@
 import { notifierService } from '../services/notifier/notifier.service.js';
-import { errorMessage } from './errors.js';
+import { failureMessage } from './errors.js';
 import { clearRequestedFocus, requestFocus } from './focus.js';
 
 export interface IActionOptions {
@@ -22,7 +22,7 @@ export async function runAction<T>(failure: string, task: () => Promise<T>, { fo
     // Before the request is dropped: a rollback's re-render can still apply it.
     onError?.();
     clearRequestedFocus();
-    notifierService.error(`${failure} ${errorMessage(error)}`);
+    notifierService.error(failureMessage(failure, error));
     return undefined;
   }
 }

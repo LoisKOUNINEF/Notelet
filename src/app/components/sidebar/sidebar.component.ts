@@ -1,6 +1,6 @@
 import { Component, html } from '../../../core/index.js';
 import { runAction } from '../../lib/actions.js';
-import { errorMessage } from '../../lib/errors.js';
+import { failureMessage } from '../../lib/errors.js';
 import { applyRequestedFocus, renderKeepingFocus, requestFocus } from '../../lib/focus.js';
 import { removeOverlays } from '../../lib/overlays.js';
 import { isSitePageKey, storageKey } from '../../lib/scope-keys.js';
@@ -184,7 +184,7 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
     } catch (error) {
       if (loadId !== this._loadId) return;
       // What was shown stays (or empty lists), rather than a panel stuck loading.
-      notifierService.error(`Couldn't load your notes. ${errorMessage(error)}`);
+      notifierService.error(failureMessage('Couldn\'t load your notes.', error));
       content = this._content ?? EMPTY_CONTENT;
     }
     if (loadId !== this._loadId) return;
@@ -204,7 +204,7 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
       pages = await scopeStoreService.listSitePages(keys.site);
     } catch (error) {
       if (loadId !== this._sitePagesLoadId) return;
-      notifierService.error(`Couldn't list this site's pages. ${errorMessage(error)}`);
+      notifierService.error(failureMessage('Couldn\'t list this site\'s pages.', error));
       // The list goes (no spinner left turning), unless one was shown already.
       pages = this._sitePages ?? [];
     }
