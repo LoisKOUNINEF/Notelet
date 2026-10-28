@@ -1,9 +1,11 @@
 {
-  "version": "3.0.0",
+  "version": "3.1.0",
   "packageManager": "npm",
   "lang": "ts",
+  "extension": "side-panel",
   "features": {
     "docker": false,
     "markdown": false
-  }
+  },
+  "unmergedFiles": []
 }

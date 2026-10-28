@@ -1,6 +1,6 @@
 # Working on this project
 
-This project was generated with Nutin 3.0.0.
+This project was generated with Nutin 3.1.0.
 
 ## Architecture
 
@@ -9,8 +9,9 @@ src/
   app/            application code (components, views, services)
   core/           Nutin framework internals — see "Nutin" section before editing
   styles/         project-level Sass
+  extension/      browser extension: manifest.json (Chrome's) and background.ts
 config/           i18n (languages.json) and SEO configuration
-tools/            builder, dev server, generator, testin-nutin runner, docker (optional)
+tools/            builder, generator, testin-nutin runner, docker (optional)
 nutin.config.js   build/feature config — see below
 .nutin-meta.json  Nutin version, package manager, enabled features (source of truth for what's installed)
 ```
@@ -18,18 +19,29 @@ nutin.config.js   build/feature config — see below
 ## Conventions
 
 - Favor small, composable components.
-- One `View` = one route.
+- This is a browser extension (side-panel): no router and no views. `main.ts` mounts `SidebarComponent` (`src/app/components/sidebar/`); build the page from its child components. See "Browser extension".
 - Import framework code from the `core/index.js` barrel — do not deep-import into `core/`. App elements have no barrels: import them by file path.
 - Framework types (`Nutin.ComponentConfig`, `Nutin.ComponentOptions`, `Nutin.CatalogConfig`, `Nutin.Template`, `Nutin.Routes`, `Nutin.RouteGuard`, `Nutin.RequestConfig`, …) live in the global `Nutin` namespace declared in `core/internals.d.ts` — use them without importing. App events extend it in `src/app/globals.d.ts` (`declare namespace Nutin { interface AppEventMap { … } }`).
 - `src/app/` layout is free; `components/`, `views/`, `services/` is the default suggestion.
 
 ## Commands
 
-- Serve: `npm run serve` (build + serve), `npm run serve:prod` (prod build + serve), `npm run serve:only` (no rebuild), `npm run dev` (watch mode, reloads the page after each rebuild). Port defaults to 9090; override with `-- --port <n>` or `PORT=<n>`.
 - Build: `npm run build` (dev) or `npm run build:prod` (production). Opt-in dependencies (Tailwind, `markdown`) are only installed automatically in an interactive terminal; elsewhere pass `-- -y` (or set `NUTIN_ASSUME_YES`).
+- Type check only: `npm run typecheck` (`tsc --noEmit` on the merged templates; `dist/` is left as it is). Use it in CI instead of a plain `tsc --noEmit`, which reports every template-only `data-event` handler as unused.
+- Extension: `npm run build` writes `dist/chrome` and `dist/firefox` (load them unpacked). `npm run package:extension` (or `:chrome`/`:firefox`) runs a prod build and writes the store ZIPs `dist/<name>-<browser>-<version>.zip` + `.sha256` (needs the `zip` command); `npm run validate:extension` checks them (`-- --tag vX.Y.Z` on a release); `npm run lint:extension` runs `web-ext lint` on `dist/firefox`.
 - Generate: `npm run generate ELEMENT ELEMENT_NAME` (`ELEMENT` = `component`/`view`/`service`; `ELEMENT_NAME` may be a nested path, generated in `src/app/<path>/`; fails if that folder already exists and isn't empty).
-- Test: `npm run testin-nutin` (build + run), `npm run testin-nutin:only` (no rebuild), `npm run testin-nutin:watch`, `npm run testin-nutin:coverage`, `npm run testin-nutin:verbose`.
+- Test: `npm run testin-nutin` (build + run), `npm run testin-nutin:only` (no rebuild: it warns when sources changed after the last successful build, e.g. after a failed one), `npm run testin-nutin:watch`, `npm run testin-nutin:coverage`, `npm run testin-nutin:verbose`.
 - Update Nutin: `nutin-update` refuses to run unless the project is committed (no changes, no untracked files; `--allow-dirty` skips the check). Files edited here that also changed upstream are merged three-way; overlapping edits get `diff3` conflict markers, and the project won't build, nor will `nutin-update` run again, until they're resolved (listed in `.nutin-meta.json`'s `unmergedFiles` and `NUTIN-UPDATE-REPORT.md`).
+
+## Browser extension
+
+- Surface: Chrome's side panel / Firefox's sidebar (`side_panel`, turned into `sidebar_action` for Firefox). The page is `chrome-extension://<id>/index.html` and never changes: don't add `AppRouter`, `routes.ts` or views. To show other screens, switch child components (`data-component="${config.screen}"`).
+- Use `chrome.*` only through `src/app/services/chrome-api/chrome-api.service.ts` (`chromeApiService`); add a method there for each new API. It reads `chrome` on every call, so tests can install a fake first (the app tests use `src/app/testing/fake-chrome.js`, `installFakeChrome({ url })` / `uninstallFakeChrome()`). `chrome.*` calls can reject (extension reloaded under an open page, storage quota): report the error in the page.
+- `src/extension/manifest.json` is Chrome's; the build writes `dist/<browser>/manifest.json`, with `version` from `package.json`; Firefox's manifest is derived from Chrome's, with `extension.geckoId` from `nutin.config.js` (permanent once released). Keep permissions minimal: reading the active tab's URL needs `"tabs"`.
+- Files the extension needs (icons, `_locales/`, fonts and their licenses) go in `public/` (copied to the root) or `src/assets/`. Bundle everything: no remote scripts or fonts.
+- `src/extension/background.ts` is bundled separately with `builder.esbuild`'s settings (its `console` calls are dropped in prod). Firefox runs it as a background script, Chrome as a service worker: no DOM, and no state kept between events.
+- No dev server: `chrome.*` doesn't exist on an `http://` page. After a build, reload the extension (`chrome://extensions`, or `about:debugging` in Firefox) and reopen the panel.
+- `i18n` and `generateSEOFiles` must stay off (the build refuses them).
 
 ## Base classes
 
@@ -40,18 +52,21 @@ BaseComponent<T>     — render/destroy engine, data-* parsing, children
 └── View              — one per route; mounted/unmounted by the Router
 ```
 
-- `render()`: `onBeforeRender()` → sanitize the template and insert the resulting nodes (`SecurityHelper.sanitizeToFragment()`, never assigned to `innerHTML`) → mount children (`data-component`/`data-catalog`) → parse `data-i18n`/`data-pipe` → bind `data-event` listeners → `onAfterRender()`. Runs in full on every `render()` call — no virtual DOM/diffing; only children with `keep`/`keepBy` are kept (see "Children components"). For frequent updates (a game loop, a timer), don't re-render a whole view or patch a child's DOM with `querySelector` from the parent: give the component a method that updates its own DOM (e.g. a canvas or grid `paint()`), or keep the child and update it only when its data changes (see "Children components").
-- `destroy()`: unbinds events, unsubscribes bus listeners, destroys children, removes the element.
+- `render()`: `onBeforeRender()` → sanitize the template and insert the resulting nodes (`SecurityHelper.sanitizeToFragment()`, never assigned to `innerHTML`) → mount children (`data-component`/`data-catalog`) → parse `data-i18n`/`data-pipe` → bind `data-event` listeners → `onAfterRender()`. Runs in full on every `render()` call — no virtual DOM/diffing; only children with `keep`/`keepBy` are kept (see "Children components"). For many updates per second (animation frames, game loops, live data), don't call `render()`: give the component a public method that patches its own `this.element` (e.g. `paint(state)`) and call it from the loop, instead of writing into its DOM from outside. For panels fed by the same loop, have the method compare against the last value and only touch the DOM when it changed.
+- A re-render replaces the component's own nodes, which loses focus, a screen reader's position, `<details>` state and CSS transitions, and a replaced `aria-live` region may not announce. For a value that changes often (progress, counters, live-region messages, validation text), update the existing node in the handler (`this.element.querySelector(...)` + `textContent`/`setAttribute`) instead of calling `render()`. Values set this way are not escaped by `html`: use `textContent`, never `innerHTML`, and don't set URL attributes from data.
+- Across a parent's re-render, focus only survives inside kept children (see "Children components"): the component's own controls are new elements. When a render must happen while one of them has focus (a toggle, a save button), mark the controls with an attribute (`data-focus="save"`), read the focused one's value before `render()` (`document.activeElement?.closest('[data-focus]')?.getAttribute('data-focus')`), and focus the matching new element right after. Fall back to the next one when it's gone or disabled.
+- `destroy()`: unbinds events, unsubscribes bus listeners, destroys children, removes the element. A second call does nothing. After it, `render()` and `listen()` are ignored (with a warning in development), so a late render can't compose children nothing would destroy. Check `this.isDestroyed` after an `await` (or in a timer or `window` callback) before using the result.
 - `Service`: direct `new` throws — always use `MyService.getInstance()` (or the exported const). Auto-binds all methods to the instance. `registerCleanup(fn)` callbacks run on `dispose()`, `MyService.destroy()` and `Service.destroyAll()` (tests, SSR) — nothing is torn down on page unload.
-- Overridable hooks (all no-op by default): `onBeforeRender`, `onAfterRender`, `onBeforeDestroy`, `onAfterDestroy`, `onKept`, `generateTemplate()`, `registerChildren()`. `View` adds router-only `onEnter()`/`onExit()`.
+- Overridable hooks (all no-op by default): `onBeforeRender`, `onAfterRender`, `onBeforeDestroy`, `onAfterDestroy`, `onKept`, `generateTemplate()`, `registerChildren()`. Mark each override with `override` (`noImplicitOverride` is on). `View` adds router-only `onEnter()`/`onExit()`. `Component` itself uses `onBeforeRender` (applies `props.className`/`props.style`) and `onAfterRender` (fills `data-bind` fields): call `super.onBeforeRender()`/`super.onAfterRender()` when overriding them.
 
 ## Children components
 
 - Override `registerChildren(): Nutin.ComponentConfig[]` to declare children — matched against `[data-component="selector"]` elements in the rendered template. ComponentConfig: `{ selector: 'my-selector', factory: (el) => new MyComponent(el, {...} ), keep?: string | number }`.
-- Children are destroyed and recreated on every parent render unless they have a `keep` value: with the same value on the next render, the child is kept as-is (factory not called, not re-rendered, DOM state preserved) and only its `onKept()` hook runs. Put in `keep` whatever should force a recreate.
-- Updating a kept child: Nutin has no public setter (`config` is `protected`). Give the child its own method, e.g. `update(data) { this.config = data; this.render(); }`, ideally returning early when `data` is unchanged, and call it from the parent (after its own render or on each state change) instead of reaching into the child's DOM. A re-render rebuilds the child's nodes: focus on a rebuilt control is lost, so restore it if one may be focused (kept grandchildren keep theirs).
-- For repeated lists, use the inherited `createCatalogComponents({ items, elementName, selector, component })` inside `registerChildren()` instead of hand-writing one entry per item — targets `[data-catalog="selector"]`. Add `keepBy: (item, index) => id` to keep items whose id is unchanged and whose item is shallow-equal; without it the catalog is rebuilt every render.
-- Catalog DOM: each item is `<elementTag data-index>` (default `div`) wrapping the item component's own root (a `div`, unless the component sets `tagName`), which holds its template. Set the root's class with `props: { className }` in the item component's constructor. The two wrappers break structures that need direct children (`dl`'s `dt`/`dd`, a parent CSS grid's items): use a list element per item, or `display: contents` / `grid-template-columns: subgrid` on the wrappers.
+- The placeholder element is **replaced** by the child's root, and its attributes are copied onto it (`class` merged, `data-component` dropped). So the parent's placeholder decides where the child sits: `<div class="card__footer" data-component="actions">` gives the child's root `card__footer`. The selector may be interpolated (`data-component="${config.editing ? 'editor' : 'preview'}"`) instead of an `if` around two placeholders: `registerChildren()` lists both, and only the one in the template mounts. For a child that sits inline (e.g. in a flex row of buttons), give it `tagName: 'span'` and `display: contents` on its root, so its own root adds no box.
+- Children are destroyed and recreated on every parent render unless they have a `keep` value: with the same value on the next render, the child is kept as-is (factory not called, not re-rendered, DOM state preserved) and only its `onKept()` hook runs. Put in `keep` whatever should force a recreate. A kept child keeps its focus, text selection and scroll; a recreated one loses them, so a parent re-render takes focus away from an input or button in any child (or catalog item) that isn't kept.
+- A child's `config` is `protected` and a kept child isn't re-rendered, so there is no built-in way to hand it new data. Either put that data in `keep` (a changed value recreates the child with the new data), or keep the instance from the factory (`factory: (el) => (this.panel = new PanelComponent(el, data))` — not called again while the child is kept) and call a public method you add to the child (`update(data)` that patches its DOM, or stores the data and calls `this.render()`). Don't `querySelector` into a child's DOM from the parent.
+- For repeated lists, use the inherited `createCatalogComponents({ items, elementName, selector, component })` inside `registerChildren()` instead of hand-writing one entry per item — targets `[data-catalog="selector"]`. Add `keepBy: (item, index) => id` to keep items whose id is unchanged and whose item is shallow-equal; without it the catalog is rebuilt every render. The catalog's `props`/`defaults` are compared shallowly too: a value that's a new object or function on every render (an inline arrow callback, a `{ ... }` literal, a `.bind()`) recreates every item each time. Create those once (a class field, a cache per combination) and pass the same references. The same goes for `component`: a class defined inside `registerChildren()` is new on every render, so nothing is kept. A changed item is recreated, so catalog items always get fresh data.
+- Catalog DOM shape: the container's content is replaced by one wrapper per item (`elementTag`, default `div`, with `data-index`), holding the item component's root element (its `tagName`, default `div`), holding the template. This extra level breaks `<dl>`/`<dt>`/`<dd>`, `<ul>`/`<li>`, table and CSS grid/flex layouts that expect the item markup as direct children: set `elementTag` (e.g. `li` in a `<ul>`) and the component's `tagName`, or give the wrapper/root `display: contents` (or use `subgrid`).
 
 ## `data-*` attributes
 
@@ -61,10 +76,11 @@ BaseComponent<T>     — render/destroy engine, data-* parsing, children
 | `data-i18n="key"` | Sets translated text/placeholder via `I18nService`. |
 | `data-pipe="name[:args]\|name2..."` | Pipes value/text through registered pipes, chainable with `\|`. |
 | `data-pipe-source="..."` | Overrides the raw value fed into `data-pipe`. |
-| `data-optional` / `data-optional="${value}"` | Removes the element post-render if it ends up empty (tag-specific check: `src`/`value`/`textContent`), or, in the interpolated form, if `value` is `null`/`undefined` — a conditional element without a ternary. |
+| `data-optional` | Removes the element post-render if it ends up empty (tag-specific check: `src`/`value`/`textContent`). |
+| `data-optional="${x}"` | Also removes the element when `x` is `null`/`undefined` (or a whitespace-only string), whatever its content; otherwise (`''` included) the empty check above applies. |
 | `data-component="selector"` | Child component mount point, from `registerChildren()`. |
 | `data-catalog="selector"` | Repeated-children mount point, from `createCatalogComponents()`. |
-| `data-bind="propKey"` | `Component`-only two-way field binding; read back with `getValues()`. Fields are `<input>`/`<textarea>`; any other element gets and returns its `textContent`, so not a `<select>`. |
+| `data-bind="propKey"` | `Component`-only two-way field binding; read back with `getValues()`. Reads/writes `.value` on `<input>`/`<textarea>` only, `textContent` on anything else: don't put it on a `<select>` (filling it would wipe the options). |
 
 ## DOM events binding
 
@@ -74,14 +90,19 @@ Handlers are (re-)bound on every `render()`, not at build time. Always use priva
 <div data-event="event:_myFunction:@value,@id">
 ```
 ```ts
-private _myFunction(value: string, id: string) { doStuff() }
+private _myFunction(value: string, id: string) { doStuff(value, id) }
 ```
 
-The build type-checks each handler name written in a template against the class: a missing one fails `tsc` at the template line, and handlers count as used for `noUnusedLocals` (on in this project). Names built with `${}` aren't checked. At runtime, a missing handler binds nothing and logs a `console.warn` in development.
+The build type-checks each handler name written in a template against the class: a missing one fails `tsc` at the template line, and handlers count as used for `noUnusedLocals` (on in this project, with `noUnusedParameters`, `noImplicitOverride`, `noImplicitReturns` and `noFallthroughCasesInSwitch`: mark hook overrides with `override`, and prefix a parameter you deliberately don't read with `_`). Names built with `${}` aren't checked. At runtime, a missing handler binds nothing and logs a `console.warn` in development.
 
-Tokens: `@value`, `@checked`, `@selected`, `@id`, `@class`, `@name`, `@tag`, `@textContent`, `@innerText`, `@html`, `@event`, `@target`, `@x`/`@y` (pointer), `@key`/`@code` (keyboard), `@attr:name`, `@dataset:key`, plus string/number literals (quoted literals may contain commas). Token values are raw (not HTML-escaped): escaping happens when they are rendered through an `html` template. `@value` reads `<input>`, `<textarea>` and `contenteditable` only (`''` elsewhere): for a `<select>`, pass `@target` and read its `.value`.
+One `data-event` per element, with one `event:handler`. To listen to several events on the same element (e.g. `pointerdown`/`pointerup`/`pointercancel`), or on `window`/`document`, add the listeners in `onAfterRender()` and push each `[target, eventName, listener]` onto `this.eventListeners`: they are then removed on the next render and on `destroy()`.
 
-One `data-event` per element (a single `event:handler[:args]`). For several events on one element (e.g. `pointerdown`/`pointerup`/`pointercancel`), bind them in `onAfterRender()` with `addEventListener` and push `[element, type, listener]` onto `this.eventListeners`, which Nutin unbinds on re-render and `destroy()`.
+Tokens:
+- Element: `@id`, `@class`, `@name`, `@tag`, `@value`, `@checked`, `@selected`, `@textContent`, `@innerText`, `@html`, `@attr:name`, `@dataset:key`.
+- Event: `@event`, `@target`, `@x`/`@y` (`clientX`/`clientY`), `@key`, `@code`.
+- String/number literals (quoted literals may contain commas).
+
+`@value` reads `<input>`/`<textarea>`/`<select>` (and `innerText` of a `contenteditable` element). Custom tokens: `TokenHelper.registerCustomToken('@name', (el, event) => …)` / `registerPrefixedToken('@prefix:', (suffix, el) => …)` (global, from core). Token values are raw (not HTML-escaped): escaping happens when they are rendered through an `html` template.
 
 Only defaults that leave the page are cancelled: link clicks (`<a href>`, unless modified, e.g. ctrl+click), form `submit` and submit-button clicks inside a form. Other events keep their default (typing, checking a box); take `@event` and call `preventDefault()` yourself if needed. A component only binds its own `data-event`/`data-bind`/`data-i18n` elements, not those inside nested child components.
 
@@ -100,13 +121,17 @@ Only defaults that leave the page are cancelled: link clicks (`<a href>`, unless
 
 - Sass is the primary styling system; Tailwind is optional (`nutin.config.js`'s `tailwind` flag).
 - Naming convention: `.my-element__my-class`.
-- Build: `src/styles/main.scss` is compiled first, then every `.scss` under `src/app` (except `_partials`) is compiled on its own and appended to the same `main.css`, in the order the builder walks the folders. Each file therefore sees only what it `@use`s: share mixins/functions through partials in `src/styles/base` (on the load path, e.g. `@use "mixins"`), not through another component's file; placeholders (`%x`) and variables don't cross files. Rules of equal specificity in different files depend on that order: keep a base rule and its modifiers in one file, or raise the modifiers' specificity.
+- How it's compiled (`tools/builder/core/styles/sass.js`): `src/styles/main.scss` first, then every non-partial `.scss` under `src/app/` compiled **on its own** and appended in directory-walk order. So:
+  - Shared variables, mixins and functions go in a partial in a Sass load path (`builder.sass.paths`, default `src/styles/base/`, e.g. `@use "variables";`). Keep those partials CSS-free: each file that `@use`s one emits its CSS again.
+  - Variables and `%placeholders` declared in a component's `.scss` aren't visible to other components' files, and `@extend` can't reach across them.
+  - Partials (`_name.scss`) under `src/app/` are only compiled where they are `@use`d.
+  - Between equal-specificity rules from different component files, which one wins depends on folder order: don't rely on it.
 
 ## Pipes
 
 Built-in pipes, registered by `registerPipes()` in `main.ts` (args in `data-pipe="name:arg1,arg2"`):
 
-- `currency:currency,locale` (defaults `USD`, `en-US`), `date:locale,format,time` (defaults browser language, `long`), `number:decimals` (`toFixed`, default `0`)
+- `currency:currency,locale` (defaults `USD`, the page's language), `date:locale,format,time,pattern` (defaults the page's language, `long`), `number:decimals` (`toFixed`, default `0`). The page's language is `<html lang>` (set by i18n), else `en`; leave the locale empty to keep it (`date:,short`). `date` formats: `long`, `short`, `numeric`, `time`. `numeric` follows the locale's order (`10/28/2026` in `en-US`) unless a pattern gives it, with `YYYY`/`YY`/`MM`/`DD` and any separator (`date:,numeric,false,DD/MM/YYYY`).
 - `uppercase`, `lowercase`, `capitalize`, `capitalizeAll`, `truncate:length,suffix` (defaults `50`, `...`)
 - `default:fallback`, `json`
 
@@ -142,7 +167,7 @@ Nutin's own hand-built test runner + jsdom - not Jest. Tests are plain JavaScrip
 
 - Matchers: `toBe`, `toEqual`, `toContain`, `toBeTruthy`/`toBeFalsy`, `toBeDefined`/`toBeUndefined`, `toBeInstanceOf`, `toHaveBeenCalled`/`toHaveBeenCalledWith`, `toBeLessThan`/`toBeGreaterThan`, `toThrow` — each has a `.not` counterpart.
 - `spyOn(obj, 'method')` returns `.calls`/`.callCount`/`.lastCall`, `.andCallFake(fn)`/`.andReturn(v)`, `.restore()` — unlike mocks, calls pass through by default.
-- `tools/testin-nutin/mocks/` has ready-made `MockEventBus`/`MockHttpClient`/`MockI18n`/`MockRouter` for constructor injection.
+- `tools/testin-nutin/mocks/` has ready-made `MockEventBus`/`MockHttpClient`/`MockI18n`/`MockRouter`.
 - `useEventBus(bus)` (from `core/index.js`) routes every `subscribe`/`once`/`emit`/`off` made through `AppEventBus` to `bus`, e.g. a `MockEventBus`: components' `listen()`, the `Navigation`/`Lifecycle` facades, the router, i18n and app services alike. `useEventBus(null)` restores the real bus. A subscription stays on the bus it was made on: install it before mounting or initializing (`beforeEach`), restore it after destroying (`afterEach`).
 - `useFakeTimers()`/`useRealTimers()`/`advanceTimersByTime(ms)`/`runAllTimers()` for time-dependent code; `flushPromises()` for pending promises.
 - `silenceConsole(method | methods, fn)` runs `fn` with those `console` methods muted (sync or async). Use it in any test that triggers an expected warning/error.

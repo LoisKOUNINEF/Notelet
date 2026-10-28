@@ -279,4 +279,3 @@ describe('useEventBus', () => {
     expect(mock.emit.calls.length).toBe(0);
   });
 });
-

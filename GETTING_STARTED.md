@@ -17,20 +17,22 @@
 src/
   app/    -- suggested layout: organize src/app however you like
     components/
+      app/        -- the root component
     services/
-    views/
-    routes.ts
+      chrome-api/ -- the one place that touches chrome.*
     main.ts
   assets/
   core/   -- Nutin framework source
+  extension/ -- manifest.json and background.ts
   styles/
 
-tools/    -- build, development, generator and testing
+tools/    -- build, generator and testing
 
 nutin.config.js   -- options and configuration
 ```
 
-* Views **orchestrate application flow**
+This project is a browser extension: its page is the side panel (Firefox: the sidebar), with no router. `main.ts` mounts the root component, `AppComponent`, which composes the page from its children.
+
 * Components **encapsulate UI behavior**
 * Services **handle application concerns** through shared instances
 
@@ -48,15 +50,18 @@ import { Foo } from 'relative/path/to/foo.js';
 ## How do I run my app?
 
 ```bash
-# Development
-npm run serve # build and serve
-npm run dev   # build and serve with live reload
-npm run dev -- --port 3000 # serve on another port (default 9090; PORT=3000 also works)
-
 # Build
 npm run build      # build the application
 npm run build:prod # build the application for production
+npm run typecheck  # type-check only, without building
+
+# Package for the stores
+npm run package:extension  # prod build + dist/<name>-<browser>-<version>.zip
+npm run validate:extension # check the packages
+npm run lint:extension     # Mozilla's linter, on dist/firefox
 ```
+
+The build writes one unpacked extension per browser. Load `dist/chrome` with **Load unpacked** in `chrome://extensions` (Developer mode on), or `dist/firefox/manifest.json` with **Load Temporary Add-on…** in Firefox's `about:debugging`. After each build, reload the extension there, then reopen the side panel.
 
 ## How do I generate components, views and services?
 
@@ -93,7 +98,7 @@ export class ProductCardComponent extends Component {
   }
 
   // Declares children mounted into the data-component / data-catalog placeholders below.
-  public registerChildren(): Nutin.ComponentConfig[] {
+  public override registerChildren(): Nutin.ComponentConfig[] {
     // Single child, matched to <div data-component="product-details">
     const detailsComponent = {
       selector: `product-details`,
