@@ -1,7 +1,7 @@
 import { html, raw } from '../../../core/index.js';
 import { runAction } from '../../lib/actions.js';
 import { requireElement } from '../../lib/dom.js';
-import { errorMessage } from '../../lib/errors.js';
+import { failureMessage } from '../../lib/errors.js';
 import { chromeApiService } from '../../services/chrome-api/chrome-api.service.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
 import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
@@ -121,7 +121,7 @@ export class SettingsPanelComponent extends AppComponent<HTMLElement, ISettingsP
       await scopeStoreService.migrateTo(area);
       notifierService.success(success(area));
     } catch (error) {
-      notifierService.error(errorMessage(error));
+      notifierService.error(failureMessage('Couldn\'t move your notes and to-dos.', error));
     } finally {
       // Back to the area actually in use, whether the move worked or not.
       this.setBusy(false);

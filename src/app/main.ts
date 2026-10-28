@@ -11,7 +11,7 @@ import 'a11y-elements/overlays/snackbar';
 import 'a11y-elements/overlays/tooltip';
 import { initI18n, registerPipes } from '../core/index.js';
 import { SidebarComponent } from './components/sidebar/sidebar.component.js';
-import { errorMessage } from './lib/errors.js';
+import { failureMessage } from './lib/errors.js';
 import { registerAppPipes } from './lib/pipes.js';
 import { activeTabService } from './services/active-tab/active-tab.service.js';
 import { clockService } from './services/clock/clock.service.js';
@@ -34,7 +34,7 @@ async function start(step: string, run: () => unknown): Promise<void> {
   try {
     await run();
   } catch (error) {
-    notifierService.error(`Couldn't ${step}. ${errorMessage(error)} Try closing and reopening the panel.`);
+    notifierService.error(`${failureMessage(`Couldn't ${step}.`, error)} Try closing and reopening the panel.`);
   }
 }
 

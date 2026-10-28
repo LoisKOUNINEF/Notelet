@@ -1,6 +1,6 @@
 import { notify, type NotifyOptions } from 'a11y-elements/overlays/snackbar';
 import { Service } from '../../../core/index.js';
-import { errorMessage } from '../../lib/errors.js';
+import { failureMessage } from '../../lib/errors.js';
 
 export interface INotifyAction {
   label: string;
@@ -34,7 +34,7 @@ export class NotifierService extends Service<NotifierService> {
   public undoable(message: string, undo: () => Promise<unknown>, failure: string, type: 'info' | 'success' = 'info'): void {
     this.show(message, { type }, {
       label: 'Undo',
-      run: () => void undo().catch((error: unknown) => this.error(`${failure} ${errorMessage(error)}`)),
+      run: () => void undo().catch((error: unknown) => this.error(failureMessage(failure, error))),
     });
   }
 

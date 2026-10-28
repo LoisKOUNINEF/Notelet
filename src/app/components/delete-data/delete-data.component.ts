@@ -1,7 +1,7 @@
 import { html, raw } from '../../../core/index.js';
 import { runAction } from '../../lib/actions.js';
 import { AGES, DEFAULT_AGE, ageOption, cutoff, isAge, type Age } from '../../lib/ages.js';
-import { errorMessage } from '../../lib/errors.js';
+import { failureMessage } from '../../lib/errors.js';
 import { renderKeepingFocus } from '../../lib/focus.js';
 import { removeOverlays } from '../../lib/overlays.js';
 import { countList } from '../../lib/plural.js';
@@ -86,7 +86,7 @@ export class DeleteDataComponent extends AppComponent<HTMLElement, IDeleteDataVi
     } catch (error) {
       if (loadId !== this._loadId) return;
       this._items = null;
-      notifierService.error(`Couldn't count your notes. ${errorMessage(error)}`);
+      notifierService.error(failureMessage('Couldn\'t count your notes.', error));
     }
     this._loading = false;
     this.refresh();

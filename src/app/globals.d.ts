@@ -1,3 +1,6 @@
+// Replaced at build time by esbuild's define (see lib/errors.ts).
+declare const process: { env: { NODE_ENV?: string } };
+
 // Notes are attached either to one page (its URL) or to a whole site (its domain).
 declare type NoteScope = 'page' | 'site';
 
