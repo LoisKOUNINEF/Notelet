@@ -23,7 +23,11 @@ The commands run with `BROWSER` (`chrome`/`firefox`) in their environment, and `
 
 ## Releasing
 
+<<<<<<< HEAD
 1. Bump the version in `package.json` (the build writes it into each browser's manifest), commit and push.
+=======
+1. Bump the version in `package.json` and in the extension's `manifest.json`, commit and push.
+>>>>>>> 42679be
 2. Tag the commit and push the tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
 
 The workflow:
