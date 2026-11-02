@@ -1,8 +1,10 @@
 export default {
-  // Nutin options
-  tailwind: false,         // Enable Tailwind CSS v4
-  i18n: false,             // Enable i18n; configure languages in config/languages.json
-  generateSEOFiles: false, // Generate per-route HTML, robots.txt and sitemap.xml; configure SEO data in config/seo.json
+  // Browser extension (side-panel): the build writes one unpacked extension per browser, in dist/<browser>
+  extension: {
+    browsers: ['chrome', 'firefox'],
+    // Firefox's add-on id. storage.sync data and addons.mozilla.org tie to it: it can never change.
+    geckoId: 'notelet@kouninef.dev',
+  },
 
   // Build pipeline
   builder: {
