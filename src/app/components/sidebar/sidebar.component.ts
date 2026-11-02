@@ -19,7 +19,6 @@ type SettingsPage = 'settings' | 'sites';
 
 interface ISidebarView {
   settingsPage: SettingsPage | null;
-  // The active tab can have notes.
   available: boolean;
 }
 
@@ -30,24 +29,21 @@ const SCOPES: NoteScope[] = ['page', 'site'];
 const KINDS: ScopeContentKind[] = ['notes', 'todos'];
 
 // Before the first load (or after a failed one): empty lists rather than a panel stuck loading.
-// One object, so the scope panel sees nothing changed until something did.
 const EMPTY_CONTENT: ScopedContent = { page: { notes: [], todos: [] }, site: { notes: [], todos: [] } };
 
 /**
- * The side panel's root: its header, then the active tab's notes and to-dos (see
- * ScopePanelComponent), the page that can't have any, or the settings. It follows the active tab
- * and loads what the scope panel shows, page and site together, so switching tabs never waits.
+ * The side panel's root: its header, then the active tab's notes and to-dos
+ * The page that can't have any (available: false;), or the settings.
  */
 export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
   private _keys: IScopeKeys | null;
   private _scope: NoteScope = 'page';
   private _kind: ScopeContentKind;
   private _content: ScopedContent | null = null;
-  // Another page of the same site is loading: its site-wide lists stay shown meanwhile, its page's
-  // lists wait for it.
+  // Another page of the same site is loading.
   private _pageLoading = false;
-  // The site's pages that have notes or to-dos, for the "This site" tab. Listing them reads the
-  // whole storage area, so only while that tab shows; null: not loaded for this site yet.
+  // The site's pages that have notes or to-dos, for the "This site" tab.
+  // Listing them reads the whole storage area, so only while that tab shows.
   private _sitePages: ISitePage[] | null = null;
   private _settingsPage: SettingsPage | null = null;
   private _panel: ScopePanelComponent | null = null;
@@ -65,8 +61,8 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
       const site = keys && keys.site === this._keys?.site ? this._content?.site : undefined;
       const sameSite = site !== undefined;
       this._keys = keys;
-      // On the same site, the "This site" lists and pages are kept as they are (their DOM, scroll
-      // and a reorder in progress with them): only the page's content is new.
+      // On the same site, the "This site" lists and pages are kept as they are
+      // Only the page's content is new.
       this._content = site ? { page: EMPTY_CONTENT.page, site } : null;
       this._pageLoading = sameSite;
       this.refresh();
@@ -99,17 +95,17 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
         keep: 'sites',
       },
       { selector: 'page-unavailable', factory: (el) => new PageUnavailableComponent(el), keep: 'unavailable' },
-      // Kept while shown: it re-renders itself when what it shows changed (see onAfterRender).
+      // Kept while shown: it re-renders itself when what it shows changed.
       {
         selector: 'scope-panel',
-        // Only rendered when the active tab can have notes (see the template): its state is there.
+        // Only rendered when the active tab can have notes: its state is there.
         factory: (el) => (this._panel = new ScopePanelComponent(el, this.panelState()!, {
           onSelectScope: (scope) => this.selectScope(scope),
           onSelectKind: (kind) => void this.selectKind(kind),
         })),
         keep: 'scope',
       },
-      // Asks before "Delete all" (see confirmService), from the lists and the settings alike.
+      // Asks before "Delete all", from the lists and the settings alike.
       { selector: 'confirm-dialog', factory: (el) => new ConfirmDialogComponent(el), keep: 'confirm' },
     ];
   }
@@ -140,7 +136,7 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
     if (this._sitePages === null) void this.loadSitePages();
   }
 
-  // Shown at once; saved for the next time the panel opens (and for other windows).
+  // Shown at once; saved for the next time the panel opens.
   private async selectKind(kind: ScopeContentKind): Promise<void> {
     this._kind = kind;
     requestFocus(`#kind-tab-${kind}`);
@@ -148,9 +144,8 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
     await runAction('Couldn\'t save that setting.', () => settingsService.setContentKind(kind));
   }
 
-  // Something changed (here, in another window, or the storage area: `changed` null): the shown
-  // lists reload if theirs did, the site's pages if one of its pages' did: the tab showing (keeping
-  // the previous list meanwhile), else later. Other sites' changes cost nothing.
+  // Something changed (here, in another window, or the storage area).
+  // Other sites' changes cost nothing.
   private reload(changed: string[] | null): void {
     const keys = this._keys;
     if (!keys) return;
@@ -187,7 +182,7 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
       notifierService.error(failureMessage('Couldn\'t load your notes.', error));
       content = this._content ?? EMPTY_CONTENT;
     }
-    if (loadId !== this._loadId) return;
+    if (loadId !== this._loadId || this.isDestroyed) return;
     this._content = content;
     this._pageLoading = false;
     this.refresh();
@@ -205,7 +200,6 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
     } catch (error) {
       if (loadId !== this._sitePagesLoadId) return;
       notifierService.error(failureMessage('Couldn\'t list this site\'s pages.', error));
-      // The list goes (no spinner left turning), unless one was shown already.
       pages = this._sitePages ?? [];
     }
     if (loadId !== this._sitePagesLoadId) return;
@@ -213,13 +207,8 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
     this.refresh();
   }
 
-  /**
-   * Re-renders, keeping keyboard focus where it was. Kept children (lists, composers) keep theirs
-   * through Nutin's preservation, but the tabs and the Settings toggle are rebuilt: a reload from
-   * elsewhere (another window, Chrome sync) would drop them to <body>. Unless the action that
-   * caused the render asked for focus somewhere else.
-   */
   private refresh(): void {
+    if (this.isDestroyed) return;
     const own = this.ownFocusSelector();
     renderKeepingFocus(this.element, own ? [own] : [], () => {
       this.config = this.view();

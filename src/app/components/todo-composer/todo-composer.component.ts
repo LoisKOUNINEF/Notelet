@@ -1,7 +1,7 @@
 import { Component, html } from '../../../core/index.js';
 import { runAction } from '../../lib/actions.js';
 import { requireElement } from '../../lib/dom.js';
-import { getDraft, getJsonDraft, setDraft, setJsonDraft } from '../../lib/drafts.js';
+import { getDraft, getJsonDraft, keepDraftsOf, setDraft, setJsonDraft } from '../../lib/drafts.js';
 import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
 import { ChecklistFieldsComponent } from '../checklist-fields/checklist-fields.component.js';
 
@@ -19,13 +19,13 @@ interface ITodoComposerView {
 
 const templateFn = ({ scope, draft, listMode }: ITodoComposerView) => html`__TEMPLATE_PLACEHOLDER__`;
 
-// Its text field: where the focus goes once a to-do leaves the list.
+// Where the focus goes once a to-do leaves the list.
 export const TODO_COMPOSER_INPUT = '.todo-composer__input';
 
 /**
- * The quick add, on top of the to-dos. A single to-do: one line, Enter adds it. "List" turns it
- * into a to-do list: the line becomes its name, with one field per item below (Enter adds the
- * next one; Ctrl/Cmd+Enter or "Add" adds the list). Removing every item makes it single again.
+ * The quick add, on top of the to-dos. A single to-do: one line, Enter adds it.
+ * "List" turns it into a to-do list: the line becomes its name, with one field per item below
+ * Removing every item makes it single again.
  * What's typed is kept as drafts.
  */
 export class TodoComposerComponent extends Component<HTMLElement, ITodoComposerView> {
@@ -33,6 +33,8 @@ export class TodoComposerComponent extends Component<HTMLElement, ITodoComposerV
   private _key: string;
   private _items: IChecklistItem[];
   private _checklist: ChecklistFieldsComponent | null = null;
+  // The items' text is handed over on change and on destroy: also when the panel closes.
+  private readonly _stopKeeping = keepDraftsOf(() => this.saveItemsDraft());
 
   constructor(mountTarget: HTMLElement, { scope, key }: ITodoComposerConfig) {
     const draftItems = getJsonDraft<IChecklistItem[]>(itemsDraftId(scope, key));
@@ -85,11 +87,11 @@ export class TodoComposerComponent extends Component<HTMLElement, ITodoComposerV
 
   // Items typed but not added yet survive a tab switch, like the name.
   protected override onBeforeDestroy(): void {
+    this._stopKeeping();
     this.saveItemsDraft();
     super.onBeforeDestroy();
   }
 
-  // "List", then "Add item": one more field, focused once the list has a name (else the name is).
   private _addListItem(): void {
     if (!this.config.listMode) this.setListMode(true);
     const named = this.input.value.trim() !== '';
@@ -106,7 +108,7 @@ export class TodoComposerComponent extends Component<HTMLElement, ITodoComposerV
     // Items left empty are dropped: none left, it's a single to-do.
     const items = fields.map((field) => ({ ...field, text: field.text.trim() })).filter((field) => field.text);
 
-    // Ready for the next one right away; restored if the save fails.
+    // Ready for the next one; restored if the save fails.
     input.value = '';
     setDraft(draftId(this._scope, this._key), '');
     checklist.reset([]);
@@ -122,14 +124,14 @@ export class TodoComposerComponent extends Component<HTMLElement, ITodoComposerV
     });
   }
 
-  // Re-rendered with the other label, placeholder and buttons; what's typed comes back from its draft.
+  // Re-rendered; what's typed comes back from its draft.
   private setListMode(listMode: boolean): void {
     if (listMode === this.config.listMode) return;
     this.config = { ...this.config, draft: this.input.value, listMode };
     this.render();
   }
 
-  // Created with the first render (see registerChildren), kept across the others.
+  // Created with the first render, kept across the others.
   private get checklist(): ChecklistFieldsComponent {
     if (!this._checklist) throw new Error('The checklist fields are rendered with the composer.');
     return this._checklist;

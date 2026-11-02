@@ -1,7 +1,7 @@
 import { Component, html } from '../../../core/index.js';
 import { announce } from '../../lib/announce.js';
 import { requireElement } from '../../lib/dom.js';
-import { setEditDraft } from '../../lib/drafts.js';
+import { keepDraftsOf, setEditDraft } from '../../lib/drafts.js';
 
 // What an edit in progress holds, kept as a draft if the editor goes away unsaved.
 export interface INoteEditDraft {
@@ -35,6 +35,8 @@ export class NoteEditorComponent extends Component<HTMLElement, INoteEditorView>
   private _announced = false;
   // Saved or cancelled: nothing to keep when the editor goes away.
   private _closed = false;
+  // Also kept when the panel closes (see keepDraftsOf).
+  private readonly _stopKeeping = keepDraftsOf(() => this.saveDraft());
 
   constructor(mountTarget: HTMLElement, { note, draft, onSave, onCancel }: INoteEditorConfig) {
     const text = draft?.text ?? note.text;
@@ -46,25 +48,32 @@ export class NoteEditorComponent extends Component<HTMLElement, INoteEditorView>
     this._onCancel = onCancel;
   }
 
-  // The note item closes the editor itself (save, cancel): from then on there's no draft to keep.
+  // The note item closes the editor itself (save, cancel): no draft to keep.
   public close(): void {
     this._closed = true;
     setEditDraft('note', this._note.id, null);
   }
 
-  // A save that failed: the edit is still open, and kept again if the editor goes away.
+  // A save that failed: the edit is still open, and kept if the editor goes away.
   public reopen(): void {
     this._closed = false;
   }
 
   protected override onBeforeDestroy(): void {
-    if (!this._closed) {
-      const text = this.textarea.value;
-      const name = this.nameInput.value;
-      const unchanged = text === this._note.text && name === (this._note.name ?? '');
-      setEditDraft('note', this._note.id, unchanged ? null : { text, name });
-    }
+    this._stopKeeping();
+    this.saveDraft();
     super.onBeforeDestroy();
+  }
+
+  // The edit as a draft, unless closed (saved or cancelled), unchanged, or not rendered yet.
+  private saveDraft(): void {
+    const textarea = this.element.querySelector<HTMLTextAreaElement>('.note-editor__input');
+    const nameInput = this.element.querySelector<HTMLInputElement>('.note-editor__name');
+    if (this._closed || !textarea || !nameInput) return;
+    const text = textarea.value;
+    const name = nameInput.value;
+    const unchanged = text === this._note.text && name === (this._note.name ?? '');
+    setEditDraft('note', this._note.id, unchanged ? null : { text, name });
   }
 
   protected override onAfterRender(): void {
@@ -75,7 +84,7 @@ export class NoteEditorComponent extends Component<HTMLElement, INoteEditorView>
     }
   }
 
-  // Focuses the text, caret at the end, where one usually continues a note.
+  // Focuses the text, caret at the end.
   public focus(): void {
     const input = this.textarea;
     input.focus();
@@ -84,10 +93,6 @@ export class NoteEditorComponent extends Component<HTMLElement, INoteEditorView>
 
   private get textarea(): HTMLTextAreaElement {
     return requireElement(this.element, '.note-editor__input');
-  }
-
-  private get nameInput(): HTMLInputElement {
-    return requireElement(this.element, '.note-editor__name');
   }
 
   // In the name, Enter goes on to the text; Ctrl+Enter and Escape work as in the text.
@@ -115,7 +120,7 @@ export class NoteEditorComponent extends Component<HTMLElement, INoteEditorView>
     const text = this.textarea.value.trim();
     // Nothing left to keep: deleting a note is its own action.
     if (!text) return;
-    this._onSave(text, this.nameInput.value.trim());
+    this._onSave(text, requireElement<HTMLInputElement>(this.element, '.note-editor__name').value.trim());
   }
 
   private _cancel(): void {

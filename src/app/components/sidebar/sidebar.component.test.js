@@ -1,3 +1,4 @@
+import { initDrafts, saveAllDrafts } from '#root/dist/src/app/lib/drafts.js';
 import { SidebarComponent } from '#root/dist/src/app/components/sidebar/sidebar.component.js';
 import { scopeStoreService } from '#root/dist/src/app/services/scope-store/scope-store.service.js';
 import { busListenerCounts, deferred, KEYS, keydown, settle, startPanel, typeInto } from '../../testing/panel.js';
@@ -396,7 +397,6 @@ describe('SidebarComponent', () => {
     await mount();
     tab('site').click();
     await settle();
-    // The kept components' roots, and the note in the list.
     const list = $('.note-list').parentElement;
     const note = $('.note-item');
     const pages = $('.site-pages').parentElement;
@@ -457,7 +457,6 @@ describe('SidebarComponent', () => {
     toggle().click();
     expect(toggle().getAttribute('aria-expanded')).toBe('false');
     expect(toggle().getAttribute('aria-label')).toBe('Settings');
-    // One tooltip, however many renders.
     expect(tooltips().map((tooltip) => tooltip.textContent)).toEqual(['Settings']);
     expect($('[role="tablist"]')).toBeTruthy();
     expect(document.activeElement).toBe(toggle());
@@ -478,7 +477,6 @@ describe('SidebarComponent', () => {
     expect($('.site-manager')).toBeFalsy();
     expect(document.activeElement).toBe($('.settings-panel__manage-sites'));
 
-    // From the page, the header's button goes straight back to the notes.
     $('.settings-panel__manage-sites').click();
     $('.sidebar__settings-toggle').click();
     expect($('.site-manager')).toBeFalsy();
@@ -506,7 +504,6 @@ describe('SidebarComponent', () => {
     await scopeStoreService.addNote('page', 'https://other.org/x', 'New page note');
     await mount();
 
-    // Hold the panel's next load of this page (a 4-item read), let the other tab's through.
     const storage = panel.fake.storage.local;
     const realGet = storage.get.bind(storage);
     let releaseOld = null;
@@ -568,6 +565,20 @@ describe('SidebarComponent', () => {
     tab('site').click();
     tab('page').click();
     expect($('.note-editor')).toBeFalsy();
+  });
+
+  it('keeps a note edit and a to-do being written when the panel closes, for the next panel', async () => {
+    const note = await scopeStoreService.addNote('page', KEYS.page, 'Original');
+    await initDrafts();
+    await mount();
+    $(`[data-note-id="${note.id}"] .note-item__edit`).click();
+    $('.note-editor__input').value = 'Half-edited';
+    typeInto($('.note-composer__input'), 'A new one');
+
+    // Closing the panel destroys nothing: the editors hand their drafts over as it hides.
+    await saveAllDrafts();
+    expect(JSON.parse(panel.fake.storage.session.data.get(`draft:edit:note:${note.id}`)).text).toBe('Half-edited');
+    expect(panel.fake.storage.session.data.get(`draft:note:page:${KEYS.page}`)).toBe('A new one');
   });
 
   it('forgets a note edit that was cancelled, or left unchanged', async () => {

@@ -11,6 +11,7 @@ import 'a11y-elements/overlays/snackbar';
 import 'a11y-elements/overlays/tooltip';
 import { initI18n, registerPipes } from '../core/index.js';
 import { SidebarComponent } from './components/sidebar/sidebar.component.js';
+import { initDrafts } from './lib/drafts.js';
 import { failureMessage } from './lib/errors.js';
 import { registerAppPipes } from './lib/pipes.js';
 import { activeTabService } from './services/active-tab/active-tab.service.js';
@@ -19,7 +20,6 @@ import { notifierService } from './services/notifier/notifier.service.js';
 import { scopeStoreService } from './services/scope-store/scope-store.service.js';
 import { settingsService } from './services/settings/settings.service.js';
 
-// The side panel page: no router (the panel only ever shows index.html), one root component.
 class App {
   constructor() {
     registerPipes();
@@ -28,8 +28,7 @@ class App {
   }
 }
 
-// Each step that can fail (the extension reloaded under an open panel...) is reported, and the
-// panel still mounts: a blank panel would say nothing.
+// Each step that can fail is reported, and the panel still mounts: a blank panel would say nothing.
 async function start(step: string, run: () => unknown): Promise<void> {
   try {
     await run();
@@ -42,8 +41,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   await start('load the translations', () => initI18n());
   // Settings first: they say which storage area the notes are in.
   await start('load your settings', () => settingsService.init());
-  scopeStoreService.init();
+  await start('watch for changes to your notes', () => scopeStoreService.init());
   await start('read the current tab', () => activeTabService.init());
+  // Unsaved text from the panel's last opening.
+  await start('restore your unsaved text', () => initDrafts());
   clockService.start();
   new App();
 });

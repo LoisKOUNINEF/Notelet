@@ -79,6 +79,14 @@ describe('getScopeKeys', () => {
     expect(getScopeKeys('https://example.com/en-toolong').page).toBe('https://example.com/en-toolong');
   });
 
+  it('keeps everyday paths that are also language codes, unless they have a region', () => {
+    for (const path of ['/my', '/hr', '/id', '/it', '/no', '/to', '/is']) {
+      expect(getScopeKeys(`https://example.com${path}`).page).toBe(`https://example.com${path}`);
+    }
+    expect(getScopeKeys('https://example.com/it-IT').page).toBe('https://example.com');
+    expect(getScopeKeys('https://example.com/id_ID').page).toBe('https://example.com');
+  });
+
   it('returns null for pages that can\'t have notes', () => {
     expect(getScopeKeys('chrome://extensions')).toBe(null);
     expect(getScopeKeys('file:///Users/me/a.html')).toBe(null);

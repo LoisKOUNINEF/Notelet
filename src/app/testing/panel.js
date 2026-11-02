@@ -1,5 +1,5 @@
-// Everything a component test needs from the panel's runtime: a fake `chrome`, the services
-// started on it (as main.ts does), the pipes, and toasts captured instead of shown.
+// Everything a component test needs from the panel's runtime: a fake `chrome`, the services,
+// the pipes, and toasts captured instead of shown.
 import { registerPipes, useEventBus } from '#root/dist/src/core/index.js';
 import { MockEventBus } from '#root/tools/testin-nutin/mocks/mock-event-bus.js';
 import { registerAppPipes } from '#root/dist/src/app/lib/pipes.js';
@@ -13,23 +13,16 @@ import { installFakeChrome, uninstallFakeChrome } from './fake-chrome.js';
 
 export { KEYS } from './fixtures.js';
 
-// The pipe registry is app-wide: pipes are registered once for the whole run.
 let pipesRegistered = false;
-// The panel's event bus while one runs (see startPanel).
 let currentBus = null;
 
-// `settings`: saved settings to start from, e.g. `{ contentKind: 'todos' }` to show the to-dos.
-// `browser`: 'firefox' to run as in Firefox (see fake-chrome.js).
-// The app's events go through a MockEventBus (`bus`), installed first so every subscription
-// lands there: emit on it to simulate an event, read its calls to check what was emitted.
 export async function startPanel({ url = 'https://example.com/docs', settings, browser } = {}) {
   const bus = new MockEventBus();
   useEventBus(bus);
   currentBus = bus;
   const fake = installFakeChrome({ url, browser });
-  if (settings) fake.storage.local.data.set('settings', settings);
+  for (const [name, value] of Object.entries(settings ?? {})) fake.storage.local.data.set(`settings:${name}`, value);
   if (!pipesRegistered) {
-    // Nutin's own tests may have registered the built-in pipes already.
     silenceConsole('warn', () => registerPipes());
     registerAppPipes();
     pipesRegistered = true;
@@ -75,7 +68,7 @@ export function typeInto(textarea, text) {
   textarea.dispatchEvent(new window.Event('input', { bubbles: true }));
 }
 
-// A pointer event as the reorder gestures expect it (jsdom may lack PointerEvent and its fields).
+// A pointer event as the reorder gestures expect it.
 export function pointer(type, target, clientY, extra = {}) {
   const Ctor = window.PointerEvent ?? window.MouseEvent;
   const event = new Ctor(type, { bubbles: true, cancelable: true, clientY, button: 0, pointerId: 1, isPrimary: true, ...extra });
@@ -84,7 +77,6 @@ export function pointer(type, target, clientY, extra = {}) {
   target.dispatchEvent(event);
 }
 
-// jsdom has no layout: gives each item matched by `selector` a box `height` px tall, stacked from y = 0.
 export function layOut(selector, height) {
   $$(selector).forEach((el, i) => {
     el.getBoundingClientRect = () => ({ top: i * height, height, bottom: (i + 1) * height, left: 0, right: 300, width: 300 });
@@ -92,14 +84,12 @@ export function layOut(selector, height) {
 }
 
 // What the panel's live region (lib/announce.ts) says, once its delayed update has run.
-// Needs the suite to use fake timers (useFakeTimers()): the delay is skipped, not waited for.
 export async function spoken() {
   advanceTimersByTime(50);
   return document.getElementById('app-announcer').textContent;
 }
 
-// How many listeners each app event has on the panel's bus. For leak checks: compare before
-// mounting and after destroying.
+// How many listeners each app event has on the panel's bus.
 export function busListenerCounts() {
   return Object.fromEntries(Object.entries(currentBus.handlers).map(([event, list]) => [event, list.length]).filter(([, count]) => count > 0));
 }

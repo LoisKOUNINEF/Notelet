@@ -1,7 +1,7 @@
+import { InvalidBackupError, SettingsNotLoadedError } from '../services/scope-store/store-errors.js';
 import { QuotaExceededError } from '../services/scope-store/sync-quota.js';
 
-// Prod toasts drop the raw reason of a failure ("Extension context invalidated."): only the
-// messages written for users (the quota ones) are kept. esbuild folds it to a constant.
+// Prod toasts drop the raw reason of a failure: only the user-friendly messages are kept.
 const RAW_REASONS = process.env.NODE_ENV !== 'production';
 
 // chrome.storage's quota errors ("QUOTA_BYTES_PER_ITEM quota exceeded"...), as users can read them.
@@ -16,16 +16,14 @@ const QUOTA_HINT: Record<string, string> = {
 };
 const TOO_MANY_WRITES = 'Too many changes in a short time for sync. Wait a minute and try again.';
 
-// The readable part of whatever a failed call threw, for a toast. '' when there's none to show.
 export function errorMessage(error: unknown, raw = RAW_REASONS): string {
   const message = error instanceof Error ? error.message : String(error);
   if (FIREFOX_SYNC_QUOTA.test(message)) return SYNC_FULL;
   const quota = STORAGE_QUOTA.exec(message)?.[1];
-  if (!quota) return raw || error instanceof QuotaExceededError ? message : '';
+  if (!quota) return raw || [QuotaExceededError, SettingsNotLoadedError, InvalidBackupError].some((type) => error instanceof type) ? message : '';
   return QUOTA_HINT[quota] ?? TOO_MANY_WRITES;
 }
 
-// `failure` ("Couldn't delete the note.") followed by why, when there's a reason to show.
 export function failureMessage(failure: string, error: unknown, raw = RAW_REASONS): string {
   const reason = errorMessage(error, raw);
   return reason ? `${failure} ${reason}` : failure;

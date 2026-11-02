@@ -15,11 +15,8 @@ type SettingName = keyof ISettings;
 
 // Settings always live on this device: they say where the notes are.
 const SETTINGS_AREA: StorageAreaName = 'local';
-// Each setting is its own storage item (`settings:storageArea`...): a window saving one never
-// writes back another window's stale copy of the others (the storage area above all).
+// Each setting is its own storage item (`settings:storageArea`...)
 const KEY_PREFIX = 'settings:';
-// Before that, they were all in this one item: read once, then split (see init()).
-const LEGACY_KEY = 'settings';
 const DEFAULTS: ISettings = { storageArea: 'local', doneExpanded: false, contentKind: 'notes', sitesOrder: 'recent' };
 const NAMES = Object.keys(DEFAULTS) as SettingName[];
 
@@ -33,11 +30,16 @@ const VALID: { [N in SettingName]: (value: unknown) => value is ISettings[N] } =
 
 export class SettingsService extends Service<SettingsService> {
   private _settings: ISettings = { ...DEFAULTS };
+  private _loaded = false;
   // Saves run one at a time, in the order they were asked.
   private _queue: Promise<unknown> = Promise.resolve();
 
   constructor() {
     super();
+  }
+
+  public get loaded(): boolean {
+    return this._loaded;
   }
 
   public get storageArea(): StorageAreaName {
@@ -57,17 +59,15 @@ export class SettingsService extends Service<SettingsService> {
   }
 
   public async init(): Promise<void> {
-    const stored = await chromeApiService.storageGet(SETTINGS_AREA, [LEGACY_KEY, ...NAMES.map(storageKey)]);
-    const legacy = (stored[LEGACY_KEY] ?? {}) as Record<string, unknown>;
+    const stored = await chromeApiService.storageGet(SETTINGS_AREA, NAMES.map(storageKey));
     const settings = { ...DEFAULTS };
-    const migrated: Record<string, unknown> = {};
     for (const name of NAMES) {
-      const value = valid(name, stored[storageKey(name)] ?? legacy[name]);
-      if (value === undefined) continue;
-      assign(settings, name, value);
-      if (stored[storageKey(name)] === undefined) migrated[storageKey(name)] = value;
+      const value = valid(name, stored[storageKey(name)]);
+      if (value !== undefined) assign(settings, name, value);
     }
     this._settings = settings;
+    this._loaded = true;
+    this.registerCleanup(() => { this._loaded = false; });
 
     // Another window's panel changed one.
     this.registerCleanup(chromeApiService.onStorageChanged((changes, area) => {
@@ -80,17 +80,6 @@ export class SettingsService extends Service<SettingsService> {
       }
       this.apply(next);
     }));
-
-    // Best effort: the settings are already read, and a split left halfway is done again next time
-    // (a setting's own item wins over the legacy one).
-    if (stored[LEGACY_KEY] !== undefined) {
-      try {
-        await chromeApiService.storageSet(SETTINGS_AREA, migrated);
-        await chromeApiService.storageRemove(SETTINGS_AREA, [LEGACY_KEY]);
-      } catch {
-        // Retried on the next init().
-      }
-    }
   }
 
   public setStorageArea(storageArea: StorageAreaName): Promise<void> {
@@ -119,7 +108,7 @@ export class SettingsService extends Service<SettingsService> {
     return result;
   }
 
-  // Emits only what changed: a save's own storage change comes back here with nothing new.
+  // Emits only what changed.
   private apply(settings: ISettings): void {
     const changed = NAMES.filter((name) => settings[name] !== this._settings[name]);
     if (changed.length === 0) return;

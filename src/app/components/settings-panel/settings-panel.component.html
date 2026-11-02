@@ -55,6 +55,11 @@
   </div>
 
   <div class="settings-panel__section">
+    <h3 class="settings-panel__subtitle">Backup</h3>
+    <div data-component="backup-data"></div>
+  </div>
+
+  <div class="settings-panel__section">
     <h3 class="settings-panel__subtitle">Help</h3>
     <div class="settings-panel__help">
       <details class="settings-panel__help-item">
@@ -84,16 +89,16 @@
         <summary>Deleted something by mistake?</summary>
         <p>Use "Undo" in the message shown right after deleting a note, a to-do, or all of a list's done to-dos, to-dos or notes. Once that message is gone, there's no trash to restore from.</p>
         <p>"Delete all older than" and the deletes in "Manage by site", here in Settings, can be undone the same way.</p>
-        <p>"Delete all notes and to-dos" can't be undone.</p>
+        <p>"Delete all notes and to-dos" can't be undone: export a backup first (Settings, "Backup") to keep a copy.</p>
       </details>
       <details class="settings-panel__help-item">
         <summary>Text you haven't saved yet</summary>
-        <p>Notes being written and unsaved edits are kept while the panel stays open, even if you switch tabs. Closing the panel discards them.</p>
+        <p>Notes being written and unsaved edits are kept when you switch tabs or close the panel, and come back when you return to that page. Quitting the browser discards them.</p>
       </details>
       <details class="settings-panel__help-item">
         <summary>Syncing between computers</summary>
         <p>${browser === 'firefox' ? 'Firefox' : 'Chrome'} sync holds about 100 KB in total, and a few hundred pages and sites. Switching moves all your notes, and stopping sync removes the synced copy from every computer.</p>
-        <p>The default settings use local storage by default, which holds around 10 MB in total.</p>
+        <p>By default, notes are kept on this device only, which holds about 10 MB in total.</p>
       </details>
       <details class="settings-panel__help-item">
         <summary>Why are notes unavailable on some pages?</summary>

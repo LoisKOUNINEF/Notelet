@@ -13,7 +13,6 @@ describe('SettingsPanelComponent', () => {
     radio(value).dispatchEvent(new window.Event('change', { bubbles: true }));
     await settle();
   };
-  // Picks an area and applies it ("Apply", or "Remove synced copy" when leaving sync).
   const switchTo = async (value) => {
     await choose(value);
     $('.settings-panel__confirm-apply, .settings-panel__confirm-remove').click();
@@ -178,7 +177,6 @@ describe('SettingsPanelComponent', () => {
     await settle();
     set.restore();
 
-    // Its end used to re-render the closed panel, creating a delete section nobody would destroy.
     expect(busListenerCounts()).toEqual(baseline);
     settings = new SettingsPanelComponent(document.getElementById('app').appendChild(document.createElement('div')));
     settings.render();
@@ -250,9 +248,11 @@ describe('SettingsPanelComponent - delete everything', () => {
     await panel.stop();
   });
 
-  it('comes right before the help, with both ways to delete', () => {
+  it('comes right before the backup, then the help, with both ways to delete', () => {
     const titles = $$('.settings-panel__subtitle').map((h) => h.textContent);
-    expect(titles.indexOf('Manage notes and to-dos')).toBe(titles.indexOf('Help') - 1);
+    expect(titles.indexOf('Manage notes and to-dos')).toBe(titles.indexOf('Backup') - 1);
+    expect(titles.indexOf('Backup')).toBe(titles.indexOf('Help') - 1);
+    expect($('.backup-data__export')).toBeTruthy();
     expect($('.delete-data__select')).toBeTruthy();
     expect($('.delete-data__all-button').textContent).toBe('Delete all notes and to-dos');
     const group = $('.delete-data__all-button').closest('[role="group"]');

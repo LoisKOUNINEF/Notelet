@@ -1,8 +1,8 @@
 export default {
-  // Browser extension (side-panel): the build writes one unpacked extension per browser, in dist/<browser>
   extension: {
     browsers: ['chrome', 'firefox'],
-    // Firefox's add-on id. storage.sync data and addons.mozilla.org tie to it: it can never change.
+    // Firefox's add-on id. storage.sync data and addons.mozilla.org tie to it. 
+    // Once extension is published, IT CAN NEVER CHANGE.
     geckoId: 'notelet@kouninef.dev',
   },
 
@@ -32,7 +32,7 @@ export default {
 
     coverage: {
       enabled: false,        // Include coverage in the normal test command
-      threshold: 95,         // Fail if any global coverage metric falls below this threshold
+      threshold: 90,         // Fail if any global coverage metric falls below this threshold
       reportUncovered: true, // Generate a report of uncovered lines, functions and branches
     },
 

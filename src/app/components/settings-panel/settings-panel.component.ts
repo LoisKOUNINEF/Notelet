@@ -6,6 +6,7 @@ import { chromeApiService } from '../../services/chrome-api/chrome-api.service.j
 import { notifierService } from '../../services/notifier/notifier.service.js';
 import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
 import { settingsService } from '../../services/settings/settings.service.js';
+import { BackupDataComponent } from '../backup-data/backup-data.component.js';
 import { AppComponent } from '../base/app-component.js';
 import { DeleteDataComponent } from '../delete-data/delete-data.component.js';
 
@@ -19,10 +20,8 @@ interface IAreaOption {
 interface ISettingsPanelView {
   areas: IAreaOption[];
   busy: boolean;
-  // The option picked but not applied yet: the arrow keys check radios as they move, so picking
-  // only previews; Apply (or "Remove synced copy", when leaving sync) moves the notes.
+  // The option picked but not applied yet.
   pending: StorageAreaName | null;
-  // Says "Chrome profile" or "Firefox account", and where each browser's settings are.
   browser: BrowserName;
   syncedWith: string;
 }
@@ -65,6 +64,7 @@ export interface ISettingsPanelOptions {
 
 export class SettingsPanelComponent extends AppComponent<HTMLElement, ISettingsPanelView> {
   private _deleteData: DeleteDataComponent | null = null;
+  private _backupData: BackupDataComponent | null = null;
   private _onManageSites: () => void;
 
   constructor(mountTarget: HTMLElement, { onManageSites = () => {} }: ISettingsPanelOptions = {}) {
@@ -74,14 +74,17 @@ export class SettingsPanelComponent extends AppComponent<HTMLElement, ISettingsP
     this.listen('storage-area-changed', () => this.setBusy(false));
   }
 
-  // Kept across this panel's renders (the storage-area switch): its age and counts stay.
   public override registerChildren(): Nutin.ComponentConfig[] {
-    return [{ selector: 'delete-data', factory: (el) => (this._deleteData = new DeleteDataComponent(el)), keep: 'delete-data' }];
+    return [
+      { selector: 'delete-data', factory: (el) => (this._deleteData = new DeleteDataComponent(el)), keep: 'delete-data' },
+      { selector: 'backup-data', factory: (el) => (this._backupData = new BackupDataComponent(el)), keep: 'backup-data' },
+    ];
   }
 
   protected override onAfterRender(): void {
     super.onAfterRender();
     this._deleteData?.update({ busy: this.config.busy });
+    this._backupData?.update({ busy: this.config.busy });
   }
 
   private static viewOf(busy: boolean, pending: StorageAreaName | null): ISettingsPanelView {
@@ -97,8 +100,6 @@ export class SettingsPanelComponent extends AppComponent<HTMLElement, ISettingsP
     };
   }
 
-  // Picked (by click or with the arrows): shown, with the step that applies it below; focus stays
-  // on the radio so the arrows keep working. The area in use picked again: nothing pending.
   private _setArea(value: string): void {
     const area = AREA_VALUES.find((option) => option === value);
     if (!area) return;
@@ -125,7 +126,7 @@ export class SettingsPanelComponent extends AppComponent<HTMLElement, ISettingsP
     } finally {
       // Back to the area actually in use, whether the move worked or not.
       this.setBusy(false);
-      if (!this.destroyed) this.areaRadio(settingsService.storageArea).focus();
+      if (!this.isDestroyed) this.areaRadio(settingsService.storageArea).focus();
     }
   }
 

@@ -4,7 +4,6 @@ import { useEventBus } from '#root/dist/src/core/index.js';
 import { MockEventBus } from '#root/tools/testin-nutin/mocks/mock-event-bus.js';
 import { installFakeChrome, uninstallFakeChrome } from '../../testing/fake-chrome.js';
 
-// The app's events go through this mock (see useEventBus), a new one for each test.
 let bus;
 
 const keys = {
@@ -34,6 +33,83 @@ describe('ScopeStoreService', () => {
     scopeStoreService.dispose();
     settingsService.dispose();
     uninstallFakeChrome();
+  });
+
+  it('refuses to write while the settings aren\'t read: the area in use is unknown', async () => {
+    settingsService.dispose();
+    let error = null;
+    await scopeStoreService.addNote('page', keys.page, 'Lost?').catch((e) => { error = e; });
+    expect(error.name).toBe('SettingsNotLoadedError');
+    expect(fake.storage.local.data.size).toBe(0);
+
+    await settingsService.init();
+    await scopeStoreService.addNote('page', keys.page, 'Kept');
+    expect((await scopeStoreService.load(keys)).page.notes.length).toBe(1);
+  });
+
+  it('exports every note and to-do, and imports them back after a delete', async () => {
+    await scopeStoreService.addNote('page', keys.page, 'Page note');
+    await scopeStoreService.addTodo('site', keys.site, 'Site to-do');
+    const file = JSON.stringify(await scopeStoreService.exportAll());
+    await scopeStoreService.clearEverything();
+
+    expect(await scopeStoreService.importAll(file)).toEqual({ notes: 1, todos: 1 });
+    const content = await scopeStoreService.load(keys);
+    expect(content.page.notes.map((n) => n.text)).toEqual(['Page note']);
+    expect(content.site.todos.map((t) => t.text)).toEqual(['Site to-do']);
+  });
+
+  it('merges, the copy edited last winning, and deletes nothing', async () => {
+    const kept = await scopeStoreService.addNote('page', keys.page, 'Old text');
+    const file = JSON.stringify(await scopeStoreService.exportAll());
+    await scopeStoreService.update('notes', kept, { text: 'Newer here' });
+    await scopeStoreService.addNote('page', keys.page, 'Only here');
+
+    expect(await scopeStoreService.importAll(file)).toEqual({ notes: 0, todos: 0 });
+    const texts = (await scopeStoreService.load(keys)).page.notes.map((n) => n.text).sort();
+    expect(texts).toEqual(['Newer here', 'Only here']);
+  });
+
+  it('refuses a file that isn\'t a backup, changing nothing', async () => {
+    await scopeStoreService.addNote('page', keys.page, 'Kept');
+    let error = null;
+    await scopeStoreService.importAll('{"hello": 1}').catch((e) => { error = e; });
+    expect(error.name).toBe('InvalidBackupError');
+    expect((await scopeStoreService.load(keys)).page.notes.length).toBe(1);
+  });
+
+  it('refuses what wouldn\'t fit in sync, changing nothing', async () => {
+    await settingsService.setStorageArea('sync');
+    const big = { id: 'big', scope: 'page', key: keys.page, text: 'x'.repeat(9000), createdAt: 1, updatedAt: 1 };
+    const file = JSON.stringify({ format: 'notelet', schemaVersion: 1, lists: { [`notes:page:${keys.page}`]: [big] } });
+    let error = null;
+    await scopeStoreService.importAll(file).catch((e) => { error = e; });
+    expect(error).toBeInstanceOf(QuotaExceededError);
+    expect(fake.storage.sync.data.size).toBe(0);
+  });
+
+  it('leaves alone what was deleted meanwhile in another window: an edited list, a moved-out item', async () => {
+    const list = await scopeStoreService.addTodo('page', keys.page, 'Trip', [{ id: 'a', text: 'Passport', done: false }]);
+    await scopeStoreService.remove('todos', list);
+    expect(await scopeStoreService.editList(list, 'Renamed', list.items)).toBe(list);
+    expect((await scopeStoreService.load(keys)).page.todos).toEqual([]);
+
+    // Undoing a move into a list whose item was removed since: the single to-do still comes back.
+    const other = await scopeStoreService.addTodo('page', keys.page, 'Other', [{ id: 'b', text: 'Bag', done: false }]);
+    const single = await scopeStoreService.addTodo('page', keys.page, 'Single');
+    await scopeStoreService.moveOutOfList(single, other, 'gone-item');
+    const todos = (await scopeStoreService.load(keys)).page.todos;
+    expect(todos.map((t) => t.text).sort()).toEqual(['Other', 'Single']);
+    expect(todos.find((t) => t.id === other.id).items.map((i) => i.text)).toEqual(['Bag']);
+  });
+
+  it('skips empty, malformed and foreign lists when listing sites and a site\'s pages', async () => {
+    fake.storage.local.data.set(`notes:page:${keys.page}`, []);
+    fake.storage.local.data.set('notes:page:not a url', [{ id: '1', text: 'x', createdAt: 1 }]);
+    fake.storage.local.data.set('notes:other:thing', [{ id: '2', text: 'x', createdAt: 1 }]);
+    await scopeStoreService.addNote('page', 'https://example.com/b', 'Kept');
+    expect((await scopeStoreService.listSitePages('example.com')).map((p) => p.label)).toEqual(['/b']);
+    expect((await scopeStoreService.listSites()).map((s) => s.site)).toEqual(['example.com']);
   });
 
   it('loads empty lists for a tab without notes', async () => {
@@ -433,7 +509,6 @@ describe('ScopeStoreService', () => {
   });
 });
 
-// Not nested in the suite above: testin-nutin's describe() replaces the hooks of the suite it's in.
 describe('ScopeStoreService - to-dos', () => {
   let fake;
   let changes;
@@ -634,7 +709,6 @@ describe('ScopeStoreService - to-do lists', () => {
 
   it('applies updateWith to the stored list, so quick checks from a stale copy all stick', async () => {
     const list = await scopeStoreService.addTodo('page', keys.page, 'Trip', [item('a', 'Passport'), item('b', 'Tickets'), item('c', 'Visa')]);
-    // Both from the same, soon stale, `list`.
     await Promise.all([check(list, 'a'), check(list, 'b')]);
     expect((await stored())[0].items.map((i) => i.done)).toEqual([true, true, false]);
   });
@@ -744,7 +818,6 @@ describe('ScopeStoreService - to-do lists', () => {
     expect(todos.find((t) => t.id === single.id)).toEqual(single);
     const back = todos.find((t) => t.id === list.id);
     expect(back.items.map((i) => [i.text, i.done])).toEqual([['Passport', true]]);
-    // Its one item left is checked: the list is done now.
     expect(back.done).toBe(true);
   });
 

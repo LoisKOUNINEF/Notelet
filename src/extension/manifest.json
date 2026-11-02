@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Notelet",
   "description": "Notelet: Notes & tasks, at a glance.",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "minimum_chrome_version": "116",
   "icons": {
     "16": "assets/icons/notelet-16.png",

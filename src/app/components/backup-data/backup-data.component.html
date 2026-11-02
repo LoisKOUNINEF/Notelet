@@ -1,0 +1,8 @@
+<div class="backup-data">
+  <p class="backup-data__text">Save every note and to-do in a file, or bring a saved file back. Importing adds to what's here and deletes nothing.</p>
+  <div class="backup-data__actions">
+    <button class="button backup-data__export" type="button" tabindex="0" ${busy ? raw('disabled') : ''} data-event="click:_export">Export to a file</button>
+    <button class="button backup-data__import" type="button" tabindex="0" ${busy ? raw('disabled') : ''} data-event="click:_pickFile">Import a file…</button>
+    <input class="backup-data__file" type="file" accept="application/json,.json" tabindex="-1" aria-hidden="true" hidden data-event="change:_import:@target">
+  </div>
+</div>

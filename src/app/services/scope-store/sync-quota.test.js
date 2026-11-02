@@ -1,7 +1,6 @@
 import { checkSyncQuota, QuotaExceededError } from '#root/dist/src/app/services/scope-store/sync-quota.js';
 
 describe('checkSyncQuota', () => {
-  // What it threw for `items`, or null.
   const error = (items, quota = { total: 100, perItem: 40, items: 2 }) => {
     try {
       checkSyncQuota(items, quota);
@@ -29,6 +28,12 @@ describe('checkSyncQuota', () => {
     // "é" is 2 bytes: 1 + 2 + 36 = 39 fits, 1 + 2 + 38 = 41 doesn't.
     expect(error({ a: 'é'.repeat(18) })).toBe(null);
     expect(error({ a: 'é'.repeat(19) })).toBeInstanceOf(QuotaExceededError);
+  });
+
+  it('says which list is too long, in KB', () => {
+    const message = error({ 'notes:page:https://example.com/docs': 'x'.repeat(9000) }, { total: 102400, perItem: 8192, items: 512 }).message;
+    expect(message).toContain('The notes of example.com/docs are too long to sync');
+    expect(message).toContain('sync allows 8 KB per page or site');
   });
 
   it('refuses items that fit one by one but not together', () => {

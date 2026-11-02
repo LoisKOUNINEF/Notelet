@@ -3,7 +3,6 @@ import { useEventBus } from '#root/dist/src/core/index.js';
 import { MockEventBus } from '#root/tools/testin-nutin/mocks/mock-event-bus.js';
 import { installFakeChrome, uninstallFakeChrome } from '../../testing/fake-chrome.js';
 
-// The app's events go through this mock (see useEventBus), a new one for each test.
 let bus;
 
 describe('SettingsService', () => {
@@ -80,13 +79,6 @@ describe('SettingsService', () => {
     expect(settingsService.doneExpanded).toBe(true);
   });
 
-  it('reads settings saved before doneExpanded existed', async () => {
-    fake.storage.local.data.set('settings', { storageArea: 'sync' });
-    await settingsService.init();
-    expect(settingsService.doneExpanded).toBe(false);
-    expect(settingsService.storageArea).toBe('sync');
-  });
-
   it('shows notes first by default, and remembers the tab last picked', async () => {
     await settingsService.init();
     expect(settingsService.contentKind).toBe('notes');
@@ -120,21 +112,20 @@ describe('SettingsService', () => {
     expect(settingsService.sitesOrder).toBe('az');
   });
 
-  it('splits settings saved in a single item, then removes it', async () => {
-    fake.storage.local.data.set('settings', { storageArea: 'sync', contentKind: 'todos', doneExpanded: 'yes' });
+  it('says when the settings were read, until disposed', async () => {
+    expect(settingsService.loaded).toBe(false);
     await settingsService.init();
-
-    expect(settingsService.storageArea).toBe('sync');
-    expect(settingsService.contentKind).toBe('todos');
-    expect(settingsService.doneExpanded).toBe(false);
-    expect(Object.fromEntries(fake.storage.local.data)).toEqual({ 'settings:storageArea': 'sync', 'settings:contentKind': 'todos' });
+    expect(settingsService.loaded).toBe(true);
+    settingsService.dispose();
+    expect(settingsService.loaded).toBe(false);
   });
 
-  it('prefers a setting\'s own item over the single one it came from', async () => {
-    fake.storage.local.data.set('settings', { storageArea: 'local' });
-    fake.storage.local.data.set('settings:storageArea', 'sync');
-    await settingsService.init();
-    expect(settingsService.storageArea).toBe('sync');
+  it('stays not loaded when reading them fails', async () => {
+    spyOn(fake.storage.local, 'get').andCallFake(() => Promise.reject(new Error('Extension context invalidated.')));
+    let failed = false;
+    await settingsService.init().catch(() => { failed = true; });
+    expect(failed).toBe(true);
+    expect(settingsService.loaded).toBe(false);
   });
 
   it('ignores stored values a setting can\'t hold', async () => {

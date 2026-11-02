@@ -3,7 +3,7 @@ import { Service } from '../../../core/index.js';
 type Unsubscribe = () => void;
 type StorageItems = Record<string, unknown>;
 
-// chrome.storage.sync's documented limits, used if the API doesn't expose them.
+// chrome.storage.sync's limits.
 const SYNC_QUOTA_BYTES = 102400;
 const SYNC_QUOTA_BYTES_PER_ITEM = 8192;
 const SYNC_MAX_ITEMS = 512;
@@ -12,10 +12,7 @@ const SYNC_MAX_ITEMS = 512;
 const BROWSER_PAGES = new Set(['chrome://settings/appearance', 'chrome://extensions/shortcuts']);
 
 /**
- * The only place that touches `chrome.*`: a thin, typed surface over the few extension APIs
- * the app uses. `chrome` is read on every call, so tests can install a fake global
- * (see testing/fake-chrome.js). Firefox has the same `chrome.*` APIs; browser() tells them apart
- * where the app says or offers something only one of them has.
+ * The only place that touches `chrome.*`: a typed surface over the few extension APIs the app uses.
  */
 export class ChromeApiService extends Service<ChromeApiService> {
   constructor() {
@@ -39,6 +36,19 @@ export class ChromeApiService extends Service<ChromeApiService> {
     if (keys.length > 0) await chrome.storage[area].remove(keys);
   }
 
+  // chrome.storage.session: kept in memory while the browser runs, never written to disk nor synced.
+  public async sessionGet(keys: string[] | null): Promise<StorageItems> {
+    return chrome.storage.session.get(keys);
+  }
+
+  public async sessionSet(items: StorageItems): Promise<void> {
+    await chrome.storage.session.set(items);
+  }
+
+  public async sessionRemove(keys: string[]): Promise<void> {
+    if (keys.length > 0) await chrome.storage.session.remove(keys);
+  }
+
   public onStorageChanged(
     callback: (changes: Record<string, chrome.storage.StorageChange>, area: string) => void
   ): Unsubscribe {
@@ -54,7 +64,7 @@ export class ChromeApiService extends Service<ChromeApiService> {
     };
   }
 
-  // The side panel's own window: `currentWindow` is the window the panel is open in.
+  // The side panel's own window. (`currentWindow` is the window the panel is open in).
   public async getActiveTabUrl(): Promise<string | null> {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     return tab?.url ?? null;
@@ -78,7 +88,7 @@ export class ChromeApiService extends Service<ChromeApiService> {
     await chrome.tabs.create({ url });
   }
 
-  // Navigates the tab shown next to the panel (which then follows it, see onTabsChanged).
+  // Navigates the tab shown next to the panel.
   public async openInActiveTab(url: string): Promise<void> {
     if (!isWebPage(url)) throw new Error(`Can't open ${url}.`);
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });

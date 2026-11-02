@@ -50,6 +50,7 @@ The sources are `src/extension/` (Chrome's manifest and the background script) a
 - Switching the storage area (this device ↔ Chrome or Firefox sync) while another window is saving at that very moment can leave that one save in the previous area.
 - Each window has its own panel, and each panel saves on its own: if two windows change the same page's (or site's) notes, or its to-dos, at the very same moment, one of the two changes can be lost. Changes made one after the other are fine: each panel sees the other's.
 - Browser sync keeps one entry per page list: if two computers change the same page's notes (or to-dos) at the same time, the last write wins for that list. (Turning sync on merges lists item by item, the latest edit winning.)
+- Unsaved text (a note being written, an edit left open) survives closing the panel, not quitting the browser (it's kept in `storage.session`).
 - Dragging a to-do doesn't follow the panel scrolling during the drag: positions are measured when it starts.
 
 ## Tests

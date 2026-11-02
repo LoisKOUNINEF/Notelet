@@ -1,7 +1,7 @@
 import { Component, html } from '../../../core/index.js';
 import { announce } from '../../lib/announce.js';
 import { requireElement } from '../../lib/dom.js';
-import { setEditDraft } from '../../lib/drafts.js';
+import { keepDraftsOf, setEditDraft } from '../../lib/drafts.js';
 import { ChecklistFieldsComponent } from '../checklist-fields/checklist-fields.component.js';
 
 // What an edit in progress holds, kept as a draft if the editor goes away unsaved.
@@ -16,8 +16,8 @@ export interface IListEditorConfig {
   todo: ITodo;
   // An earlier, unsaved edit of this list to start from.
   draft?: IListEditDraft | null;
-  // Items left empty are dropped; with none left, it's a single to-do again. The ones taken out
-  // become single to-dos.
+  // Items left empty are dropped; with none left, it's a single to-do again.
+  // The ones taken out become single to-dos.
   onSave: (text: string, items: IChecklistItem[], takenOut: IChecklistItem[]) => void;
   onCancel: () => void;
 }
@@ -33,9 +33,9 @@ interface IListEditorView {
 const templateFn = ({ text, restored, hasItems, takenOut }: IListEditorView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 /**
- * A to-do in edit mode, single or list: its name, and one field per item (rename, remove, add,
- * take out; checked items stay checked). Adding an item to a single to-do makes it a list on save,
- * removing them all makes a list single. The to-do item shows it in place of its view.
+ * A to-do in edit mode, single or list: its name, and one field per item
+ * Adding an item to a single to-do makes it a list on save
+ * Removing them all makes a list single.
  */
 export class ListEditorComponent extends Component<HTMLElement, IListEditorView> {
   private _text: string;
@@ -48,6 +48,8 @@ export class ListEditorComponent extends Component<HTMLElement, IListEditorView>
   private _announced = false;
   // Saved or cancelled: nothing to keep when the editor goes away.
   private _closed = false;
+  // Also kept when the panel closes (see keepDraftsOf).
+  private readonly _stopKeeping = keepDraftsOf(() => this.saveDraft());
   private _checklist: ChecklistFieldsComponent | null = null;
 
   constructor(mountTarget: HTMLElement, { todo, draft, onSave, onCancel }: IListEditorConfig) {
@@ -69,19 +71,18 @@ export class ListEditorComponent extends Component<HTMLElement, IListEditorView>
     this._onCancel = onCancel;
   }
 
-  // The to-do item closes the editor itself (save, cancel): from then on there's no draft to keep.
+  // The to-do item closes the editor itself (save, cancel): no draft to keep.
   public close(): void {
     this._closed = true;
     setEditDraft('todo', this._todo.id, null);
   }
 
-  // A save that failed: the edit is still open, and kept again if the editor goes away.
+  // A save that failed: the edit is still open, and kept if the editor goes away.
   public reopen(): void {
     this._closed = false;
   }
 
   // Focuses the name, caret at the end.
-  // On that item's field, if given and there, else on the name; the caret at the end.
   public focus(itemId?: string): void {
     const input = (itemId && this._checklist?.fieldOf(itemId)) || this.input;
     input.focus();
@@ -89,12 +90,17 @@ export class ListEditorComponent extends Component<HTMLElement, IListEditorView>
   }
 
   protected override onBeforeDestroy(): void {
-    if (!this._closed) {
-      this.collect();
-      const unchanged = this._text === this._todo.text && sameFields(this._fields, this._todo.items ?? []) && this._takenOut.length === 0;
-      setEditDraft('todo', this._todo.id, unchanged ? null : { text: this._text, items: this._fields, takenOut: this._takenOut });
-    }
+    this._stopKeeping();
+    this.saveDraft();
     super.onBeforeDestroy();
+  }
+
+  // The edit as a draft, unless closed (saved or cancelled), unchanged, or not rendered yet.
+  private saveDraft(): void {
+    if (this._closed || !this.element.querySelector('.list-editor__input')) return;
+    this.collect();
+    const unchanged = this._text === this._todo.text && sameFields(this._fields, this._todo.items ?? []) && this._takenOut.length === 0;
+    setEditDraft('todo', this._todo.id, unchanged ? null : { text: this._text, items: this._fields, takenOut: this._takenOut });
   }
 
   protected override onAfterRender(): void {
@@ -132,7 +138,7 @@ export class ListEditorComponent extends Component<HTMLElement, IListEditorView>
     return requireElement(this.element, '.list-editor__input');
   }
 
-  // Created with the first render (see registerChildren), kept across the others.
+  // Created with the first render, kept across the others.
   private get checklist(): ChecklistFieldsComponent {
     if (!this._checklist) throw new Error('The checklist fields are rendered with the editor.');
     return this._checklist;
@@ -176,7 +182,8 @@ export class ListEditorComponent extends Component<HTMLElement, IListEditorView>
     this._fields = this.checklist.values();
   }
 
-  // Re-renders (the items' fields are kept), with what's been typed in the name.
+  // Re-renders, with what's been typed in the name.
+  // Items' fields are kept
   private refresh(): void {
     this.collect();
     this.config = { ...this.config, text: this._text, hasItems: this._fields.length > 0, takenOut: this._takenOut };

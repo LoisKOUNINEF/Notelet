@@ -1,5 +1,6 @@
 import { errorMessage, failureMessage } from '#root/dist/src/app/lib/errors.js';
 import { QuotaExceededError } from '#root/dist/src/app/services/scope-store/sync-quota.js';
+import { SettingsNotLoadedError } from '#root/dist/src/app/services/scope-store/store-errors.js';
 
 describe('errorMessage', () => {
   it('gives an Error\'s message', () => {
@@ -29,6 +30,7 @@ describe('errorMessage', () => {
     expect(errorMessage(new Error('QUOTA_BYTES quota exceeded'), false)).toContain('Sync storage is full');
     expect(errorMessage(new Error('QuotaExceededError: storage.sync API call exceeded its quota limitations.'), false)).toContain('Sync storage is full');
     expect(errorMessage(new QuotaExceededError('Some items are too long to sync.'), false)).toBe('Some items are too long to sync.');
+    expect(errorMessage(new SettingsNotLoadedError(), false)).toContain('settings couldn\'t be read');
   });
 });
 

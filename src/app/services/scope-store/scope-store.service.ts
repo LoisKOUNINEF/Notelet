@@ -3,8 +3,12 @@ import { hostOf, isScopeContentKey, pageLabelOf, siteOf, storageKey } from '../.
 import { chromeApiService } from '../chrome-api/chrome-api.service.js';
 import { settingsService } from '../settings/settings.service.js';
 import { editTodo, listDone, mergeContent, scopeLists, sortItems, topPosition, type IStoredList } from './scope-items.js';
+import { createBackup, readBackup, type IBackup } from './backup.js';
+import { SettingsNotLoadedError } from './store-errors.js';
 import { checkSyncQuota } from './sync-quota.js';
 
+export type { IBackup } from './backup.js';
+export { InvalidBackupError, SettingsNotLoadedError } from './store-errors.js';
 export { QuotaExceededError } from './sync-quota.js';
 
 // What one scope (a page, or a site) holds.
@@ -21,10 +25,16 @@ export interface IStoredItem {
   item: IScopeItem;
 }
 
+// How many notes and to-dos an import brought: new here, or newer than the copy here.
+export interface IImported {
+  notes: number;
+  todos: number;
+}
+
 // What removeOlderThan() took out, by storage item: what restoreRemoved() puts back.
 export type RemovedItems = Record<string, IScopeItem[]>;
 
-// What makes an item that item: never changed by an update (doneAt follows done, see editTodo).
+// What makes an item that item: never changed by an update.
 type ItemIdentity = Exclude<keyof IScopeItem, 'text'>;
 // What an update may change: everything else.
 export type ScopeItemChanges<K extends ScopeContentKind> = Partial<Omit<IScopeItemKinds[K], ItemIdentity | 'doneAt'>>;
@@ -37,17 +47,19 @@ export interface IMovedIntoList {
   itemId: string;
 }
 
+/**
+ * The stored format's version, for later migrations.
+ * Version 1 stores no marker
+ * A later format writes its number in the `meta:schemaVersion` item of each area it migrates
+ */
+export const SCHEMA_VERSION = 1;
+
 const KINDS: ScopeContentKind[] = ['notes', 'todos'];
 const SCOPES: NoteScope[] = ['page', 'site'];
 
 /**
- * Notes and to-dos CRUD over chrome.storage. Each kind of each scope key is one storage item
- * (`notes:page:<url>`, `todos:site:<domain>`...): a tab's page and site content loads in a
- * single read, an edit only rewrites its own list, and no item gets near sync's per-item
- * limit the way one item holding everything would. The rules (sorting, validation, when a to-do
- * is done) are in scope-items.ts.
- *
- * Writes are read-modify-write, so they all run one at a time, whatever their kind.
+ * Notes and to-dos CRUD over chrome.storage.
+ * Refused until the settings are read.
  */
 export class ScopeStoreService extends Service<ScopeStoreService> {
   private _queue: Promise<unknown> = Promise.resolve();
@@ -78,8 +90,8 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
     return { page: content('page'), site: content('site') };
   }
 
-  // Every page of a site that has notes or to-dos (done ones included), by path. Reads the whole area:
-  // page items are keyed by URL, so a site's pages can't be listed from their keys alone.
+  // Every page of a site that has notes or to-dos (done ones included), by path.
+  // Reads the whole area: a site's pages can't be listed from their keys alone.
   public async listSitePages(site: string): Promise<ISitePage[]> {
     const pages = new Map<string, ISitePage>();
     for (const { key: item, kind, value } of await this.readAll()) {
@@ -112,19 +124,13 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
   }
 
   /**
-   * Applies `changes` to the item as currently stored (not to the caller's copy, which may be
-   * stale: renamed in another window, repositioned by a reorder...), so only the given fields change.
+   * Applies `changes` to the item as currently stored.
+   * Only the given fields change.
    */
   public update<K extends ScopeContentKind>(kind: K, item: IScopeItemKinds[K], changes: ScopeItemChanges<K>): Promise<IScopeItemKinds[K]> {
     return this.updateWith(kind, item, () => changes);
   }
 
-  /**
-   * Like update(), with the changes computed from the stored item, inside the write queue: two
-   * quick changes to one item (e.g. checking two of a list's items) both stick. A to-do list is
-   * done once every item is (see editTodo). An item gone meanwhile (deleted in another window) is
-   * left gone: the caller's copy comes back.
-   */
   public updateWith<K extends ScopeContentKind>(
     kind: K,
     item: IScopeItemKinds[K],
@@ -137,11 +143,7 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
     });
   }
 
-  /**
-   * Folds or unfolds a note or a to-do list. Not an edit: its updatedAt (shown as "Edited", and
-   * counted by "Delete all older than") stays. Resolves to the item as stored, or the caller's
-   * copy if it's gone.
-   */
+  // Folds or unfolds a note or a to-do list.
   public setCollapsed<K extends ScopeContentKind>(kind: K, item: IScopeItemKinds[K], collapsed: boolean): Promise<IScopeItemKinds[K]> {
     return this.replaceItem(kind, item, (current) => {
       const folded = { ...current };
@@ -155,12 +157,12 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
     return this.enqueue(() => this.write(kind, item.scope, item.key, (items) => items.filter((i) => i.id !== item.id)));
   }
 
-  // Undoes a remove: the item comes back with its id and dates, so at the same place in its list.
+  // Undoes a remove: the item comes back with its id and dates, at the same place in its list.
   public restore<K extends ScopeContentKind>(kind: K, item: IScopeItemKinds[K]): Promise<void> {
     return this.restoreMany(kind, [item]);
   }
 
-  // Removes several items of one list (one scope key) in a single write, e.g. "Delete all done".
+  // Removes several items of one list (one scope key) in a single write.
   public removeMany<K extends ScopeContentKind>(kind: K, items: IScopeItemKinds[K][]): Promise<void> {
     const [first] = items;
     if (!first) return Promise.resolve();
@@ -176,15 +178,12 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
     return this.enqueue(() => this.write(kind, first.scope, first.key, (list) => [...list.filter((i) => !ids.has(i.id)), ...items]));
   }
 
-  // Empties one list (a scope's notes, or its to-dos) in a single write. Resolves to what was in
-  // it, as stored at that moment, for an Undo (restoreMany).
+  // Empties one list (a scope's notes, or its to-dos) in a single write. Resolves to what was in it.
   public removeAll<K extends ScopeContentKind>(kind: K, scope: NoteScope, key: string): Promise<IScopeItemKinds[K][]> {
     return this.enqueue(() => this.writeList(kind, scope, key, (items) => ({ items: [], result: items })));
   }
 
   // Moves an item to the other scope of the same tab (page ↔ site), in a single write.
-  // It lands at the top of the other list: a note as one not reordered yet, a to-do at the top
-  // of the open ones (see topPosition). Not an edit, like folding: its updatedAt stays.
   public move<K extends ScopeContentKind>(kind: K, item: IScopeItemKinds[K], keys: IScopeKeys): Promise<IScopeItemKinds[K]> {
     const scope: NoteScope = item.scope === 'page' ? 'site' : 'page';
     const from = storageKey(kind, item.scope, item.key);
@@ -193,7 +192,6 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
     return this.enqueue(async () => {
       const stored = await chromeApiService.storageGet(this.area, [from, to]);
       const source = sortItems(kind, stored[from]);
-      // The stored version: fields changed elsewhere since the caller's copy are kept.
       const current = source.find((i) => i.id === item.id);
       if (!current) return item;
       const target = sortItems(kind, stored[to]);
@@ -206,8 +204,7 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
     });
   }
 
-  // Undoes move(), in a single write: the item leaves the list it was moved to as it is now
-  // (edits made since stay), back to its old list at its old place. Gone since: left gone.
+  // Undoes move(), in a single write. Edits made since stay.
   public moveBack<K extends ScopeContentKind>(kind: K, moved: IScopeItemKinds[K], original: IScopeItemKinds[K]): Promise<void> {
     const from = storageKey(kind, moved.scope, moved.key);
     const to = storageKey(kind, original.scope, original.key);
@@ -225,11 +222,7 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
     });
   }
 
-  /**
-   * Saves an edited to-do, in one write: its text and items (none left: a single to-do again).
-   * The items `takenOut` of it become single to-dos, as they were (checked or not), the open ones
-   * right after it: the open to-dos are numbered in that order, like a reorder.
-   */
+  // Saves an edited to-do, in one write
   public editList(todo: ITodo, text: string, items: IChecklistItem[], takenOut: IChecklistItem[] = []): Promise<ITodo> {
     return this.enqueue(() => this.writeList('todos', todo.scope, todo.key, (todos) => {
       const current = todos.find((t) => t.id === todo.id);
@@ -258,11 +251,6 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
     }));
   }
 
-  /**
-   * Puts a single to-do into a list, as its last item (checked or not, as it was), in one write.
-   * Resolves to what its Undo needs (moveOutOfList), or null when either is gone or the to-do is
-   * itself a list.
-   */
   public moveIntoList(todo: ITodo, list: ITodo): Promise<IMovedIntoList | null> {
     return this.enqueue(() => this.writeList('todos', list.scope, list.key, (todos): { items: ITodo[]; result: IMovedIntoList | null } => {
       const single = todos.find((t) => t.id === todo.id);
@@ -277,10 +265,6 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
     }));
   }
 
-  /**
-   * Undoes moveIntoList(), in one write: the item it added leaves the list as the list is now
-   * (items checked or renamed since stay so), and the single to-do comes back as it was.
-   */
   public moveOutOfList(single: ITodo, list: ITodo, itemId: string): Promise<void> {
     return this.enqueue(() => this.write('todos', list.scope, list.key, (todos) => {
       const now = Date.now();
@@ -292,11 +276,6 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
     }));
   }
 
-  /**
-   * Saves the order the user gave a list, in one write: all of a scope's notes, or its open
-   * to-dos (done ones keep their place). Items missing from `ids` (added in another window
-   * meanwhile) keep theirs too: new notes stay on top, new to-dos after the ordered ones.
-   */
   public reorder(kind: ScopeContentKind, scope: NoteScope, key: string, ids: string[]): Promise<void> {
     return this.enqueue(() => this.write(kind, scope, key, (items: IScopeItem[]) => {
       const reorderable = (item: IScopeItem) => kind === 'notes' || !(item as ITodo).done;
@@ -313,15 +292,10 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
     }));
   }
 
-  // Every note and to-do of the storage area in use, on every page and site, in one read.
   public async listEverything(): Promise<IStoredItem[]> {
     return (await this.readAll()).flatMap(({ kind, value }) => sortItems(kind, value).map((item) => ({ kind, item })));
   }
 
-  /**
-   * Deletes every note and to-do not edited since `cutoff`, on every page and site, in one
-   * write (plus one removal for the lists it empties). Resolves to what it removed, for an Undo.
-   */
   public removeOlderThan(cutoff: Timestamp): Promise<RemovedItems> {
     return this.enqueue(async () => {
       const removed: RemovedItems = {};
@@ -338,7 +312,6 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
     });
   }
 
-  // Undoes removeOlderThan(): each list gets its items back, next to what was added since.
   public restoreRemoved(removed: RemovedItems): Promise<void> {
     return this.enqueue(async () => {
       const keys = Object.keys(removed);
@@ -372,10 +345,6 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
     return [...sites.values()];
   }
 
-  /**
-   * Deletes everything kept for a site: its own notes and to-dos and those of each of its pages,
-   * in one removal. Resolves to what it removed, for an Undo (restoreRemoved).
-   */
   public removeSite(site: string): Promise<RemovedItems> {
     return this.enqueue(async () => {
       const removed: RemovedItems = {};
@@ -387,24 +356,12 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
     });
   }
 
-  // Deletes every note and to-do of the storage area in use, on every page and site (settings stay).
   public clearEverything(): Promise<void> {
     return this.enqueue(async () => {
       await chromeApiService.storageRemove(this.area, (await this.readAll()).map(({ key }) => key));
     });
   }
 
-  /**
-   * Moves every note and to-do to the other storage area, then switches the setting. Refuses
-   * (and keeps everything where it is) if they don't fit in chrome.storage.sync.
-   *
-   * What the target already holds is merged, not replaced: Chrome sync may hold another
-   * computer's notes. Lists of the same page are merged item by item, the latest edit winning.
-   * Leaving sync clears the synced copy, on every device: the settings panel asks first.
-   *
-   * Known limitation: another window writing at that exact moment still uses the old area until
-   * it sees the new setting, so its write can land there. Avoiding it needs a cross-window lock.
-   */
   public migrateTo(target: StorageAreaName): Promise<void> {
     return this.enqueue(async () => {
       const source = this.area;
@@ -419,6 +376,31 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
       // Switch before clearing the source: its removals are then in an area nobody listens to.
       await settingsService.setStorageArea(target);
       await chromeApiService.storageRemove(source, content.map(({ key }) => key));
+    });
+  }
+
+  public async exportAll(): Promise<IBackup> {
+    return createBackup(await this.readAll(), SCHEMA_VERSION, Date.now());
+  }
+
+  public async importAll(text: string): Promise<IImported> {
+    const incoming = readBackup(text, SCHEMA_VERSION, Date.now());
+    return this.enqueue(async () => {
+      const existing = Object.fromEntries((await this.readAll()).map(({ key, value }) => [key, value]));
+      const imported: IImported = { notes: 0, todos: 0 };
+      const changed: IStoredList[] = [];
+      for (const list of incoming) {
+        const here = new Map(sortItems(list.kind, existing[list.key]).map((item) => [item.id, item.updatedAt]));
+        const brought = sortItems(list.kind, list.value).filter((item) => (here.get(item.id) ?? -Infinity) < item.updatedAt);
+        imported[list.kind] += brought.length;
+        if (brought.length > 0) changed.push(list);
+      }
+      if (changed.length === 0) return imported;
+
+      const merged = mergeContent(existing, changed);
+      if (this.area === 'sync') checkSyncQuota(merged, chromeApiService.syncQuota());
+      await this.writeLists(Object.fromEntries(changed.map(({ key }) => [key, merged[key] as unknown[]])));
+      return imported;
     });
   }
 
@@ -449,7 +431,6 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
     }));
   }
 
-  // Every notes and to-dos list of a storage area (the one in use by default), in one read.
   private async readAll(area: StorageAreaName = this.area): Promise<IStoredList[]> {
     return scopeLists(await chromeApiService.storageGet(area, null));
   }
@@ -463,7 +444,6 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
     return this.writeList(kind, scope, key, (items) => ({ items: change(items), result: undefined }));
   }
 
-  // Read-modify-write of one list; `change` also says what the write resolves to.
   private async writeList<K extends ScopeContentKind, R>(
     kind: K,
     scope: NoteScope,
@@ -477,7 +457,6 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
     return result;
   }
 
-  // Several lists in one write; the emptied ones are removed (sync allows 512 items), in one removal.
   private async writeLists(lists: Record<string, unknown[]>): Promise<void> {
     const entries = Object.entries(lists);
     const kept = entries.filter(([, items]) => items.length > 0);
@@ -487,7 +466,10 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
   }
 
   private enqueue<T>(task: () => Promise<T>): Promise<T> {
-    const result = this._queue.then(task);
+    const result = this._queue.then(() => {
+      if (!settingsService.loaded) throw new SettingsNotLoadedError();
+      return task();
+    });
     // A failed write is reported to its caller, but doesn't block the next ones.
     this._queue = result.catch(() => undefined);
     return result;
