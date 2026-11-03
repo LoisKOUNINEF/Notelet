@@ -1,6 +1,6 @@
 # Working on this project
 
-This project was generated with Nutin 3.1.0.
+This project was generated with Nutin 3.1.1.
 
 ## Architecture
 
