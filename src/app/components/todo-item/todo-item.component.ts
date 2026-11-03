@@ -26,6 +26,10 @@ export interface ITodoItemOptions {
   // There are lists to move a single to-do into ("Move into a list…"), read when it's picked.
   hasLists: boolean;
   lists: () => ITodo[];
+  // The list is selecting items; whether this one is, and how to tell the list it changed.
+  selecting: boolean;
+  isSelected: (id: string) => boolean;
+  onSelect: (id: string, selected: boolean) => void;
 }
 
 interface ITodoItemView {
@@ -38,11 +42,14 @@ interface ITodoItemView {
   collapsed: boolean;
   reorderable: boolean;
   grabbed: boolean;
+  // The list is selecting items: a checkbox replaces the actions (see ReorderableList).
+  selecting: boolean;
+  selected: boolean;
 }
 
 type TodoMenuAction = 'move' | 'move-into-list';
 
-const templateFn = ({ todo, items, doneCount, editing, collapsed, reorderable, grabbed }: ITodoItemView) => html`__TEMPLATE_PLACEHOLDER__`;
+const templateFn = ({ todo, items, doneCount, editing, collapsed, reorderable, grabbed, selecting, selected }: ITodoItemView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 /**
  * One to-do: a checkbox labelled by its text, and its actions (a done one only offers Delete).
@@ -66,11 +73,12 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
   constructor(mountTarget: HTMLElement, config: ITodo & { index: number }, options: ITodoItemOptions) {
     const { index, ...todo } = config;
     const items = todo.items ?? [];
+    const selected = options.selecting && options.isSelected(todo.id);
     // The item's own root, directly inside the catalog's <li>.
     super({
       templateFn,
       mountTarget,
-      props: { className: todo.done ? 'todo-item todo-item--done' : 'todo-item' },
+      props: { className: ['todo-item', todo.done ? 'todo-item--done' : '', selected ? 'todo-item--selected' : ''].filter(Boolean).join(' ') },
       config: {
         todo,
         items,
@@ -80,6 +88,8 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
         collapsed: items.length > 0 && !!todo.collapsed,
         reorderable: options.reorderable,
         grabbed: options.grabbedId === todo.id,
+        selecting: options.selecting,
+        selected,
       },
     });
     // Lets the list find this to-do's controls again after it re-renders (see requestFocus).
@@ -128,7 +138,11 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
     super.onAfterRender();
     // A list's items are checked by their checkboxes only: their text opens the list's editor too,
     // focused on that item's field (elsewhere on the list: on its name).
-    if (!this.config.editing && !this._todo.done) {
+    if (this.config.editing) return;
+    // While selecting, a click on it (done or not) checks it instead.
+    if (this.config.selecting) {
+      this.eventListeners.push(editOnClick(this.element, () => this.element.querySelector<HTMLInputElement>('.todo-item__select-box')?.click()));
+    } else if (!this._todo.done) {
       this.eventListeners.push(editOnClick(this.element, (target) => this.edit(target.closest<HTMLElement>('[data-item-id]')?.dataset.itemId)));
     }
   }
@@ -140,6 +154,11 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
       ...(single && this._options.hasLists ? [{ value: 'move-into-list' as const, label: 'Move into a list…' }] : []),
       { value: 'move', label: `Move to this ${this._todo.scope === 'page' ? 'site' : 'page'}` },
     ];
+  }
+
+  private _select(selected: boolean): void {
+    this.element.classList.toggle('todo-item--selected', selected);
+    this._options.onSelect(this._todo.id, selected);
   }
 
   private async _toggle(done: boolean): Promise<void> {

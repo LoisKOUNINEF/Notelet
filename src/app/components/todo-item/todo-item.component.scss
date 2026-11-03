@@ -16,9 +16,19 @@
     background: var(--color-surface-muted);
   }
 
-  // A click opens it for editing (see lib/card-click.ts).
-  &:not(.todo-item--done):not(:has(.list-editor)) {
+  // A click opens it for editing (see lib/card-click.ts), or selects it while the list is selecting.
+  &:not(.todo-item--done):not(:has(.list-editor)),
+  &:has(.todo-item__select) {
     cursor: pointer;
+  }
+}
+
+.todo-item--selected {
+  &,
+  &:hover,
+  &:focus-within {
+    background: var(--color-surface-muted);
+    box-shadow: inset 3px 0 0 var(--color-primary);
   }
 }
 

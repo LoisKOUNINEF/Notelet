@@ -184,41 +184,75 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
   }
 
   // Moves an item to the other scope of the same tab (page ↔ site), in a single write.
-  public move<K extends ScopeContentKind>(kind: K, item: IScopeItemKinds[K], keys: IScopeKeys): Promise<IScopeItemKinds[K]> {
-    const scope: NoteScope = item.scope === 'page' ? 'site' : 'page';
-    const from = storageKey(kind, item.scope, item.key);
-    const to = storageKey(kind, scope, keys[scope]);
-
-    return this.enqueue(async () => {
-      const stored = await chromeApiService.storageGet(this.area, [from, to]);
-      const source = sortItems(kind, stored[from]);
-      const current = source.find((i) => i.id === item.id);
-      if (!current) return item;
-      const target = sortItems(kind, stored[to]);
-      const moved = { ...current, scope, key: keys[scope] };
-      if (kind === 'todos') moved.position = topPosition(target as ITodo[]);
-      else delete moved.position;
-
-      await this.writeLists({ [to]: sortItems(kind, [...target, moved]), [from]: source.filter((i) => i.id !== item.id) });
-      return moved;
-    });
+  public async move<K extends ScopeContentKind>(kind: K, item: IScopeItemKinds[K], keys: IScopeKeys): Promise<IScopeItemKinds[K]> {
+    const [moved] = await this.moveMany(kind, [item], keys);
+    return moved ?? item;
   }
 
   // Undoes move(), in a single write. Edits made since stay.
   public moveBack<K extends ScopeContentKind>(kind: K, moved: IScopeItemKinds[K], original: IScopeItemKinds[K]): Promise<void> {
-    const from = storageKey(kind, moved.scope, moved.key);
-    const to = storageKey(kind, original.scope, original.key);
+    return this.moveManyBack(kind, [moved], [original]);
+  }
+
+  /**
+   * Moves several items of one list (one scope key) to the tab's other scope, in a single write.
+   * To-dos land on top of the other list in the order given; items gone meanwhile are skipped.
+   * Resolves to the items as moved.
+   */
+  public moveMany<K extends ScopeContentKind>(kind: K, items: IScopeItemKinds[K][], keys: IScopeKeys): Promise<IScopeItemKinds[K][]> {
+    const [first] = items;
+    if (!first) return Promise.resolve([]);
+    const scope: NoteScope = first.scope === 'page' ? 'site' : 'page';
+    const from = storageKey(kind, first.scope, first.key);
+    const to = storageKey(kind, scope, keys[scope]);
+    const ids = new Set(items.map((item) => item.id));
 
     return this.enqueue(async () => {
       const stored = await chromeApiService.storageGet(this.area, [from, to]);
       const source = sortItems(kind, stored[from]);
-      const current = source.find((i) => i.id === moved.id);
-      if (!current) return;
-      const target = sortItems(kind, stored[to]).filter((i) => i.id !== moved.id);
-      const back = { ...current, scope: original.scope, key: original.key, position: original.position };
-      if (original.position === undefined) delete back.position;
+      const target = sortItems(kind, stored[to]);
+      const picked = items
+        .map((item) => source.find((i) => i.id === item.id))
+        .filter((item): item is IScopeItemKinds[K] => item !== undefined);
+      if (picked.length === 0) return [];
+      const top = kind === 'todos' ? topPosition(target as ITodo[]) : 0;
+      const moved = picked.map((current, index) => {
+        const item = { ...current, scope, key: keys[scope] };
+        // The first one given ends up on top.
+        if (kind === 'todos') item.position = top - (picked.length - 1) + index;
+        else delete item.position;
+        return item;
+      });
 
-      await this.writeLists({ [to]: sortItems(kind, [...target, back]), [from]: source.filter((i) => i.id !== moved.id) });
+      await this.writeLists({ [to]: sortItems(kind, [...target, ...moved]), [from]: source.filter((i) => !ids.has(i.id)) });
+      return moved;
+    });
+  }
+
+  // Undoes moveMany() (`originals` as they were before it), in a single write. Edits made since stay.
+  public moveManyBack<K extends ScopeContentKind>(kind: K, moved: IScopeItemKinds[K][], originals: IScopeItemKinds[K][]): Promise<void> {
+    const [first] = moved;
+    const [original] = originals;
+    if (!first || !original) return Promise.resolve();
+    const from = storageKey(kind, first.scope, first.key);
+    const to = storageKey(kind, original.scope, original.key);
+    const ids = new Set(moved.map((item) => item.id));
+
+    return this.enqueue(async () => {
+      const stored = await chromeApiService.storageGet(this.area, [from, to]);
+      const source = sortItems(kind, stored[from]);
+      const back = source.flatMap((current) => {
+        const before = originals.find((item) => item.id === current.id);
+        if (!before || !ids.has(current.id)) return [];
+        const item = { ...current, scope: before.scope, key: before.key, position: before.position };
+        if (before.position === undefined) delete item.position;
+        return [item];
+      });
+      if (back.length === 0) return;
+      const backIds = new Set(back.map((item) => item.id));
+      const target = sortItems(kind, stored[to]).filter((i) => !backIds.has(i.id));
+
+      await this.writeLists({ [to]: sortItems(kind, [...target, ...back]), [from]: source.filter((i) => !backIds.has(i.id)) });
     });
   }
 

@@ -5,14 +5,17 @@
   ${open.length > 1 ? html`<p class="a11y-visually-hidden" id="todo-reorder-help">Press Space to pick up. Use the arrow keys to move, Space to drop, Escape to cancel.</p>` : ''}
   ${done.length > 0 ? html`
   <div class="todo-list__done">
-    <button class="todo-list__done-toggle" type="button" tabindex="0" aria-expanded="${expanded ? 'true' : 'false'}" aria-controls="todo-done-items" data-event="click:_toggleDone">
+    ${selecting ? '' : html`<button class="todo-list__done-toggle" type="button" tabindex="0" aria-expanded="${expanded ? 'true' : 'false'}" aria-controls="todo-done-items" data-event="click:_toggleDone">
       <span class="todo-list__chevron" aria-hidden="true"></span>Done (${done.length})
-    </button>
+    </button>`}
+    ${selecting ? html`<p class="todo-list__done-heading">Done (${done.length})</p>` : ''}
     <ul class="todo-list__items" id="todo-done-items" data-catalog="done-todos" aria-label="Done ${label.toLowerCase()}" ${expanded ? '' : raw('hidden')}></ul>
-    <button class="button button--small todo-list__delete-done" type="button" tabindex="0" data-event="click:_deleteDone">Delete all done</button>
+    ${selecting ? '' : html`<button class="button button--small todo-list__delete-done" type="button" tabindex="0" data-event="click:_deleteDone">Delete all done</button>`}
   </div>` : ''}
   ${open.length + done.length > 0 ? html`
   <div class="todo-list__footer">
-    <button class="button button--small button--danger todo-list__delete-all" type="button" tabindex="0" data-event="click:_deleteAll">Delete all to-dos</button>
+    ${selecting ? html`<div data-component="selection-bar"></div>` : html`
+    <button class="button button--small todo-list__select" type="button" tabindex="0" data-focus="select" data-event="click:_select">Select</button>
+    <button class="button button--small button--danger todo-list__delete-all" type="button" tabindex="0" data-event="click:_deleteAll">Delete all to-dos</button>`}
   </div>` : ''}
 </div>

@@ -217,3 +217,172 @@ describe('NoteListComponent - delete all', () => {
     expect(hasRequestedFocus()).toBe(false);
   });
 });
+
+describe('NoteListComponent - selecting', () => {
+  let panel;
+  let list;
+  let notes;
+
+  const mount = (items) => {
+    const placeholder = document.getElementById('app').appendChild(document.createElement('div'));
+    list = new NoteListComponent(placeholder, { scope: 'page', keys: KEYS, notes: items });
+    list.render();
+  };
+  const stored = async (scope = 'page') => (await scopeStoreService.load(KEYS))[scope].notes;
+  const storedTexts = async (scope) => (await stored(scope)).map((n) => n.text);
+  // What the panel does once the store says the notes changed.
+  const reload = async () => list.update(await stored());
+  const box = (note) => $(`[data-note-id="${note.id}"] .note-item__select-box`);
+  const count = () => $('.selection-bar__count').textContent;
+
+  beforeEach(async () => {
+    panel = await startPanel();
+    const now = spyOn(Date, 'now');
+    // Shown newest first: C, B, A.
+    for (const [i, text] of ['A', 'B', 'C'].entries()) {
+      now.andReturn(1000 + i);
+      await scopeStoreService.addNote('page', KEYS.page, text);
+    }
+    now.restore();
+    notes = await stored();
+    mount(notes);
+    useFakeTimers();
+  });
+
+  afterEach(async () => {
+    useRealTimers();
+    list.destroy();
+    document.getElementById('app-announcer')?.remove();
+    await panel.stop();
+  });
+
+  it('offers "Select" next to "Delete all notes", only when there are notes', () => {
+    expect($('.note-list__select').textContent).toBe('Select');
+    expect($('.note-item__select-box')).toBeFalsy();
+    list.destroy();
+    mount([]);
+    expect($('.note-list__select')).toBeFalsy();
+  });
+
+  it('gives each note a labelled checkbox in place of its actions, focus on the first', () => {
+    $('.note-list__select').click();
+
+    expect($$('.note-item__select-box').length).toBe(3);
+    expect(box(notes[0]).getAttribute('aria-label')).toBe('Select: C');
+    expect(document.activeElement).toBe(box(notes[0]));
+    expect($('.note-item__edit')).toBeFalsy();
+    expect($('.note-item__delete')).toBeFalsy();
+    expect($('.item-menu__trigger')).toBeFalsy();
+    expect($('.note-item__handle')).toBeFalsy();
+    expect($('.note-list__delete-all')).toBeFalsy();
+    expect(count()).toBe('0 notes selected');
+    expect($('.selection-bar__delete').disabled).toBe(true);
+    expect($('.selection-bar__move').disabled).toBe(true);
+    expect($('.selection-bar__move').textContent).toBe('Move to this site');
+  });
+
+  it('counts the selected notes in place, without re-rendering them', async () => {
+    $('.note-list__select').click();
+    const checkbox = box(notes[1]);
+    checkbox.click();
+
+    expect(box(notes[1])).toBe(checkbox);
+    expect(checkbox.checked).toBe(true);
+    expect($(`[data-note-id="${notes[1].id}"]`).classList.contains('note-item--selected')).toBe(true);
+    expect(count()).toBe('1 note selected');
+    expect(await spoken()).toBe('1 note selected');
+    expect($('.selection-bar__delete').disabled).toBe(false);
+    expect($('.selection-bar__move').disabled).toBe(false);
+
+    checkbox.click();
+    expect(count()).toBe('0 notes selected');
+    expect($('.selection-bar__delete').disabled).toBe(true);
+  });
+
+  it('selects a note with a click anywhere on it, not opening it', () => {
+    $('.note-list__select').click();
+    $(`[data-note-id="${notes[2].id}"] .note-item__text`).click();
+    expect(box(notes[2]).checked).toBe(true);
+    expect($('.note-editor')).toBeFalsy();
+    expect(count()).toBe('1 note selected');
+  });
+
+  it('deletes the selected notes in one go, with an undo', async () => {
+    $('.note-list__select').click();
+    box(notes[0]).click();
+    box(notes[2]).click();
+    $('.selection-bar__delete').click();
+    await settle();
+
+    expect($('.selection-bar')).toBeFalsy();
+    expect(await storedTexts()).toEqual(['B']);
+    await reload();
+    expect(document.activeElement).toBe($('.note-list__select'));
+
+    const toast = panel.toasts.at(-1);
+    expect(toast.message).toBe('2 notes deleted.');
+    toast.onAction();
+    await settle();
+    expect(await storedTexts()).toEqual(['C', 'B', 'A']);
+  });
+
+  it('moves the selected notes to this site, with an undo', async () => {
+    $('.note-list__select').click();
+    box(notes[1]).click();
+    $('.selection-bar__move').click();
+    await settle();
+
+    expect(await storedTexts('site')).toEqual(['B']);
+    expect(await storedTexts('page')).toEqual(['C', 'A']);
+    const toast = panel.toasts.at(-1);
+    expect(toast.message).toBe('Moved 1 note to this site.');
+    expect(toast.type).toBe('success');
+    toast.onAction();
+    await settle();
+    expect(await storedTexts('page')).toEqual(['C', 'B', 'A']);
+    expect(await storedTexts('site')).toEqual([]);
+  });
+
+  it('stops with Cancel or Escape, focus back on Select, forgetting what was selected', () => {
+    $('.note-list__select').click();
+    box(notes[0]).click();
+    $('.selection-bar__cancel').click();
+    expect($('.note-item__select-box')).toBeFalsy();
+    expect($('.note-item__edit')).toBeTruthy();
+    expect(document.activeElement).toBe($('.note-list__select'));
+
+    $('.note-list__select').click();
+    expect(box(notes[0]).checked).toBe(false);
+    expect(count()).toBe('0 notes selected');
+    keydown(box(notes[0]), 'Escape');
+    expect($('.note-item__select-box')).toBeFalsy();
+    expect(document.activeElement).toBe($('.note-list__select'));
+  });
+
+  it('forgets notes deleted meanwhile, and keeps the rest selected across updates', async () => {
+    $('.note-list__select').click();
+    box(notes[0]).click();
+    box(notes[1]).click();
+    await scopeStoreService.remove('notes', notes[0]);
+    await reload();
+
+    expect(count()).toBe('1 note selected');
+    expect(box(notes[1]).checked).toBe(true);
+  });
+
+  it('reports a failed delete and keeps the selection', async () => {
+    $('.note-list__select').click();
+    box(notes[0]).click();
+    const set = spyOn(panel.fake.storage.local, 'set').andCallFake(async () => { throw new Error('Nope.'); });
+    $('.selection-bar__delete').click();
+    await settle();
+    set.restore();
+
+    expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t delete the notes. Nope.', type: 'error', duration: 6000 });
+    expect(box(notes[0]).checked).toBe(true);
+    expect(count()).toBe('1 note selected');
+    expect(document.activeElement).toBe($('.selection-bar__delete'));
+    expect(hasRequestedFocus()).toBe(false);
+    expect((await stored()).length).toBe(3);
+  });
+});

@@ -21,11 +21,12 @@ interface ITodoListView {
   open: ITodo[];
   done: ITodo[];
   expanded: boolean;
+  selecting: boolean;
   label: string;
   emptyText: string;
 }
 
-const templateFn = ({ open, done, expanded, label, emptyText }: ITodoListView) => html`__TEMPLATE_PLACEHOLDER__`;
+const templateFn = ({ open, done, expanded, selecting, label, emptyText }: ITodoListView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 /**
  * One scope's to-dos: its quick add on top (like the note composer), the open ones, then the
@@ -40,7 +41,7 @@ export class TodoListComponent extends ReorderableList<ITodo, ITodoListView> {
   private readonly _itemOptions = new ItemOptionsCache<ITodoItemOptions>();
 
   constructor(mountTarget: HTMLElement, { scope, keys, todos }: ITodoListConfig) {
-    super({ templateFn, mountTarget, config: TodoListComponent.viewOf(scope, todos, null) }, todos, {
+    super({ templateFn, mountTarget, config: TodoListComponent.viewOf(scope, todos, null, false) }, todos, {
       kind: 'todos',
       scope,
       key: keys[scope],
@@ -49,6 +50,10 @@ export class TodoListComponent extends ReorderableList<ITodo, ITodoListView> {
       idAttribute: 'todo-id',
       draggingClass: 'todo-list__item--dragging',
       failure: 'Couldn\'t reorder the to-dos.',
+      keys,
+      noun: 'to-do',
+      composerInput: TODO_COMPOSER_INPUT,
+      moveBlockedHint: 'Done to-dos can\'t be moved.',
     });
     this._scope = scope;
     this._key = keys[scope];
@@ -59,20 +64,22 @@ export class TodoListComponent extends ReorderableList<ITodo, ITodoListView> {
     });
   }
 
-  private static viewOf(scope: NoteScope, todos: ITodo[], order: string[] | null): ITodoListView {
+  private static viewOf(scope: NoteScope, todos: ITodo[], order: string[] | null, selecting: boolean): ITodoListView {
     const open = todos.filter((todo) => !todo.done);
     return {
       // While a to-do is picked up, the order it's being moved through.
       open: order ? inOrder(open, order) : open,
       done: todos.filter((todo) => todo.done),
-      expanded: settingsService.doneExpanded,
+      // Shown while selecting (done ones can be deleted too), without changing the setting.
+      expanded: settingsService.doneExpanded || selecting,
+      selecting,
       label: scope === 'page' ? 'To-dos for this page' : 'To-dos for this site',
       emptyText: scope === 'page' ? 'No to-dos for this page yet.' : 'No to-dos for this site yet.',
     };
   }
 
   public override registerChildren(): Nutin.ComponentConfig[] {
-    const { open, done } = this.config;
+    const { open, done, selecting } = this.config;
     const catalog = (group: ITodoItemOptions['group'], items: ITodo[], options: ITodoItemOptions) => this.createCatalogComponents({
       items,
       selector: `${group}-todos`,
@@ -85,14 +92,15 @@ export class TodoListComponent extends ReorderableList<ITodo, ITodoListView> {
     });
 
     return [
-      ...catalog('open', open, this.itemOptions('open', open.length > 1, this.reorder.grabbedId)),
-      ...catalog('done', done, this.itemOptions('done', false, null)),
+      ...catalog('open', open, this.itemOptions('open', open.length > 1 && !selecting, selecting, this.reorder.grabbedId)),
+      ...catalog('done', done, this.itemOptions('done', false, selecting, null)),
       { selector: 'todo-composer', factory: (el) => new TodoComposerComponent(el, { scope: this._scope, key: this._key }), keep: 'composer' },
+      this.selectionBarChild(),
     ];
   }
 
   protected view(): ITodoListView {
-    return TodoListComponent.viewOf(this._scope, this.items, this.reorder.previewOrder);
+    return TodoListComponent.viewOf(this._scope, this.items, this.reorder.previewOrder, this.selecting);
   }
 
   protected shownIds(): string[] {
@@ -111,11 +119,17 @@ export class TodoListComponent extends ReorderableList<ITodo, ITodoListView> {
     ];
   }
 
-  private itemOptions(group: ITodoItemOptions['group'], reorderable: boolean, grabbedId: string | null): ITodoItemOptions {
+  // Done to-dos can only be deleted.
+  protected override selectionMovable(todos: ITodo[]): boolean {
+    return todos.every((todo) => !todo.done);
+  }
+
+  private itemOptions(group: ITodoItemOptions['group'], reorderable: boolean, selecting: boolean, grabbedId: string | null): ITodoItemOptions {
     // Whether there are lists to move a to-do into: items are rebuilt only when that flips.
     const hasLists = this.openLists().length > 0;
-    return this._itemOptions.get([group, reorderable, hasLists], grabbedId, () => ({
+    return this._itemOptions.get([group, reorderable, hasLists, selecting], grabbedId, () => ({
       group, reorderable, grabbedId, keys: this._keys, hasLists, lists: () => this.openLists(),
+      selecting, isSelected: this.isSelected, onSelect: this.onSelect,
     }));
   }
 

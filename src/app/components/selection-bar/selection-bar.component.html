@@ -1,0 +1,7 @@
+<span class="selection-bar__count">${count}</span>
+<div class="selection-bar__actions">
+  <button class="button button--small button--danger selection-bar__delete" type="button" tabindex="0" data-focus="selection-delete" data-event="click:_delete" disabled>Delete</button>
+  <button class="button button--small selection-bar__move" type="button" tabindex="0" data-focus="selection-move" aria-describedby="selection-bar-hint" data-event="click:_move" disabled>Move to this ${target}</button>
+  <button class="button button--small selection-bar__cancel" type="button" tabindex="0" data-focus="selection-cancel" data-event="click:_cancel">Cancel</button>
+</div>
+<p class="selection-bar__hint" id="selection-bar-hint" hidden>${moveBlockedHint}</p>

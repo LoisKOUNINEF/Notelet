@@ -34,8 +34,18 @@
 .todo-list__footer {
   display: flex;
   justify-content: flex-end;
+  gap: var(--space-1);
   padding-top: var(--space-2);
   border-top: 1px solid var(--color-border);
+}
+
+// In place of the toggle while selecting (the group stays open meanwhile).
+.todo-list__done-heading {
+  margin: 0;
+  padding: 0 var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--font-small);
+  font-weight: 600;
 }
 
 .todo-list__done-toggle {

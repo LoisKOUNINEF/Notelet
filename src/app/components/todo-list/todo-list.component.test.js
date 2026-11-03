@@ -611,3 +611,109 @@ describe('TodoListComponent - reordering', () => {
   });
 
 });
+
+describe('TodoListComponent - selecting', () => {
+  let panel;
+  let list;
+  let todos;
+
+  const mount = (items) => {
+    const placeholder = document.getElementById('app').appendChild(document.createElement('div'));
+    list = new TodoListComponent(placeholder, { scope: 'page', keys: KEYS, todos: items });
+    list.render();
+  };
+  const stored = async (scope = 'page') => (await scopeStoreService.load(KEYS))[scope].todos;
+  const storedTexts = async (scope) => (await stored(scope)).map((t) => t.text);
+  const box = (id) => $(`[data-todo-id="${id}"] .todo-item__select-box`);
+  const byText = (text) => todos.find((t) => t.text === text).id;
+
+  beforeEach(async () => {
+    panel = await startPanel();
+    const now = spyOn(Date, 'now');
+    for (const [i, text] of ['Open A', 'Open B', 'Done C'].entries()) {
+      now.andReturn(1000 + i);
+      await scopeStoreService.addTodo('page', KEYS.page, text);
+    }
+    now.restore();
+    const c = (await stored()).find((t) => t.text === 'Done C');
+    await scopeStoreService.update('todos', c, { done: true });
+    todos = await stored();
+    mount(todos);
+  });
+
+  afterEach(async () => {
+    list.destroy();
+    await panel.stop();
+  });
+
+  it('makes done to-dos selectable too, their folded group shown meanwhile', () => {
+    expect(settingsService.doneExpanded).toBe(false);
+    $('.todo-list__select').click();
+
+    expect($$('.todo-item__select-box').length).toBe(3);
+    expect($('#todo-done-items').hidden).toBe(false);
+    expect($('.todo-list__done-toggle')).toBeFalsy();
+    expect($('.todo-list__done-heading').textContent).toBe('Done (1)');
+    expect($('.todo-item__checkbox')).toBeFalsy();
+    expect($('.todo-item__actions')).toBeFalsy();
+    expect(settingsService.doneExpanded).toBe(false);
+
+    $('.selection-bar__cancel').click();
+    expect($('#todo-done-items').hidden).toBe(true);
+  });
+
+  it('disables Move while a done to-do is selected, and says why', () => {
+    $('.todo-list__select').click();
+    box(byText('Done C')).click();
+    expect($('.selection-bar__delete').disabled).toBe(false);
+    expect($('.selection-bar__move').disabled).toBe(true);
+    expect($('.selection-bar__hint').hidden).toBe(false);
+    expect($('.selection-bar__hint').textContent).toBe('Done to-dos can\'t be moved.');
+
+    box(byText('Done C')).click();
+    box(byText('Open A')).click();
+    expect($('.selection-bar__move').disabled).toBe(false);
+    expect($('.selection-bar__hint').hidden).toBe(true);
+  });
+
+  it('deletes open and done ones together, with an undo', async () => {
+    $('.todo-list__select').click();
+    box(byText('Open A')).click();
+    box(byText('Done C')).click();
+    expect($('.selection-bar__count').textContent).toBe('2 to-dos selected');
+    $('.selection-bar__delete').click();
+    await settle();
+
+    expect(await storedTexts()).toEqual(['Open B']);
+    const toast = panel.toasts.at(-1);
+    expect(toast.message).toBe('2 to-dos deleted.');
+    toast.onAction();
+    await settle();
+    expect(await storedTexts()).toEqual(['Open A', 'Open B', 'Done C']);
+  });
+
+  it('moves open ones to this site, on top, with an undo', async () => {
+    await scopeStoreService.addTodo('site', KEYS.site, 'On the site');
+    $('.todo-list__select').click();
+    box(byText('Open B')).click();
+    box(byText('Open A')).click();
+    $('.selection-bar__move').click();
+    await settle();
+
+    expect(await storedTexts('site')).toEqual(['Open A', 'Open B', 'On the site']);
+    expect(await storedTexts('page')).toEqual(['Done C']);
+    const toast = panel.toasts.at(-1);
+    expect(toast.message).toBe('Moved 2 to-dos to this site.');
+    toast.onAction();
+    await settle();
+    expect(await storedTexts('page')).toEqual(['Open A', 'Open B', 'Done C']);
+    expect(await storedTexts('site')).toEqual(['On the site']);
+  });
+
+  it('selects a done to-do with a click on its text', () => {
+    $('.todo-list__select').click();
+    $(`[data-todo-id="${byText('Done C')}"] .todo-item__text`).click();
+    expect(box(byText('Done C')).checked).toBe(true);
+    expect($('.list-editor')).toBeFalsy();
+  });
+});

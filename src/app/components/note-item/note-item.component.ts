@@ -27,6 +27,9 @@ interface INoteItemView {
   summary: string;
   // More lines follow the summary: it ends with dots.
   more: boolean;
+  // The list is selecting items: a checkbox replaces the actions (see ReorderableList).
+  selecting: boolean;
+  selected: boolean;
 }
 
 // What the note list passes to each item, besides the note (see createCatalogComponents).
@@ -37,9 +40,13 @@ export interface INoteItemOptions {
   reorderable: boolean;
   // The note picked up with the keyboard, if any.
   grabbedId: string | null;
+  // The list is selecting items; whether this one is, and how to tell the list it changed.
+  selecting: boolean;
+  isSelected: (id: string) => boolean;
+  onSelect: (id: string, selected: boolean) => void;
 }
 
-const templateFn = ({ note, editing, edited, reorderable, grabbed, name, canCollapse, collapsed, summary, more }: INoteItemView) => html`__TEMPLATE_PLACEHOLDER__`;
+const templateFn = ({ note, editing, edited, reorderable, grabbed, name, canCollapse, collapsed, summary, more, selecting, selected }: INoteItemView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 /**
  * One note: its name if it has one, its text, when it was last edited, and its actions (Edit,
@@ -62,7 +69,7 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
       templateFn,
       mountTarget,
       tagName: 'article',
-      props: { className: 'note-item' },
+      props: { className: options.selecting && options.isSelected(note.id) ? 'note-item note-item--selected' : 'note-item' },
       // An edit left open when this note last went away comes back, still open.
       config: NoteItemComponent.viewOf(note, options, getEditDraft('note', note.id) !== null),
     });
@@ -91,6 +98,8 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
       reorderable: options.reorderable,
       grabbed: options.grabbedId === note.id,
       name: noteLabel(note),
+      selecting: options.selecting,
+      selected: options.selecting && options.isSelected(note.id),
     };
   }
 
@@ -125,7 +134,8 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
   protected override onAfterRender(): void {
     super.onAfterRender();
     if (this.config.editing) return;
-    this.eventListeners.push(editOnClick(this.element, () => this._edit()));
+    // While selecting, a click on it checks it instead.
+    this.eventListeners.push(editOnClick(this.element, () => (this.config.selecting ? this.selectBox()?.click() : this._edit())));
     if (this.config.canCollapse) return;
     this.fitArrow();
     // The article's width, which its arrow doesn't change: showing it can't undo the measure.
@@ -145,6 +155,15 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
     const toggle = this.element.querySelector<HTMLElement>('.note-item__toggle');
     const line = this.element.querySelector<HTMLElement>('.note-item__text, .note-item__summary');
     if (toggle && line) toggle.hidden = !overflowsOneLine(line);
+  }
+
+  private _select(selected: boolean): void {
+    this.element.classList.toggle('note-item--selected', selected);
+    this._options.onSelect(this._note.id, selected);
+  }
+
+  private selectBox(): HTMLInputElement | null {
+    return this.element.querySelector<HTMLInputElement>('.note-item__select-box');
   }
 
   private _edit(): void {

@@ -1,5 +1,9 @@
 ${editing ? html`<div data-component="list-editor"></div>` : html`
-${reorderable ? html`
+${selecting ? html`
+<a11y-checkbox class="todo-item__select">
+  <input class="todo-item__select-box" type="checkbox" tabindex="0" aria-label="Select: ${todo.text}" data-select ${selected ? raw('checked') : ''} data-event="change:_select:@checked">
+</a11y-checkbox>` : ''}
+${reorderable && !selecting ? html`
 <button class="todo-item__handle" type="button" tabindex="0" aria-label="Reorder: ${todo.text}" aria-describedby="todo-reorder-help" aria-pressed="${grabbed ? 'true' : 'false'}">
   <span class="todo-item__grip" aria-hidden="true"></span>
 </button>` : ''}
@@ -8,14 +12,14 @@ ${items.length > 0 ? html`
   <span class="todo-item__chevron" aria-hidden="true"></span>
 </button>
 <span class="todo-item__title" id="todo-${todo.id}-text">${todo.text}<span class="todo-item__progress">${' · '}${doneCount} of ${items.length} done</span></span>` : html`
-<a11y-checkbox class="todo-item__check">
+${selecting ? '' : html`<a11y-checkbox class="todo-item__check">
   <input class="todo-item__checkbox" type="checkbox" tabindex="0" aria-labelledby="todo-${todo.id}-text" ${todo.done ? raw('checked') : ''} data-event="change:_toggle:@checked">
-</a11y-checkbox>
+</a11y-checkbox>`}
 <span class="todo-item__text" id="todo-${todo.id}-text">${todo.text}</span>`}
-<div class="todo-item__actions">
+${selecting ? '' : html`<div class="todo-item__actions">
   ${todo.done ? '' : html`<button class="button button--small todo-item__edit" type="button" tabindex="0" aria-describedby="todo-${todo.id}-text" data-event="click:_edit">Edit</button>`}
   <button class="button button--small button--danger todo-item__delete" type="button" tabindex="0" aria-describedby="todo-${todo.id}-text" data-event="click:_delete">Delete</button>
   ${todo.done ? '' : html`<span data-component="item-menu"></span>`}
-</div>
+</div>`}
 ${items.length > 0 && !collapsed ? html`<ul class="todo-item__checklist" id="todo-${todo.id}-items" data-catalog="checklist" aria-label="${todo.text}"></ul>` : ''}
-${!todo.done && items.length > 0 && !collapsed ? html`<div class="todo-item__add-item" data-component="checklist-add"></div>` : ''}`}
+${!todo.done && !selecting && items.length > 0 && !collapsed ? html`<div class="todo-item__add-item" data-component="checklist-add"></div>` : ''}`}

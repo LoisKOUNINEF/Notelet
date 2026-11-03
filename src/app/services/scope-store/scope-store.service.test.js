@@ -1073,6 +1073,93 @@ describe('ScopeStoreService - moving to-dos', () => {
   });
 });
 
+describe('ScopeStoreService - moving several items', () => {
+  const keys = { page: 'https://example.com/a', site: 'example.com', pageLabel: '/a', siteLabel: 'example.com' };
+  const texts = async (kind, scope) => (await scopeStoreService.load(keys))[scope][kind].map((i) => i.text);
+  let fake;
+
+  beforeEach(async () => {
+    fake = installFakeChrome();
+    await settingsService.init();
+    scopeStoreService.init();
+  });
+
+  afterEach(() => {
+    scopeStoreService.dispose();
+    settingsService.dispose();
+    uninstallFakeChrome();
+  });
+
+  it('moves to-dos on top of the other list, in the order given, in one write', async () => {
+    await scopeStoreService.addTodo('site', keys.site, 'On the site');
+    for (const text of ['A', 'B', 'C']) await scopeStoreService.addTodo('page', keys.page, text);
+    const [a, , c] = (await scopeStoreService.load(keys)).page.todos;
+    const set = spyOn(fake.storage.local, 'set');
+
+    const moved = await scopeStoreService.moveMany('todos', [a, c], keys);
+    expect(set.callCount).toBe(1);
+    set.restore();
+
+    expect(moved.map((t) => [t.text, t.scope, t.key])).toEqual([['A', 'site', keys.site], ['C', 'site', keys.site]]);
+    expect(await texts('todos', 'site')).toEqual(['A', 'C', 'On the site']);
+    expect(await texts('todos', 'page')).toEqual(['B']);
+  });
+
+  it('moves notes without their position, and skips the ones gone meanwhile', async () => {
+    const a = await scopeStoreService.addNote('page', keys.page, 'A');
+    const b = await scopeStoreService.addNote('page', keys.page, 'B');
+    await scopeStoreService.reorder('notes', 'page', keys.page, [a.id, b.id]);
+    const [first, second] = (await scopeStoreService.load(keys)).page.notes;
+    await scopeStoreService.remove('notes', second);
+
+    const moved = await scopeStoreService.moveMany('notes', [first, second], keys);
+    expect(moved.map((n) => n.text)).toEqual(['A']);
+    expect(moved[0].position).toBeUndefined();
+    expect(await texts('notes', 'site')).toEqual(['A']);
+    expect(await texts('notes', 'page')).toEqual([]);
+  });
+
+  it('moves nothing, and writes nothing, when they\'re all gone', async () => {
+    const a = await scopeStoreService.addNote('page', keys.page, 'A');
+    await scopeStoreService.remove('notes', a);
+    const set = spyOn(fake.storage.local, 'set');
+    expect(await scopeStoreService.moveMany('notes', [a], keys)).toEqual([]);
+    expect(await scopeStoreService.moveMany('notes', [], keys)).toEqual([]);
+    expect(set.callCount).toBe(0);
+    set.restore();
+  });
+
+  it('moves them back in one write, at their places, keeping edits made since', async () => {
+    for (const text of ['A', 'B', 'C']) await scopeStoreService.addTodo('page', keys.page, text);
+    const [a, b, c] = (await scopeStoreService.load(keys)).page.todos;
+    await scopeStoreService.reorder('todos', 'page', keys.page, [c.id, a.id, b.id]);
+    const page = (await scopeStoreService.load(keys)).page.todos;
+    const picked = [page[0], page[2]];
+    await scopeStoreService.addTodo('site', keys.site, 'On the site');
+
+    const moved = await scopeStoreService.moveMany('todos', picked, keys);
+    await scopeStoreService.update('todos', moved[0], { text: 'C, edited' });
+    const set = spyOn(fake.storage.local, 'set');
+    await scopeStoreService.moveManyBack('todos', moved, picked);
+    expect(set.callCount).toBe(1);
+    set.restore();
+
+    expect(await texts('todos', 'page')).toEqual(['C, edited', 'A', 'B']);
+    expect(await texts('todos', 'site')).toEqual(['On the site']);
+  });
+
+  it('moves back only the ones still there', async () => {
+    const a = await scopeStoreService.addNote('page', keys.page, 'A');
+    const b = await scopeStoreService.addNote('page', keys.page, 'B');
+    const moved = await scopeStoreService.moveMany('notes', [a, b], keys);
+    await scopeStoreService.remove('notes', moved[1]);
+
+    await scopeStoreService.moveManyBack('notes', moved, [a, b]);
+    expect(await texts('notes', 'page')).toEqual(['A']);
+    expect(await texts('notes', 'site')).toEqual([]);
+  });
+});
+
 describe('ScopeStoreService - stale copies', () => {
   const keys = { page: 'https://example.com/a', site: 'example.com', pageLabel: '/a', siteLabel: 'example.com' };
   const storedTodo = async (scope = 'page') => (await scopeStoreService.load(keys))[scope].todos[0];

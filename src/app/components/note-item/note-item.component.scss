@@ -73,6 +73,21 @@
   gap: var(--space-1);
 }
 
+// While the list is selecting: a checkbox before the note, and a click anywhere checks it.
+.note-item__select {
+  flex: none;
+}
+
+.note-item--selected {
+  box-shadow: inset 0 0 0 1px var(--color-primary);
+
+  &,
+  &:hover,
+  &:focus-within {
+    border-color: var(--color-primary);
+  }
+}
+
 .note-item__content {
   display: grid;
   flex: 1;

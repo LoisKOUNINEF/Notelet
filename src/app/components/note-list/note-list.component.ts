@@ -18,11 +18,12 @@ export interface INoteListConfig {
 interface INoteListView {
   notes: INote[];
   reorderable: boolean;
+  selecting: boolean;
   label: string;
   emptyText: string;
 }
 
-const templateFn = ({ notes, reorderable, label, emptyText }: INoteListView) => html`__TEMPLATE_PLACEHOLDER__`;
+const templateFn = ({ notes, reorderable, selecting, label, emptyText }: INoteListView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 const EMPTY_TEXT: Record<NoteScope, string> = {
   page: 'No notes for this page yet.',
@@ -40,7 +41,7 @@ export class NoteListComponent extends ReorderableList<INote, INoteListView> {
   private readonly _itemOptions = new ItemOptionsCache<INoteItemOptions>();
 
   constructor(mountTarget: HTMLElement, { scope, keys, notes }: INoteListConfig) {
-    super({ templateFn, mountTarget, config: NoteListComponent.viewOf(scope, notes, null) }, notes, {
+    super({ templateFn, mountTarget, config: NoteListComponent.viewOf(scope, notes, null, false) }, notes, {
       kind: 'notes',
       scope,
       key: keys[scope],
@@ -49,39 +50,46 @@ export class NoteListComponent extends ReorderableList<INote, INoteListView> {
       idAttribute: 'note-id',
       draggingClass: 'note-list__item--dragging',
       failure: 'Couldn\'t reorder the notes.',
+      keys,
+      noun: 'note',
+      composerInput: NOTE_COMPOSER_INPUT,
     });
     this._scope = scope;
     this._key = keys[scope];
     this._keys = keys;
   }
 
-  private static viewOf(scope: NoteScope, notes: INote[], order: string[] | null): INoteListView {
+  private static viewOf(scope: NoteScope, notes: INote[], order: string[] | null, selecting: boolean): INoteListView {
     return {
       // While a note is picked up, the order it's being moved through.
       notes: order ? inOrder(notes, order) : notes,
-      reorderable: notes.length > 1,
+      // Not while selecting: the checkboxes take the handles' place.
+      reorderable: notes.length > 1 && !selecting,
+      selecting,
       label: scope === 'page' ? 'Notes for this page' : 'Notes for this site',
       emptyText: EMPTY_TEXT[scope],
     };
   }
 
   public override registerChildren(): Nutin.ComponentConfig[] {
-    const { reorderable } = this.config;
+    const { reorderable, selecting } = this.config;
     const grabbedId = this.reorder.grabbedId;
-    return this.createCatalogComponents({
+    return [...this.createCatalogComponents({
       items: this.config.notes,
       selector: 'notes',
       elementName: 'note',
       elementTag: 'li',
       component: NoteItemComponent,
-      props: this._itemOptions.get([reorderable], grabbedId, () => ({ keys: this._keys, reorderable, grabbedId })),
+      props: this._itemOptions.get([reorderable, selecting], grabbedId, () => ({
+        keys: this._keys, reorderable, grabbedId, selecting, isSelected: this.isSelected, onSelect: this.onSelect,
+      })),
       // An unchanged note keeps its item (and an edit in progress); an edited one has a new updatedAt.
       keepBy: (note: INote) => note.id,
-    });
+    }), this.selectionBarChild()];
   }
 
   protected view(): INoteListView {
-    return NoteListComponent.viewOf(this._scope, this.items, this.reorder.previewOrder);
+    return NoteListComponent.viewOf(this._scope, this.items, this.reorder.previewOrder, this.selecting);
   }
 
   protected shownIds(): string[] {

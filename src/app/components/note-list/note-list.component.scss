@@ -16,6 +16,7 @@
 .note-list__footer {
   display: flex;
   justify-content: flex-end;
+  gap: var(--space-1);
   padding-top: var(--space-2);
   border-top: 1px solid var(--color-border);
 }
