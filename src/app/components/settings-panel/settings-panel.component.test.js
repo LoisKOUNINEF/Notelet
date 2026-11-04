@@ -19,6 +19,9 @@ describe('SettingsPanelComponent', () => {
     await settle();
   };
 
+  const sectionButton = (title) => $$('.settings-panel__subtitle')
+    .find((h) => h.textContent === title).parentElement.querySelector('button');
+
   const themeRadio = (value) => $(`input[name="theme"][value="${value}"]`);
   const pickTheme = async (value) => {
     themeRadio(value).checked = true;
@@ -82,9 +85,8 @@ describe('SettingsPanelComponent', () => {
   });
 
   it('opens Chrome\'s side panel and shortcut settings', async () => {
-    const [sideButton, shortcutButton] = $$('.settings-panel__section button');
-    sideButton.click();
-    shortcutButton.click();
+    sectionButton('Panel side').click();
+    sectionButton('Keyboard shortcut').click();
     await settle();
 
     expect(panel.fake.tabs.created).toEqual([
@@ -191,7 +193,7 @@ describe('SettingsPanelComponent', () => {
 
   it('explains when Chrome\'s settings can\'t be opened', async () => {
     panel.fake.tabs.create = async () => { throw new Error('No tab for you.'); };
-    $$('.settings-panel__section button')[0].click();
+    sectionButton('Panel side').click();
     await settle();
     expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t open Chrome\'s settings. No tab for you.', type: 'error', duration: 6000 });
   });
@@ -289,10 +291,10 @@ describe('SettingsPanelComponent - delete everything', () => {
     await panel.stop();
   });
 
-  it('comes right before the backup, then the help, with both ways to delete', () => {
+  it('comes right before the backup, with both ways to delete, the help coming last', () => {
     const titles = $$('.settings-panel__subtitle').map((h) => h.textContent);
     expect(titles.indexOf('Manage notes and to-dos')).toBe(titles.indexOf('Backup') - 1);
-    expect(titles.indexOf('Backup')).toBe(titles.indexOf('Help') - 1);
+    expect(titles.at(-1)).toBe('Help');
     expect($('.backup-data__export')).toBeTruthy();
     expect($('.delete-data__select')).toBeTruthy();
     expect($('.delete-data__all-button').textContent).toBe('Delete all notes and to-dos');
