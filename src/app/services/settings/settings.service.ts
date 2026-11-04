@@ -9,6 +9,8 @@ interface ISettings {
   contentKind: ScopeContentKind;
   // The order last picked in "Manage by site".
   sitesOrder: SitesOrder;
+  // "Appearance": follow the device, or always light or dark.
+  theme: ThemeName;
 }
 
 type SettingName = keyof ISettings;
@@ -17,7 +19,7 @@ type SettingName = keyof ISettings;
 const SETTINGS_AREA: StorageAreaName = 'local';
 // Each setting is its own storage item (`settings:storageArea`...)
 const KEY_PREFIX = 'settings:';
-const DEFAULTS: ISettings = { storageArea: 'local', doneExpanded: false, contentKind: 'notes', sitesOrder: 'recent' };
+const DEFAULTS: ISettings = { storageArea: 'local', doneExpanded: false, contentKind: 'notes', sitesOrder: 'recent', theme: 'system' };
 const NAMES = Object.keys(DEFAULTS) as SettingName[];
 
 // What each setting may hold: anything else stored (a hand edit, an older version) is ignored.
@@ -26,6 +28,7 @@ const VALID: { [N in SettingName]: (value: unknown) => value is ISettings[N] } =
   doneExpanded: (value): value is boolean => typeof value === 'boolean',
   contentKind: (value): value is ScopeContentKind => value === 'notes' || value === 'todos',
   sitesOrder: (value): value is SitesOrder => value === 'recent' || value === 'oldest' || value === 'az' || value === 'za',
+  theme: (value): value is ThemeName => value === 'system' || value === 'light' || value === 'dark',
 };
 
 export class SettingsService extends Service<SettingsService> {
@@ -56,6 +59,10 @@ export class SettingsService extends Service<SettingsService> {
 
   public get sitesOrder(): SitesOrder {
     return this._settings.sitesOrder;
+  }
+
+  public get theme(): ThemeName {
+    return this._settings.theme;
   }
 
   public async init(): Promise<void> {
@@ -96,6 +103,10 @@ export class SettingsService extends Service<SettingsService> {
 
   public setSitesOrder(sitesOrder: SitesOrder): Promise<void> {
     return this.save('sitesOrder', sitesOrder);
+  }
+
+  public setTheme(theme: ThemeName): Promise<void> {
+    return this.save('theme', theme);
   }
 
   private save<N extends SettingName>(name: N, value: ISettings[N]): Promise<void> {

@@ -1,6 +1,33 @@
 // Global styles: theme tokens, base elements and the shared button.
 // Components style their own blocks in their .scss (BEM: .block__element--modifier).
 
+// "Broadcast dark": with the device's dark mode, or picked in Settings ("Appearance", lib/theme.ts).
+@mixin dark-tokens {
+  --color-bg: #0a0c10;
+  --color-surface: #141820;
+  --color-surface-muted: #181c24;
+  --color-border: #1c202c;
+  --color-border-strong: #404858;
+  --color-text: #e8e4dc;
+  --color-text-muted: #8890a0;
+  --color-text-disabled: #404850;
+  --color-primary: #389098;
+  --color-primary-hover: #48b0b8;
+  --color-on-primary: #0a0c10;
+  --color-secondary: #b06058;
+  --color-secondary-hover: #d0786c;
+  --color-accent: #b09838;
+  --color-success: #48a078;
+  --color-warning: #c0a848;
+  // The palette's error (#c84840) is too dark for text here: its lighter rose-terracotta is (5.6:1).
+  --color-danger: #d0786c;
+  --color-focus: #4870a8;
+  --color-overlay: #0a0c10d9;
+  --a11y-color-success: #407048;
+  --a11y-color-info: #4870a8;
+  --a11y-color-error: #c84840;
+}
+
 :root {
   color-scheme: light dark;
 
@@ -109,36 +136,25 @@
   --a11y-color-error: #783024;
   --a11y-modal-color-overlay: var(--color-overlay);
 
-  @media (prefers-color-scheme: dark) {
-    --color-bg: #0a0c10;
-    --color-surface: #141820;
-    --color-surface-muted: #181c24;
-    --color-border: #1c202c;
-    --color-border-strong: #404858;
-    --color-text: #e8e4dc;
-    --color-text-muted: #8890a0;
-    --color-text-disabled: #404850;
-    --color-primary: #389098;
-    --color-primary-hover: #48b0b8;
-    --color-on-primary: #0a0c10;
-    --color-secondary: #b06058;
-    --color-secondary-hover: #d0786c;
-    --color-accent: #b09838;
-    --color-success: #48a078;
-    --color-warning: #c0a848;
-    // The palette's error (#c84840) is too dark for text here: its lighter rose-terracotta is (5.6:1).
-    --color-danger: #d0786c;
-    --color-focus: #4870a8;
-    --color-overlay: #0a0c10d9;
-    --a11y-color-success: #407048;
-    --a11y-color-info: #4870a8;
-    --a11y-color-error: #c84840;
-  }
-
-
   @media (prefers-reduced-motion: reduce) {
     --transition: 0s;
     --a11y-snackbar-animation-duration: 0s;
+  }
+}
+
+// "Appearance" in Settings: `data-theme` on <html> forces a theme; without it, the device decides.
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  @include dark-tokens;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    @include dark-tokens;
   }
 }
 

@@ -164,4 +164,27 @@ describe('SettingsService', () => {
     await settingsService.setContentKind('todos');
     expect(changes).toBe(1);
   });
+
+  it('follows the device theme by default, and saves the one picked', async () => {
+    await settingsService.init();
+    expect(settingsService.theme).toBe('system');
+
+    await settingsService.setTheme('dark');
+    expect(settingsService.theme).toBe('dark');
+    expect(fake.storage.local.data.get('settings:theme')).toBe('dark');
+    expect(areaEvents).toEqual([]);
+
+    settingsService.dispose();
+    await settingsService.init();
+    expect(settingsService.theme).toBe('dark');
+  });
+
+  it('ignores a stored theme it doesn\'t know, and follows another window\'s', async () => {
+    fake.storage.local.data.set('settings:theme', 'sepia');
+    await settingsService.init();
+    expect(settingsService.theme).toBe('system');
+
+    await fake.storage.local.set({ 'settings:theme': 'light' });
+    expect(settingsService.theme).toBe('light');
+  });
 });

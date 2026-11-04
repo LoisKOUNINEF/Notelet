@@ -19,6 +19,13 @@ describe('SettingsPanelComponent', () => {
     await settle();
   };
 
+  const themeRadio = (value) => $(`input[name="theme"][value="${value}"]`);
+  const pickTheme = async (value) => {
+    themeRadio(value).checked = true;
+    themeRadio(value).dispatchEvent(new window.Event('change', { bubbles: true }));
+    await settle();
+  };
+
   beforeEach(async () => {
     panel = await startPanel();
     // An element target is a placeholder the component replaces: give it one inside #app.
@@ -197,6 +204,40 @@ describe('SettingsPanelComponent', () => {
       expect(entry.open).toBe(false);
       expect(entry.querySelector('summary').textContent.trim()).not.toBe('');
     });
+  });
+
+  it('appearance: offers the device theme, light and dark, in a labelled group', () => {
+    const group = $('a11y-radio-group[aria-label="Appearance"]');
+    expect(group).toBeTruthy();
+    expect($$('input[name="theme"]').map((input) => input.closest('label').textContent.trim()))
+      .toEqual(['Use device theme', 'Light', 'Dark']);
+    expect(themeRadio('system').checked).toBe(true);
+  });
+
+  it('appearance: saves the theme picked right away, keeping the focus on it', async () => {
+    themeRadio('dark').focus();
+    await pickTheme('dark');
+
+    expect(settingsService.theme).toBe('dark');
+    expect(panel.fake.storage.local.data.get('settings:theme')).toBe('dark');
+    expect(document.activeElement).toBe(themeRadio('dark'));
+    expect(panel.toasts).toEqual([]);
+  });
+
+  it('appearance: follows a theme picked in another window', async () => {
+    await panel.fake.storage.local.set({ 'settings:theme': 'light' });
+    expect(themeRadio('light').checked).toBe(true);
+    expect(themeRadio('system').checked).toBe(false);
+  });
+
+  it('appearance: says when the theme couldn\'t be saved, and goes back to the one in use', async () => {
+    panel.fake.storage.local.failNextSet = new Error('Quota exceeded');
+    await silenceConsole('error', () => pickTheme('dark'));
+
+    expect(settingsService.theme).toBe('system');
+    expect(themeRadio('system').checked).toBe(true);
+    expect(panel.toasts.at(-1).type).toBe('error');
+    expect(panel.toasts.at(-1).message).toContain('Couldn\'t change the appearance.');
   });
 });
 

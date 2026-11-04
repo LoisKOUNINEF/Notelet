@@ -17,8 +17,15 @@ interface IAreaOption {
   checked: boolean;
 }
 
+interface IThemeOption {
+  value: ThemeName;
+  label: string;
+  checked: boolean;
+}
+
 interface ISettingsPanelView {
   areas: IAreaOption[];
+  themes: IThemeOption[];
   busy: boolean;
   // The option picked but not applied yet.
   pending: StorageAreaName | null;
@@ -26,7 +33,7 @@ interface ISettingsPanelView {
   syncedWith: string;
 }
 
-const templateFn = ({ areas, busy, pending, browser, syncedWith }: ISettingsPanelView) => html`__TEMPLATE_PLACEHOLDER__`;
+const templateFn = ({ areas, themes, busy, pending, browser, syncedWith }: ISettingsPanelView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 // Where the focus goes when the settings open, and back from "Manage by site".
 export const SETTINGS_TITLE = '#settings-title';
@@ -43,6 +50,12 @@ const SYNC_HINT: Record<BrowserName, string> = {
 };
 
 const AREA_VALUES: StorageAreaName[] = ['local', 'sync'];
+
+const THEME_OPTIONS: Omit<IThemeOption, 'checked'>[] = [
+  { value: 'system', label: 'Use device theme' },
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+];
 
 function areaOptions(browser: BrowserName): Omit<IAreaOption, 'checked'>[] {
   return [
@@ -72,6 +85,8 @@ export class SettingsPanelComponent extends AppComponent<HTMLElement, ISettingsP
     this._onManageSites = onManageSites;
     // Also follows a change made in another window.
     this.listen('storage-area-changed', () => this.setBusy(false));
+    // A theme picked in another window (or a failed save): checked in place, so focus and open help stay.
+    this.listen('settings-changed', () => this.showTheme(settingsService.theme));
   }
 
   public override registerChildren(): Nutin.ComponentConfig[] {
@@ -97,6 +112,7 @@ export class SettingsPanelComponent extends AppComponent<HTMLElement, ISettingsP
       browser,
       syncedWith: SYNCED_WITH[browser],
       areas: areaOptions(browser).map((area) => ({ ...area, checked: area.value === selected })),
+      themes: THEME_OPTIONS.map((theme) => ({ ...theme, checked: theme.value === settingsService.theme })),
     };
   }
 
@@ -105,6 +121,20 @@ export class SettingsPanelComponent extends AppComponent<HTMLElement, ISettingsP
     if (!area) return;
     this.rerender(SettingsPanelComponent.viewOf(false, area === settingsService.storageArea ? null : area));
     this.areaRadio(area).focus();
+  }
+
+  private async _setTheme(value: string): Promise<void> {
+    const theme = THEME_OPTIONS.find((option) => option.value === value)?.value;
+    if (!theme) return;
+    await runAction('Couldn\'t change the appearance.', () => settingsService.setTheme(theme), {
+      onError: () => { if (!this.isDestroyed) this.showTheme(settingsService.theme); },
+    });
+  }
+
+  private showTheme(theme: ThemeName): void {
+    for (const input of this.element.querySelectorAll<HTMLInputElement>('input[name="theme"]')) {
+      input.checked = input.value === theme;
+    }
   }
 
   private async _apply(): Promise<void> {

@@ -28,22 +28,6 @@
   </div>
 
   <div class="settings-panel__section">
-    <h3 class="settings-panel__subtitle">Panel side</h3>
-    ${browser === 'firefox' ? html`
-    <p class="settings-panel__text">Firefox decides whether the sidebar is on the left or the right. To switch, pick "Move sidebar to the right" (or left) in the sidebar's menu or in Firefox settings.</p>` : html`
-    <p class="settings-panel__text">Chrome decides whether the side panel opens on the left or the right.</p>
-    <button class="button" type="button" tabindex="0" data-event="click:_openChromeSettings:'chrome://settings/appearance'">Change it in Chrome settings</button>`}
-  </div>
-
-  <div class="settings-panel__section">
-    <h3 class="settings-panel__subtitle">Keyboard shortcut</h3>
-    <p class="settings-panel__text"><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd> opens and closes the panel, as does the toolbar button.</p>
-    ${browser === 'firefox' ? html`
-    <p class="settings-panel__text settings-panel__shortcut-help">To change it, open Add-ons and themes (<code>about:addons</code>), then ⚙ → Manage Extension Shortcuts.</p>` : html`
-    <button class="button" type="button" tabindex="0" data-event="click:_openChromeSettings:'chrome://extensions/shortcuts'">Change the shortcut</button>`}
-  </div>
-
-  <div class="settings-panel__section">
     <h3 class="settings-panel__subtitle">Manage notes and to-dos</h3>
     <div class="settings-panel__rows">
       <div class="settings-panel__row" role="group" aria-labelledby="manage-sites-label">
@@ -57,6 +41,33 @@
   <div class="settings-panel__section">
     <h3 class="settings-panel__subtitle">Backup</h3>
     <div data-component="backup-data"></div>
+  </div>
+
+  <div class="settings-panel__section">
+    <h3 class="settings-panel__subtitle">Appearance</h3>
+    <a11y-radio-group class="settings-panel__group" aria-label="Appearance">
+      ${themes.map((theme) => html`
+      <label class="settings-panel__option">
+        <input type="radio" tabindex="0" name="theme" value="${theme.value}" ${theme.checked ? raw('checked') : ''} data-event="change:_setTheme:@value">
+        <span class="settings-panel__option-label">${theme.label}</span>
+      </label>`)}
+    </a11y-radio-group>
+  </div>
+
+  <div class="settings-panel__section">
+    <h3 class="settings-panel__subtitle">Panel side</h3>
+    ${browser === 'firefox' ? html`
+    <p class="settings-panel__text">Firefox decides whether the sidebar is on the left or the right. To switch, pick "Move sidebar to the right" (or left) in the sidebar's menu or in Firefox settings.</p>` : html`
+    <p class="settings-panel__text">Chrome decides whether the side panel opens on the left or the right.</p>
+    <button class="button" type="button" tabindex="0" data-event="click:_openChromeSettings:'chrome://settings/appearance'">Change it in Chrome settings</button>`}
+  </div>
+
+  <div class="settings-panel__section">
+    <h3 class="settings-panel__subtitle">Keyboard shortcut</h3>
+    <p class="settings-panel__text"><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd> opens and closes the panel, as does the toolbar button.</p>
+    ${browser === 'firefox' ? html`
+    <p class="settings-panel__text settings-panel__shortcut-help">To change it, open Add-ons and themes (<code>about:addons</code>), then ⚙ → Manage Extension Shortcuts.</p>` : html`
+    <button class="button" type="button" tabindex="0" data-event="click:_openChromeSettings:'chrome://extensions/shortcuts'">Change the shortcut</button>`}
   </div>
 
   <div class="settings-panel__section">

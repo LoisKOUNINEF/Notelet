@@ -7,6 +7,9 @@ declare type NoteScope = 'page' | 'site';
 // Where notes are kept: this device only, or synced across the user's Chrome profiles (Firefox accounts).
 declare type StorageAreaName = 'local' | 'sync';
 
+// The panel's colours: the device's light/dark setting, or always light or dark (see lib/theme.ts).
+declare type ThemeName = 'system' | 'light' | 'dark';
+
 // The browser the extension runs in (see ChromeApiService.browser()).
 declare type BrowserName = 'chrome' | 'firefox';
 

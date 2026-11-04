@@ -13,6 +13,7 @@ import { initI18n, registerPipes } from '../core/index.js';
 import { SidebarComponent } from './components/sidebar/sidebar.component.js';
 import { initDrafts } from './lib/drafts.js';
 import { failureMessage } from './lib/errors.js';
+import { initTheme } from './lib/theme.js';
 import { registerAppPipes } from './lib/pipes.js';
 import { activeTabService } from './services/active-tab/active-tab.service.js';
 import { clockService } from './services/clock/clock.service.js';
@@ -41,6 +42,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   await start('load the translations', () => initI18n());
   // Settings first: they say which storage area the notes are in.
   await start('load your settings', () => settingsService.init());
+  // Before the panel mounts: it shows in the chosen theme from the start.
+  initTheme();
   await start('watch for changes to your notes', () => scopeStoreService.init());
   await start('read the current tab', () => activeTabService.init());
   // Unsaved text from the panel's last opening.
