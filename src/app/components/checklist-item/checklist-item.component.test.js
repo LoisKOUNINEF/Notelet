@@ -2,7 +2,7 @@ import { SidebarComponent } from '#root/dist/src/app/components/sidebar/sidebar.
 import { scopeStoreService } from '#root/dist/src/app/services/scope-store/scope-store.service.js';
 import { KEYS, settle, startPanel } from '../../testing/panel.js';
 
-// Checked from the to-do list, in the panel. An item's text is beside its checkbox, which it labels.
+// Checked from the checklist, in the panel. An item's text is beside its checkbox, which it labels.
 describe('ChecklistItemComponent', () => {
   let panel;
   let sidebar;
@@ -76,7 +76,7 @@ describe('ChecklistItemComponent', () => {
     expect(list.items.length).toBe(3);
   });
 
-  it('changes nothing when the list\'s items were removed meanwhile (another window)', async () => {
+  it('changes nothing when the checklist\'s items were removed meanwhile (another window)', async () => {
     const [stored] = (await scopeStoreService.load(KEYS)).page.todos;
     panel.fake.storage.local.data.set(`todos:page:${KEYS.page}`, [{ ...stored, items: undefined }]);
     await check('a');
@@ -84,7 +84,7 @@ describe('ChecklistItemComponent', () => {
     expect((await scopeStoreService.load(KEYS)).page.todos[0].items).toBeUndefined();
   });
 
-  it('moves the list to "Done" once its last item is checked, and back when one is unchecked', async () => {
+  it('moves the checklist to "Done" once its last item is checked, and back when one is unchecked', async () => {
     await check('a');
     expect($('.todo-list__done-toggle')).toBeFalsy();
     await check('b');
@@ -92,7 +92,7 @@ describe('ChecklistItemComponent', () => {
     // "Done" is collapsed: the list left the view, the focus went to the group's toggle.
     expect(document.activeElement).toBe($('.todo-list__done-toggle'));
     const toast = panel.toasts.at(-1);
-    expect(toast.message).toBe('List done.');
+    expect(toast.message).toBe('Checklist done.');
 
     // Undo unchecks the item just checked: open again.
     toast.onAction();

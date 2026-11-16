@@ -5,16 +5,17 @@ import { getEditDraft } from '../../lib/drafts.js';
 import { byData, clearRequestedFocus } from '../../lib/focus.js';
 import { confirmService } from '../../services/confirm/confirm.service.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
+import { isChecklist } from '../../services/scope-store/scope-items.js';
 import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
 import { settingsService } from '../../services/settings/settings.service.js';
 import { ChecklistAddComponent } from '../checklist-add/checklist-add.component.js';
 import { ChecklistItemComponent } from '../checklist-item/checklist-item.component.js';
 import { ItemMenuComponent, type IMenuAction } from '../item-menu/item-menu.component.js';
-import { ListEditorComponent, type IListEditDraft } from '../list-editor/list-editor.component.js';
+import { TodoEditorComponent, type ITodoEditDraft } from '../todo-editor/todo-editor.component.js';
 import { TODO_COMPOSER_INPUT } from '../todo-composer/todo-composer.component.js';
 import { todoCatalog } from '../todo-list/todo-list.selectors.js';
 
-// What the to-do list passes to each item, besides the to-do (see createCatalogComponents).
+// What TodoListComponent passes to each item, besides the to-do (see createCatalogComponents).
 export interface ITodoItemOptions {
   group: 'open' | 'done';
   // Shows the grab handle (open to-dos, when there are at least two). The list runs the gestures.
@@ -23,9 +24,9 @@ export interface ITodoItemOptions {
   grabbedId: string | null;
   // Where "Move to this site/page" sends it.
   keys: IScopeKeys;
-  // There are lists to move a single to-do into ("Move into a list…"), read when it's picked.
-  hasLists: boolean;
-  lists: () => ITodo[];
+  // There are checklists to move a single to-do into ("Move into a checklist…"), read when it's picked.
+  hasChecklists: boolean;
+  checklists: () => IChecklist[];
   // The list is selecting items; whether this one is, and how to tell the list it changed.
   selecting: boolean;
   isSelected: (id: string) => boolean;
@@ -34,11 +35,11 @@ export interface ITodoItemOptions {
 
 interface ITodoItemView {
   todo: ITodo;
-  // A to-do list: its name, its items (checked right here) and how many are done.
+  // A checklist: its name, its items (checked right here) and how many are done.
   items: IChecklistItem[];
   doneCount: number;
   editing: boolean;
-  // A list folded down to its name and progress (see _toggleCollapsed).
+  // A checklist folded down to its name and progress (see _toggleCollapsed).
   collapsed: boolean;
   reorderable: boolean;
   grabbed: boolean;
@@ -47,7 +48,7 @@ interface ITodoItemView {
   selected: boolean;
 }
 
-type TodoMenuAction = 'move' | 'move-into-list';
+type TodoMenuAction = 'move' | 'move-into-checklist';
 
 const templateFn = ({ todo, items, doneCount, editing, collapsed, reorderable, grabbed, selecting, selected }: ITodoItemView) => html`__TEMPLATE_PLACEHOLDER__`;
 
@@ -56,19 +57,19 @@ const templateFn = ({ todo, items, doneCount, editing, collapsed, reorderable, g
  * Only the box checks it: a click on its text or elsewhere on it opens the editor, like Edit.
  * Checking it moves it below the open ones; focus follows it there.
  *
- * A to-do list has no checkbox of its own: its name, then its items, checked one by one; it's done
+ * A checklist has no checkbox of its own: its name, then its items, checked one by one; it's done
  * once they all are (see ScopeStoreService.updateWith). Its arrow folds it down to its name and
  * progress (saved on the to-do).
  *
- * Every to-do is edited in the list editor, in place: adding items to a single one makes it a list,
- * removing them all makes a list single, and items taken out become single to-dos after it.
+ * Every to-do is edited in the to-do editor, in place: adding items to a single one makes it a
+ * checklist, removing them all makes a checklist single, and items taken out become single to-dos after it.
  */
 export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
   private _todo: ITodo;
   private _index: number;
   private _group: ITodoItemOptions['group'];
   private _options: ITodoItemOptions;
-  private _editor: ListEditorComponent | null = null;
+  private _editor: TodoEditorComponent | null = null;
 
   constructor(mountTarget: HTMLElement, config: ITodo & { index: number }, options: ITodoItemOptions) {
     const { index, ...todo } = config;
@@ -84,7 +85,7 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
         items,
         doneCount: items.filter((item) => item.done).length,
         // An edit left open when this to-do last went away comes back, still open.
-        editing: getEditDraft<IListEditDraft>('todo', todo.id) !== null,
+        editing: getEditDraft<ITodoEditDraft>('todo', todo.id) !== null,
         collapsed: items.length > 0 && !!todo.collapsed,
         reorderable: options.reorderable,
         grabbed: options.grabbedId === todo.id,
@@ -103,10 +104,10 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
   public override registerChildren(): Nutin.ComponentConfig[] {
     if (this.config.editing) {
       return [{
-        selector: 'list-editor',
-        factory: (el) => (this._editor = new ListEditorComponent(el, {
+        selector: 'todo-editor',
+        factory: (el) => (this._editor = new TodoEditorComponent(el, {
           todo: this._todo,
-          draft: getEditDraft<IListEditDraft>('todo', this._todo.id),
+          draft: getEditDraft<ITodoEditDraft>('todo', this._todo.id),
           onSave: (text, items, takenOut) => void this.save(text, items, takenOut),
           onCancel: () => this.cancel(),
         })),
@@ -121,14 +122,15 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
         component: ChecklistItemComponent,
         props: { todo: this._todo },
       }),
-      { selector: 'checklist-add', factory: (el) => new ChecklistAddComponent(el, this._todo) },
+      // Only in the template for a checklist.
+      { selector: 'checklist-add', factory: (el) => new ChecklistAddComponent(el, this._todo as IChecklist) },
       {
         selector: 'item-menu',
         factory: (el) => new ItemMenuComponent<TodoMenuAction>(el, {
           id: `todo-${this._todo.id}`,
           name: this._todo.text,
           actions: this.menuActions(),
-          onAction: (action) => void (action === 'move' ? this.move() : this.moveIntoList()),
+          onAction: (action) => void (action === 'move' ? this.move() : this.moveIntoChecklist()),
         }),
       },
     ];
@@ -136,8 +138,8 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
 
   protected override onAfterRender(): void {
     super.onAfterRender();
-    // A list's items are checked by their checkboxes only: their text opens the list's editor too,
-    // focused on that item's field (elsewhere on the list: on its name).
+    // A checklist's items are checked by their checkboxes only: their text opens the checklist's editor
+    // too, focused on that item's field (elsewhere on the checklist: on its name).
     if (this.config.editing) return;
     // While selecting, a click on it (done or not) checks it instead.
     if (this.config.selecting) {
@@ -147,11 +149,11 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
     }
   }
 
-  // A single to-do can go into a list, when there's one; any to-do to the tab's other scope.
+  // A single to-do can go into a checklist, when there's one; any to-do to the tab's other scope.
   private menuActions(): IMenuAction<TodoMenuAction>[] {
-    const single = (this._todo.items ?? []).length === 0;
+    const single = !isChecklist(this._todo);
     return [
-      ...(single && this._options.hasLists ? [{ value: 'move-into-list' as const, label: 'Move into a list…' }] : []),
+      ...(single && this._options.hasChecklists ? [{ value: 'move-into-checklist' as const, label: 'Move into a checklist…' }] : []),
       { value: 'move', label: `Move to this ${this._todo.scope === 'page' ? 'site' : 'page'}` },
     ];
   }
@@ -174,13 +176,13 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
     }
   }
 
-  // Folded right away; the stored list then comes back as a new list item, focus on its arrow.
+  // Folded right away; the stored checklist then comes back as a new list item, focus on its arrow.
   private async _toggleCollapsed(): Promise<void> {
     const collapsed = !this.config.collapsed;
     this.config = { ...this.config, collapsed };
     this.render();
     this.element.querySelector<HTMLElement>('.todo-item__toggle')?.focus();
-    await runAction('Couldn\'t update the list.', () => scopeStoreService.setCollapsed('todos', this._todo, collapsed), {
+    await runAction('Couldn\'t update the checklist.', () => scopeStoreService.setCollapsed('todos', this._todo, collapsed), {
       focus: [this.own('.todo-item__toggle')],
       onError: () => {
         this.config = { ...this.config, collapsed: !collapsed };
@@ -193,7 +195,7 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
     this.edit();
   }
 
-  // Focused on that item's field, if given (and still in the list), else on the name.
+  // Focused on that item's field, if given (and still in the checklist), else on the name.
   private edit(itemId?: string): void {
     this.setEditing(true);
     this._editor?.focus(itemId);
@@ -207,7 +209,7 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
     // Comes back through `scope-content-changed` as a new list item, in view mode: this one goes
     // away with no draft to keep.
     this._editor?.close();
-    await runAction('Couldn\'t save the to-do.', () => scopeStoreService.editList(this._todo, text, items, takenOut), {
+    await runAction('Couldn\'t save the to-do.', () => scopeStoreService.editTodo(this._todo, text, items, takenOut), {
       focus: [this.own('.todo-item__edit'), this.own('.todo-item__delete')],
       onError: () => this._editor?.reopen(),
     });
@@ -219,21 +221,21 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
     this.element.querySelector<HTMLElement>('.todo-item__edit')?.focus();
   }
 
-  // "Move into a list…": a single to-do becomes the last item of a list picked in a popup.
-  private async moveIntoList(): Promise<void> {
-    const lists = this._options.lists();
-    const listId = await confirmService.choose({
-      title: `Move “${this._todo.text}” into a list`,
-      message: 'It becomes the list\'s last item.',
-      choices: lists.map((list) => {
-        const items = list.items ?? [];
-        return { value: list.id, label: `${list.text} · ${items.filter((item) => item.done).length} of ${items.length} done` };
+  // "Move into a checklist…": a single to-do becomes the last item of a checklist picked in a popup.
+  private async moveIntoChecklist(): Promise<void> {
+    const checklists = this._options.checklists();
+    const checklistId = await confirmService.choose({
+      title: `Move “${this._todo.text}” into a checklist`,
+      message: 'It becomes the checklist\'s last item.',
+      choices: checklists.map((checklist) => {
+        const { items } = checklist;
+        return { value: checklist.id, label: `${checklist.text} · ${items.filter((item) => item.done).length} of ${items.length} done` };
       }),
     });
-    const list = lists.find(({ id }) => id === listId);
-    if (!list) return;
+    const checklist = checklists.find(({ id }) => id === checklistId);
+    if (!checklist) return;
 
-    const moved = await runAction('Couldn\'t move the to-do.', () => scopeStoreService.moveIntoList(this._todo, list), {
+    const moved = await runAction('Couldn\'t move the to-do.', () => scopeStoreService.moveIntoChecklist(this._todo, checklist), {
       focus: this.focusAfterLeaving(),
     });
     if (!moved) {
@@ -241,7 +243,7 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
       clearRequestedFocus();
       return;
     }
-    notifierService.undoable(`Moved into ${list.text}.`, () => scopeStoreService.moveOutOfList(this._todo, list, moved.itemId), 'Couldn\'t move it back.');
+    notifierService.undoable(`Moved into ${checklist.text}.`, () => scopeStoreService.moveOutOfChecklist(this._todo, checklist, moved.itemId), 'Couldn\'t move it back.');
   }
 
   private async _delete(): Promise<void> {
@@ -270,7 +272,7 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
   }
 
   // Once this to-do leaves its group, the next one there takes its index; else the previous one,
-  // else the quick add. A to-do's first control is its checkbox, a list's its first item's.
+  // else the quick add. A to-do's first control is its checkbox, a checklist's its first item's.
   private focusAfterLeaving(): string[] {
     const group = todoCatalog(this._group);
     const first = ':is(.todo-item__checkbox, .checklist-item__checkbox)';

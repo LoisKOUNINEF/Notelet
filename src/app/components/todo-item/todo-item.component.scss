@@ -17,7 +17,7 @@
   }
 
   // A click opens it for editing (see lib/card-click.ts), or selects it while the list is selecting.
-  &:not(.todo-item--done):not(:has(.list-editor)),
+  &:not(.todo-item--done):not(:has(.todo-editor)),
   &:has(.todo-item__select) {
     cursor: pointer;
   }
@@ -46,7 +46,7 @@
   text-decoration: line-through;
 }
 
-// A to-do list's name, in place of a checkbox, with how much of it is done.
+// A checklist's name, in place of a checkbox, with how much of it is done.
 .todo-item__title {
   flex: 1;
   min-width: 0;
@@ -60,7 +60,7 @@
   font-weight: normal;
 }
 
-// A list's items and its "Add an item" field take full rows under its name.
+// A checklist's items and its "Add an item" field take full rows under its name.
 .todo-item__checklist {
   display: grid;
   flex-basis: 100%;
@@ -74,8 +74,8 @@
   flex-basis: 100%;
 }
 
-// The list editor takes the whole row.
-.todo-item > .list-editor {
+// The to-do editor takes the whole row.
+.todo-item > .todo-editor {
   flex-basis: 100%;
 }
 
@@ -94,7 +94,7 @@
   @include reorder.grip;
 }
 
-// A list's arrow, before its name: folds it down to its name and progress.
+// A checklist's arrow, before its name: folds it down to its name and progress.
 .todo-item__toggle {
   @include disclosure.toggle;
 }

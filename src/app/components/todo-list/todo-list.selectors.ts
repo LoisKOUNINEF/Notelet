@@ -1,4 +1,4 @@
-// What other components target inside the to-do list (focus after an action), kept here so a
+// What other components target inside the to-dos list (focus after an action), kept here so a
 // renamed class can't silently break them. In its own module: the items import it, and the list
 // imports the items.
 

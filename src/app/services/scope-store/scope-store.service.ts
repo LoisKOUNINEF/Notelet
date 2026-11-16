@@ -2,7 +2,7 @@ import { AppEventBus, Service } from '../../../core/index.js';
 import { hostOf, isScopeContentKey, pageLabelOf, siteOf, storageKey } from '../../lib/scope-keys.js';
 import { chromeApiService } from '../chrome-api/chrome-api.service.js';
 import { settingsService } from '../settings/settings.service.js';
-import { editTodo, listDone, mergeContent, scopeLists, sortItems, topPosition, type IStoredList } from './scope-items.js';
+import { applyTodoEdit, checklistDone, isChecklist, mergeContent, scopeLists, sortItems, topPosition, type IStoredList } from './scope-items.js';
 import { createBackup, readBackup, type IBackup } from './backup.js';
 import { SettingsNotLoadedError } from './store-errors.js';
 import { checkSyncQuota } from './sync-quota.js';
@@ -39,11 +39,11 @@ type ItemIdentity = Exclude<keyof IScopeItem, 'text'>;
 // What an update may change: everything else.
 export type ScopeItemChanges<K extends ScopeContentKind> = Partial<Omit<IScopeItemKinds[K], ItemIdentity | 'doneAt'>>;
 
-// What moveIntoList() did, for its Undo (moveOutOfList).
-export interface IMovedIntoList {
-  // The to-do and the list, as they were.
+// What moveIntoChecklist() did, for its Undo (moveOutOfChecklist).
+export interface IMovedIntoChecklist {
+  // The to-do and the checklist, as they were.
   before: ITodo[];
-  list: ITodo;
+  checklist: IChecklist;
   itemId: string;
 }
 
@@ -117,10 +117,10 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
     return this.add('notes', this.newItem(scope, key, text));
   }
 
-  // A single to-do, or a to-do list when given items (`text` is then the list's name).
+  // A single to-do, or a checklist when given items (`text` is then the checklist's name).
   public addTodo(scope: NoteScope, key: string, text: string, items: IChecklistItem[] = []): Promise<ITodo> {
     const todo: ITodo = { ...this.newItem(scope, key, text), done: false, doneAt: null };
-    return this.add('todos', items.length > 0 ? { ...todo, items, done: listDone(items) } : todo);
+    return this.add('todos', items.length > 0 ? { ...todo, items, done: checklistDone(items) } : todo);
   }
 
   /**
@@ -138,12 +138,12 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
   ): Promise<IScopeItemKinds[K]> {
     return this.replaceItem(kind, item, (current) => {
       const now = Date.now();
-      if (kind === 'todos') return editTodo(current as ITodo, change(current), now) as IScopeItemKinds[K];
+      if (kind === 'todos') return applyTodoEdit(current as ITodo, change(current), now) as IScopeItemKinds[K];
       return { ...current, ...change(current), updatedAt: now };
     });
   }
 
-  // Folds or unfolds a note or a to-do list.
+  // Folds or unfolds a note or a checklist.
   public setCollapsed<K extends ScopeContentKind>(kind: K, item: IScopeItemKinds[K], collapsed: boolean): Promise<IScopeItemKinds[K]> {
     return this.replaceItem(kind, item, (current) => {
       const folded = { ...current };
@@ -257,13 +257,13 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
   }
 
   // Saves an edited to-do, in one write
-  public editList(todo: ITodo, text: string, items: IChecklistItem[], takenOut: IChecklistItem[] = []): Promise<ITodo> {
+  public editTodo(todo: ITodo, text: string, items: IChecklistItem[], takenOut: IChecklistItem[] = []): Promise<ITodo> {
     return this.enqueue(() => this.writeList('todos', todo.scope, todo.key, (todos) => {
       const current = todos.find((t) => t.id === todo.id);
       // Gone meanwhile (deleted in another window): left gone.
       if (!current) return { items: todos, result: todo };
       const now = Date.now();
-      const edited = editTodo(current, { text, items }, now);
+      const edited = applyTodoEdit(current, { text, items }, now);
 
       const singles: ITodo[] = takenOut.map((item) => ({
         ...this.newItem(todo.scope, todo.key, item.text),
@@ -285,26 +285,26 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
     }));
   }
 
-  public moveIntoList(todo: ITodo, list: ITodo): Promise<IMovedIntoList | null> {
-    return this.enqueue(() => this.writeList('todos', list.scope, list.key, (todos): { items: ITodo[]; result: IMovedIntoList | null } => {
+  public moveIntoChecklist(todo: ITodo, checklist: IChecklist): Promise<IMovedIntoChecklist | null> {
+    return this.enqueue(() => this.writeList('todos', checklist.scope, checklist.key, (todos): { items: ITodo[]; result: IMovedIntoChecklist | null } => {
       const single = todos.find((t) => t.id === todo.id);
-      const target = todos.find((t) => t.id === list.id);
-      if (!single || !target || single.items?.length || !target.items?.length) return { items: todos, result: null };
+      const target = todos.find((t) => t.id === checklist.id);
+      if (!single || !target || isChecklist(single) || !isChecklist(target)) return { items: todos, result: null };
       const itemId = crypto.randomUUID();
-      const moved = editTodo(target, { items: [...target.items, { id: itemId, text: single.text, done: single.done }] }, Date.now());
+      const moved = applyTodoEdit(target, { items: [...target.items, { id: itemId, text: single.text, done: single.done }] }, Date.now());
       return {
         items: todos.filter((t) => t.id !== single.id).map((t) => (t.id === target.id ? moved : t)),
-        result: { before: [single, target], list: moved, itemId },
+        result: { before: [single, target], checklist: moved as IChecklist, itemId },
       };
     }));
   }
 
-  public moveOutOfList(single: ITodo, list: ITodo, itemId: string): Promise<void> {
-    return this.enqueue(() => this.write('todos', list.scope, list.key, (todos) => {
+  public moveOutOfChecklist(single: ITodo, checklist: IChecklist, itemId: string): Promise<void> {
+    return this.enqueue(() => this.write('todos', checklist.scope, checklist.key, (todos) => {
       const now = Date.now();
       const rest = todos.filter((t) => t.id !== single.id).map((t) => {
-        if (t.id !== list.id || !t.items?.some((item) => item.id === itemId)) return t;
-        return editTodo(t, { items: t.items.filter((item) => item.id !== itemId) }, now);
+        if (t.id !== checklist.id || !t.items?.some((item) => item.id === itemId)) return t;
+        return applyTodoEdit(t, { items: t.items.filter((item) => item.id !== itemId) }, now);
       });
       return [...rest, single];
     }));

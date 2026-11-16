@@ -10,16 +10,16 @@ interface IChecklistAddView {
 
 const templateFn = ({ name }: IChecklistAddView) => html`__TEMPLATE_PLACEHOLDER__`;
 
-// Its field: where the focus goes back once the list comes back with the item.
+// Its field: where the focus goes back once the checklist comes back with the item.
 export const CHECKLIST_ADD_INPUT = '.checklist-add__input';
 
-// "Add an item…" under an open to-do list: the item goes last, unchecked.
+// "Add an item…" under an open checklist: the item goes last, unchecked.
 export class ChecklistAddComponent extends Component<HTMLElement, IChecklistAddView> {
-  private readonly _list: ITodo;
+  private readonly _checklist: IChecklist;
 
-  constructor(mountTarget: HTMLElement, list: ITodo) {
-    super({ templateFn, mountTarget, config: { name: list.text } });
-    this._list = list;
+  constructor(mountTarget: HTMLElement, checklist: IChecklist) {
+    super({ templateFn, mountTarget, config: { name: checklist.text } });
+    this._checklist = checklist;
   }
 
   private async _add(): Promise<void> {
@@ -30,11 +30,11 @@ export class ChecklistAddComponent extends Component<HTMLElement, IChecklistAddV
 
     // Emptied right away (a second Enter before the save ends adds nothing); restored if it fails.
     input.value = '';
-    await runAction('Couldn\'t add the item.', () => scopeStoreService.updateWith('todos', this._list, (current) => ({
+    await runAction('Couldn\'t add the item.', () => scopeStoreService.updateWith('todos', this._checklist, (current) => ({
       items: [...(current.items ?? []), { id: crypto.randomUUID(), text, done: false }],
     })), {
-      // The list comes back with the item as a new list item: focus the field again there.
-      focus: [`${byData('todo-id', this._list.id)} ${CHECKLIST_ADD_INPUT}`],
+      // The checklist comes back with the item as a new list item: focus the field again there.
+      focus: [`${byData('todo-id', this._checklist.id)} ${CHECKLIST_ADD_INPUT}`],
       onError: () => { input.value = typed; },
     });
   }

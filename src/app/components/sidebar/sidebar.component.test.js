@@ -614,17 +614,17 @@ describe('SidebarComponent', () => {
     await mount();
     kindTab('todos').click();
     $(`[data-todo-id="${todo.id}"] .todo-item__edit`).click();
-    $('.list-editor__input').value = 'Half-edited';
+    $('.todo-editor__input').value = 'Half-edited';
 
     tab('site').click();
     tab('page').click();
-    expect($('.list-editor__input').value).toBe('Half-edited');
-    expect($(`[data-todo-id="${todo.id}"] .list-editor__restored`).textContent).toBe('Unsaved changes restored.');
+    expect($('.todo-editor__input').value).toBe('Half-edited');
+    expect($(`[data-todo-id="${todo.id}"] .todo-editor__restored`).textContent).toBe('Unsaved changes restored.');
 
-    keydown($('.list-editor__input'), 'Escape');
+    keydown($('.todo-editor__input'), 'Escape');
     tab('site').click();
     tab('page').click();
-    expect($('.list-editor__input')).toBeFalsy();
+    expect($('.todo-editor__input')).toBeFalsy();
   });
 
   it('forgets a to-do edit once saved, or when nothing changed', async () => {
@@ -634,15 +634,15 @@ describe('SidebarComponent', () => {
     $(`[data-todo-id="${todo.id}"] .todo-item__edit`).click();
     tab('site').click();
     tab('page').click();
-    expect($('.list-editor__input')).toBeFalsy();
+    expect($('.todo-editor__input')).toBeFalsy();
 
     $(`[data-todo-id="${todo.id}"] .todo-item__edit`).click();
-    $('.list-editor__input').value = 'Saved';
+    $('.todo-editor__input').value = 'Saved';
     $(`[data-todo-id="${todo.id}"] button[type="submit"]`).click();
     await settle();
     tab('site').click();
     tab('page').click();
-    expect($('.list-editor__input')).toBeFalsy();
+    expect($('.todo-editor__input')).toBeFalsy();
   });
 
   it('keeps the panel usable when loading fails, and says so', async () => {

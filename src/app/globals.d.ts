@@ -16,7 +16,7 @@ declare type BrowserName = 'chrome' | 'firefox';
 // Epoch milliseconds (Date.now()). chrome.storage serializes to JSON, where a Date would become {}.
 declare type Timestamp = number;
 
-// What a scope holds: its notes and its to-do list, each kept in its own storage item.
+// What a scope holds: its notes and its to-dos, each kept in its own storage item.
 declare type ScopeContentKind = 'notes' | 'todos';
 
 // Common to notes and to-dos.
@@ -32,14 +32,14 @@ declare interface IScopeItem {
   position?: number;
 }
 
-// One checkable item of a to-do list (checked items stay in place).
+// One checkable item of a checklist (checked items stay in place).
 declare interface IChecklistItem {
   id: string;
   text: string;
   done: boolean;
 }
 
-// A note: text only (lists of things to check off are to-do lists).
+// A note: text only (lists of things to check off are checklists).
 declare interface INote extends IScopeItem {
   // Optional, set in the note editor: shown above the text, and names the note in labels.
   name?: string;
@@ -48,15 +48,18 @@ declare interface INote extends IScopeItem {
 }
 
 declare interface ITodo extends IScopeItem {
-  // A to-do list: its text is the list's name, and it's done once every item is (see ScopeStoreService).
+  // A checklist: its text is the checklist's name, and it's done once every item is (see ScopeStoreService).
   // Absent or empty: a single to-do.
   items?: IChecklistItem[];
-  // A list folded down to its name and progress. Not an edit: keeps updatedAt.
+  // A checklist folded down to its name and progress. Not an edit: keeps updatedAt.
   collapsed?: boolean;
   done: boolean;
   // When it was last checked (null while open): done to-dos are listed in the order they were done.
   doneAt: Timestamp | null;
 }
+
+// A to-do that has items: a checklist (see isChecklist in services/scope-store/scope-items.ts).
+declare type IChecklist = ITodo & { items: IChecklistItem[] };
 
 // The item type of each kind.
 declare interface IScopeItemKinds {

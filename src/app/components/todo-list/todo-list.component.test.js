@@ -59,7 +59,7 @@ describe('TodoListComponent', () => {
     typeInto($('.todo-composer__input'), '');
   });
 
-  it('keeps lists and reordered to-dos when reloaded unchanged', () => {
+  it('keeps checklists and reordered to-dos when reloaded unchanged', () => {
     const load = () => [
       { ...todo('list', 'Groceries'), items: [{ id: 'i', text: 'Milk', done: false }] },
       { ...todo('moved', 'Moved'), position: 0 },
@@ -504,7 +504,7 @@ describe('TodoListComponent - reordering', () => {
     expect(removed.calls.some(([type]) => type === 'blur')).toBe(true);
     removed.restore();
 
-    // The window losing focus later doesn't drop the to-do into a list that's gone.
+    // The window losing focus later doesn't drop the to-do into a checklist that's gone.
     window.dispatchEvent(new window.Event('blur'));
     await settle();
     expect(set.callCount).toBe(0);
@@ -714,6 +714,6 @@ describe('TodoListComponent - selecting', () => {
     $('.todo-list__select').click();
     $(`[data-todo-id="${byText('Done C')}"] .todo-item__text`).click();
     expect(box(byText('Done C')).checked).toBe(true);
-    expect($('.list-editor')).toBeFalsy();
+    expect($('.todo-editor')).toBeFalsy();
   });
 });

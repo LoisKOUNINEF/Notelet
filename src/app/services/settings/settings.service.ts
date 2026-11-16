@@ -3,7 +3,7 @@ import { chromeApiService } from '../chrome-api/chrome-api.service.js';
 
 interface ISettings {
   storageArea: StorageAreaName;
-  // Whether the to-do lists' "Done (n)" group is open, for every page.
+  // Whether the to-dos' "Done (n)" group is open, for every page.
   doneExpanded: boolean;
   // The To-dos / Notes tab last picked, shown when the panel opens.
   contentKind: ScopeContentKind;

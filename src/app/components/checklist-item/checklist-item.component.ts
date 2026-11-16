@@ -6,7 +6,7 @@ import { scopeStoreService } from '../../services/scope-store/scope-store.servic
 import { settingsService } from '../../services/settings/settings.service.js';
 import { DONE_TOGGLE } from '../todo-list/todo-list.selectors.js';
 
-// What a to-do list passes to each of its items (see createCatalogComponents).
+// What a checklist passes to each of its items (see createCatalogComponents).
 export interface IChecklistItemOptions {
   todo: ITodo;
 }
@@ -17,8 +17,8 @@ interface IChecklistItemView {
 
 const templateFn = ({ item }: IChecklistItemView) => html`__TEMPLATE_PLACEHOLDER__`;
 
-// One item of a to-do list, checked right from the list. Checked items stay in place; checking
-// the last one moves the whole list to "Done" (see ScopeStoreService.updateWith).
+// One item of a checklist, checked right from the checklist. Checked items stay in place; checking
+// the last one moves the whole checklist to "Done" (see ScopeStoreService.updateWith).
 export class ChecklistItemComponent extends Component<HTMLElement, IChecklistItemView> {
   private _item: IChecklistItem;
   private _todo: ITodo;
@@ -31,7 +31,7 @@ export class ChecklistItemComponent extends Component<HTMLElement, IChecklistIte
       props: { className: item.done ? 'checklist-item checklist-item--done' : 'checklist-item' },
       config: { item },
     });
-    // Lets the list find this item's checkbox again after it re-renders (see requestFocus).
+    // Lets the checklist find this item's checkbox again after it re-renders (see requestFocus).
     this.element.dataset.itemId = item.id;
     this._item = item;
     this._todo = options.todo;
@@ -40,19 +40,19 @@ export class ChecklistItemComponent extends Component<HTMLElement, IChecklistIte
   private async _toggle(done: boolean): Promise<void> {
     const id = this._item.id;
     const updated = await runAction('Couldn\'t update the item.', () => scopeStoreService.updateWith('todos', this._todo, checking(id, done)), {
-      // Checking the last item moves the list to "Done": if that group is collapsed, the list
+      // Checking the last item moves the checklist to "Done": if that group is collapsed, the checklist
       // leaves the view, and the focus goes to the group's toggle.
       focus: [`${byData('todo-id', this._todo.id)} ${byData('item-id', id)} .checklist-item__checkbox`, DONE_TOGGLE],
       // The checkbox shows what's stored again.
       onError: () => this.render(),
     });
     if (updated?.done && !this._todo.done && !settingsService.doneExpanded) {
-      notifierService.undoable('List done.', () => scopeStoreService.updateWith('todos', updated, checking(id, false)), 'Couldn\'t update the list.', 'success');
+      notifierService.undoable('Checklist done.', () => scopeStoreService.updateWith('todos', updated, checking(id, false)), 'Couldn\'t update the checklist.', 'success');
     }
   }
 }
 
-// The change that checks (or unchecks) item `id`, applied to the list as stored: another item
+// The change that checks (or unchecks) item `id`, applied to the checklist as stored: another item
 // checked a moment ago isn't overwritten.
 function checking(id: string, done: boolean): (current: ITodo) => Pick<ITodo, 'items'> {
   return (current) => ({ items: (current.items ?? []).map((item) => (item.id === id ? { ...item, done } : item)) });

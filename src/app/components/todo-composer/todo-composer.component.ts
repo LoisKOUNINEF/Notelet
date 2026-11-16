@@ -13,18 +13,18 @@ export interface ITodoComposerConfig {
 interface ITodoComposerView {
   scope: NoteScope;
   draft: string;
-  // A to-do list being written: the field is its name, its items are fields below.
-  listMode: boolean;
+  // A checklist being written: the field is its name, its items are fields below.
+  checklistMode: boolean;
 }
 
-const templateFn = ({ scope, draft, listMode }: ITodoComposerView) => html`__TEMPLATE_PLACEHOLDER__`;
+const templateFn = ({ scope, draft, checklistMode }: ITodoComposerView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 // Where the focus goes once a to-do leaves the list.
 export const TODO_COMPOSER_INPUT = '.todo-composer__input';
 
 /**
  * The quick add, on top of the to-dos. A single to-do: one line, Enter adds it.
- * "List" turns it into a to-do list: the line becomes its name, with one field per item below
+ * "Checklist" turns it into a checklist: the line becomes its name, with one field per item below
  * Removing every item makes it single again.
  * What's typed is kept as drafts.
  */
@@ -39,7 +39,7 @@ export class TodoComposerComponent extends Component<HTMLElement, ITodoComposerV
   constructor(mountTarget: HTMLElement, { scope, key }: ITodoComposerConfig) {
     const draftItems = getJsonDraft<IChecklistItem[]>(itemsDraftId(scope, key));
     const items = Array.isArray(draftItems) ? draftItems : [];
-    super({ templateFn, mountTarget, config: { scope, draft: getDraft(draftId(scope, key)), listMode: items.length > 0 } });
+    super({ templateFn, mountTarget, config: { scope, draft: getDraft(draftId(scope, key)), checklistMode: items.length > 0 } });
     this._scope = scope;
     this._key = key;
     this._items = items;
@@ -54,12 +54,12 @@ export class TodoComposerComponent extends Component<HTMLElement, ITodoComposerV
       selector: 'checklist-fields',
       factory: (el) => (this._checklist = new ChecklistFieldsComponent(el, {
         items: this._items,
-        label: 'List items',
+        label: 'Checklist items',
         className: 'todo-composer__items',
         onEscape: () => this.input.focus(),
         onLastRemoved: () => {
-          this.setListMode(false);
-          requireElement(this.element, '.todo-composer__list').focus();
+          this.setChecklistMode(false);
+          requireElement(this.element, '.todo-composer__checklist').focus();
         },
         onChange: () => this.saveItemsDraft(),
       })),
@@ -73,7 +73,7 @@ export class TodoComposerComponent extends Component<HTMLElement, ITodoComposerV
     const onInput = () => setDraft(draftId(this._scope, this._key), input.value);
     input.addEventListener('input', onInput);
     this.eventListeners.push([input, 'input', onInput]);
-    // In list mode Enter in an item adds the next one: Ctrl/Cmd+Enter adds the list from anywhere.
+    // In checklist mode Enter in an item adds the next one: Ctrl/Cmd+Enter adds the checklist from anywhere.
     const form = requireElement<HTMLFormElement>(this.element, 'form');
     const onKeydown = (event: Event) => {
       const { key, ctrlKey, metaKey } = event as KeyboardEvent;
@@ -92,8 +92,8 @@ export class TodoComposerComponent extends Component<HTMLElement, ITodoComposerV
     super.onBeforeDestroy();
   }
 
-  private _addListItem(): void {
-    if (!this.config.listMode) this.setListMode(true);
+  private _addChecklistItem(): void {
+    if (!this.config.checklistMode) this.setChecklistMode(true);
     const named = this.input.value.trim() !== '';
     this.checklist.add(undefined, named);
     if (!named) this.input.focus();
@@ -112,12 +112,12 @@ export class TodoComposerComponent extends Component<HTMLElement, ITodoComposerV
     input.value = '';
     setDraft(draftId(this._scope, this._key), '');
     checklist.reset([]);
-    this.setListMode(false);
+    this.setChecklistMode(false);
     await runAction('Couldn\'t add the to-do.', () => scopeStoreService.addTodo(this._scope, this._key, text, items), {
       focus: [TODO_COMPOSER_INPUT],
       onError: () => {
         setDraft(draftId(this._scope, this._key), text);
-        if (fields.length > 0) this.setListMode(true);
+        if (fields.length > 0) this.setChecklistMode(true);
         checklist.reset(fields);
         this.input.value = text;
       },
@@ -125,9 +125,9 @@ export class TodoComposerComponent extends Component<HTMLElement, ITodoComposerV
   }
 
   // Re-rendered; what's typed comes back from its draft.
-  private setListMode(listMode: boolean): void {
-    if (listMode === this.config.listMode) return;
-    this.config = { ...this.config, draft: this.input.value, listMode };
+  private setChecklistMode(checklistMode: boolean): void {
+    if (checklistMode === this.config.checklistMode) return;
+    this.config = { ...this.config, draft: this.input.value, checklistMode };
     this.render();
   }
 

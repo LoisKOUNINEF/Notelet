@@ -27,7 +27,7 @@ describe('ChecklistAddComponent', () => {
     await panel.stop();
   });
 
-  it('names the list it adds to', () => {
+  it('names the checklist it adds to', () => {
     expect($('.checklist-add a11y-label').textContent).toBe('Add an item to Trip');
   });
 

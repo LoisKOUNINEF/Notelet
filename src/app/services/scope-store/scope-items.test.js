@@ -1,4 +1,4 @@
-import { editTodo, listDone, mergeContent, scopeLists, sortItems, topPosition } from '#root/dist/src/app/services/scope-store/scope-items.js';
+import { applyTodoEdit, checklistDone, isChecklist, mergeContent, scopeLists, sortItems, topPosition } from '#root/dist/src/app/services/scope-store/scope-items.js';
 import { note as baseNote, todo as baseTodo } from '../../testing/fixtures.js';
 
 // The fixtures, with fields set.
@@ -43,32 +43,38 @@ describe('mergeContent', () => {
   });
 });
 
-describe('editTodo', () => {
-  it('marks a list done once every item is, recording when', () => {
+describe('applyTodoEdit', () => {
+  it('marks a checklist done once every item is, recording when', () => {
     const list = todo('l', { items: [{ id: 'a', text: 'A', done: true }, { id: 'b', text: 'B', done: false }] });
-    const done = editTodo(list, { items: [{ id: 'a', text: 'A', done: true }, { id: 'b', text: 'B', done: true }] }, 50);
+    const done = applyTodoEdit(list, { items: [{ id: 'a', text: 'A', done: true }, { id: 'b', text: 'B', done: true }] }, 50);
     expect([done.done, done.doneAt, done.updatedAt]).toEqual([true, 50, 50]);
-    const reopened = editTodo(done, { items: [{ id: 'a', text: 'A', done: false }] }, 60);
+    const reopened = applyTodoEdit(done, { items: [{ id: 'a', text: 'A', done: false }] }, 60);
     expect([reopened.done, reopened.doneAt]).toEqual([false, null]);
   });
 
-  it('makes an emptied list a single to-do again, keeping whether it was done', () => {
-    const single = editTodo(todo('l', { done: true, doneAt: 4, items: [{ id: 'a', text: 'A', done: true }] }), { items: [] }, 50);
+  it('makes an emptied checklist a single to-do again, keeping whether it was done', () => {
+    const single = applyTodoEdit(todo('l', { done: true, doneAt: 4, items: [{ id: 'a', text: 'A', done: true }] }), { items: [] }, 50);
     expect(single.items).toBeUndefined();
     expect([single.done, single.doneAt]).toEqual([true, 4]);
   });
 
   it('records when a single to-do is checked, and keeps that through other edits', () => {
-    const checked = editTodo(todo('t'), { done: true }, 10);
+    const checked = applyTodoEdit(todo('t'), { done: true }, 10);
     expect(checked.doneAt).toBe(10);
-    expect(editTodo(checked, { text: 'Renamed' }, 20).doneAt).toBe(10);
+    expect(applyTodoEdit(checked, { text: 'Renamed' }, 20).doneAt).toBe(10);
   });
 });
 
-describe('listDone / topPosition', () => {
+describe('isChecklist / checklistDone / topPosition', () => {
+  it('tells a checklist (a to-do with items) from a single to-do', () => {
+    expect(isChecklist(todo('a', { items: [{ id: 'i', text: 'A', done: false }] }))).toBe(true);
+    expect(isChecklist(todo('a', { items: [] }))).toBe(false);
+    expect(isChecklist(todo('a'))).toBe(false);
+  });
+
   it('needs every item checked, and at least one', () => {
-    expect(listDone([])).toBe(false);
-    expect(listDone([{ id: 'a', text: 'A', done: true }])).toBe(true);
+    expect(checklistDone([])).toBe(false);
+    expect(checklistDone([{ id: 'a', text: 'A', done: true }])).toBe(true);
   });
 
   it('puts a to-do above every open one that was arranged', () => {

@@ -110,17 +110,22 @@ export function mergeContent(target: Record<string, unknown>, incoming: IStoredL
   return merged;
 }
 
-export function listDone(items: IChecklistItem[]): boolean {
+// A to-do with items is a checklist; without any, a single to-do.
+export function isChecklist(todo: ITodo): todo is IChecklist {
+  return !!todo.items?.length;
+}
+
+export function checklistDone(items: IChecklistItem[]): boolean {
   return items.length > 0 && items.every((item) => item.done);
 }
 
 /**
- * `current` after `changes`, edited `now`: a list (items left) is done once every item is, an
+ * `current` after `changes`, edited `now`: a checklist (items left) is done once every item is, an
  * emptied one is a single to-do again; checking it records when, unchecking it clears that.
  */
-export function editTodo(current: ITodo, changes: Partial<ITodo>, now: Timestamp): ITodo {
+export function applyTodoEdit(current: ITodo, changes: Partial<ITodo>, now: Timestamp): ITodo {
   const todo: ITodo = { ...current, ...changes, updatedAt: now };
-  if (todo.items?.length) todo.done = listDone(todo.items);
+  if (isChecklist(todo)) todo.done = checklistDone(todo.items);
   else delete todo.items;
   if (todo.done !== current.done) todo.doneAt = todo.done ? now : null;
   return todo;

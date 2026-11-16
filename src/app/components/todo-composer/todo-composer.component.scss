@@ -14,7 +14,7 @@
   min-width: 0;
 }
 
-// Like the note composer's: the list button on the left, the hint and "Add" on the right.
+// Like the note composer's: the checklist button on the left, the hint and "Add" on the right.
 .todo-composer__actions {
   display: flex;
   align-items: center;
@@ -22,7 +22,7 @@
   gap: var(--space-3);
 }
 
-.todo-composer__list {
+.todo-composer__checklist {
   margin-right: auto;
 }
 

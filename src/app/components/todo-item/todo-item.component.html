@@ -1,4 +1,4 @@
-${editing ? html`<div data-component="list-editor"></div>` : html`
+${editing ? html`<div data-component="todo-editor"></div>` : html`
 ${selecting ? html`
 <a11y-checkbox class="todo-item__select">
   <input class="todo-item__select-box" type="checkbox" tabindex="0" aria-label="Select: ${todo.text}" data-select ${selected ? raw('checked') : ''} data-event="change:_select:@checked">

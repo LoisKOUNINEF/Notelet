@@ -8,12 +8,12 @@ export interface IChecklistFieldsConfig {
   // The list's accessible name, and its class in the parent's styles.
   label: string;
   className: string;
-  // Shows the name above the fields too (and labels them by it), e.g. "Items" under a list's name.
+  // Shows the name above the fields too (and labels them by it), e.g. "Items" under a checklist's name.
   caption?: boolean;
   onEscape: () => void;
   // The last field was removed: the parent moves the focus (there's no previous field to take it).
   onLastRemoved: () => void;
-  // Set to offer "Take out" on each item (the list editor): it leaves the fields, handed over here.
+  // Set to offer "Take out" on each item (the to-do editor): it leaves the fields, handed over here.
   onTakeOut?: (item: IChecklistItem) => void;
   // Fields added, removed or reset (not typed in: read those with values()).
   onChange?: () => void;

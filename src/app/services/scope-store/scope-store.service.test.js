@@ -88,16 +88,16 @@ describe('ScopeStoreService', () => {
     expect(fake.storage.sync.data.size).toBe(0);
   });
 
-  it('leaves alone what was deleted meanwhile in another window: an edited list, a moved-out item', async () => {
+  it('leaves alone what was deleted meanwhile in another window: an edited checklist, a moved-out item', async () => {
     const list = await scopeStoreService.addTodo('page', keys.page, 'Trip', [{ id: 'a', text: 'Passport', done: false }]);
     await scopeStoreService.remove('todos', list);
-    expect(await scopeStoreService.editList(list, 'Renamed', list.items)).toBe(list);
+    expect(await scopeStoreService.editTodo(list, 'Renamed', list.items)).toBe(list);
     expect((await scopeStoreService.load(keys)).page.todos).toEqual([]);
 
-    // Undoing a move into a list whose item was removed since: the single to-do still comes back.
+    // Undoing a move into a checklist whose item was removed since: the single to-do still comes back.
     const other = await scopeStoreService.addTodo('page', keys.page, 'Other', [{ id: 'b', text: 'Bag', done: false }]);
     const single = await scopeStoreService.addTodo('page', keys.page, 'Single');
-    await scopeStoreService.moveOutOfList(single, other, 'gone-item');
+    await scopeStoreService.moveOutOfChecklist(single, other, 'gone-item');
     const todos = (await scopeStoreService.load(keys)).page.todos;
     expect(todos.map((t) => t.text).sort()).toEqual(['Other', 'Single']);
     expect(todos.find((t) => t.id === other.id).items.map((i) => i.text)).toEqual(['Bag']);
@@ -658,7 +658,7 @@ describe('ScopeStoreService - to-dos', () => {
   });
 });
 
-describe('ScopeStoreService - to-do lists', () => {
+describe('ScopeStoreService - checklists', () => {
   let fake;
   const keys = { page: 'https://example.com/a', site: 'example.com', pageLabel: '/a', siteLabel: 'example.com' };
   const item = (id, text, done = false) => ({ id, text, done });
@@ -679,7 +679,7 @@ describe('ScopeStoreService - to-do lists', () => {
     uninstallFakeChrome();
   });
 
-  it('adds a list with its items, and single to-dos with none', async () => {
+  it('adds a checklist with its items, and single to-dos with none', async () => {
     const list = await scopeStoreService.addTodo('page', keys.page, 'Trip', [item('a', 'Passport')]);
     const single = await scopeStoreService.addTodo('page', keys.page, 'Call back');
     expect(list.items).toEqual([item('a', 'Passport')]);
@@ -727,7 +727,7 @@ describe('ScopeStoreService - to-do lists', () => {
     expect(done.doneAt).toBe(5000);
   });
 
-  it('keeps the items when a list is moved, removed and restored', async () => {
+  it('keeps the items when a checklist is moved, removed and restored', async () => {
     const list = await scopeStoreService.addTodo('page', keys.page, 'Trip', [item('a', 'Passport', true), item('b', 'Visa')]);
     const moved = await scopeStoreService.move('todos', list, keys);
     expect((await scopeStoreService.load(keys)).site.todos[0].items).toEqual([item('a', 'Passport', true), item('b', 'Visa')]);
@@ -737,7 +737,7 @@ describe('ScopeStoreService - to-do lists', () => {
     expect((await scopeStoreService.load(keys)).site.todos[0].items).toEqual([item('a', 'Passport', true), item('b', 'Visa')]);
   });
 
-  it('counts lists\' items in the sync quota', async () => {
+  it('counts checklists\' items in the sync quota', async () => {
     fake.storage.sync.QUOTA_BYTES_PER_ITEM = 200;
     await scopeStoreService.addTodo('page', keys.page, 'Short', [item('a', 'x'.repeat(300))]);
 
@@ -750,11 +750,11 @@ describe('ScopeStoreService - to-do lists', () => {
     expect(error).toBeInstanceOf(QuotaExceededError);
   });
 
-  it('saves an edit with editList: items taken out become single to-dos right after the list, as they were', async () => {
+  it('saves an edit with editTodo: items taken out become single to-dos right after the checklist, as they were', async () => {
     const before = await scopeStoreService.addTodo('page', keys.page, 'Before');
     const list = await scopeStoreService.addTodo('page', keys.page, 'Trip', [item('a', 'Passport', true), item('b', 'Tickets'), item('c', 'Charger')]);
     await scopeStoreService.addTodo('page', keys.page, 'After');
-    const saved = await scopeStoreService.editList(list, 'Holiday', [item('c', 'Charger')], [item('a', 'Passport', true), item('b', 'Tickets')]);
+    const saved = await scopeStoreService.editTodo(list, 'Holiday', [item('c', 'Charger')], [item('a', 'Passport', true), item('b', 'Tickets')]);
 
     expect(saved.text).toBe('Holiday');
     expect(saved.items).toEqual([item('c', 'Charger')]);
@@ -768,34 +768,34 @@ describe('ScopeStoreService - to-do lists', () => {
     expect(before.id).toBeDefined();
   });
 
-  it('makes a list single once editList leaves it no items, and derives its done state otherwise', async () => {
+  it('makes a checklist single once editTodo leaves it no items, and derives its done state otherwise', async () => {
     const list = await scopeStoreService.addTodo('page', keys.page, 'Trip', [item('a', 'Passport')]);
-    const done = await scopeStoreService.editList(list, 'Trip', [item('a', 'Passport', true)]);
+    const done = await scopeStoreService.editTodo(list, 'Trip', [item('a', 'Passport', true)]);
     expect(done.done).toBe(true);
     expect(done.doneAt).toBeTruthy();
 
-    const single = await scopeStoreService.editList(done, 'Trip', [], [item('a', 'Passport', true)]);
+    const single = await scopeStoreService.editTodo(done, 'Trip', [], [item('a', 'Passport', true)]);
     expect(single.items).toBeUndefined();
     expect((await stored()).map((t) => t.text).sort()).toEqual(['Passport', 'Trip']);
   });
 
-  it('turns a single to-do into a list with editList', async () => {
+  it('turns a single to-do into a checklist with editTodo', async () => {
     const single = await scopeStoreService.addTodo('page', keys.page, 'Call back');
-    const list = await scopeStoreService.editList(single, 'Call back', [item('a', 'Ask about the invoice')]);
+    const list = await scopeStoreService.editTodo(single, 'Call back', [item('a', 'Ask about the invoice')]);
     expect(list.items).toEqual([item('a', 'Ask about the invoice')]);
     expect(list.done).toBe(false);
   });
 
-  it('moves a single to-do into a list as its last item, checked or not, and undoes it with restoreMany', async () => {
+  it('moves a single to-do into a checklist as its last item, checked or not, and undoes it with restoreMany', async () => {
     const list = await scopeStoreService.addTodo('page', keys.page, 'Trip', [item('a', 'Passport')]);
     const single = await scopeStoreService.addTodo('page', keys.page, 'Charger');
     const doneOne = await scopeStoreService.update('todos', await scopeStoreService.addTodo('page', keys.page, 'Tickets'), { done: true });
 
-    const moved = await scopeStoreService.moveIntoList(single, list);
-    expect(moved.list.items.map((i) => [i.text, i.done])).toEqual([['Passport', false], ['Charger', false]]);
-    const again = await scopeStoreService.moveIntoList(doneOne, moved.list);
-    expect(again.list.items.map((i) => i.done)).toEqual([false, false, true]);
-    expect(again.list.done).toBe(false);
+    const moved = await scopeStoreService.moveIntoChecklist(single, list);
+    expect(moved.checklist.items.map((i) => [i.text, i.done])).toEqual([['Passport', false], ['Charger', false]]);
+    const again = await scopeStoreService.moveIntoChecklist(doneOne, moved.checklist);
+    expect(again.checklist.items.map((i) => i.done)).toEqual([false, false, true]);
+    expect(again.checklist.done).toBe(false);
     expect((await stored()).map((t) => t.text)).toEqual(['Trip']);
 
     await scopeStoreService.restoreMany('todos', again.before);
@@ -805,15 +805,15 @@ describe('ScopeStoreService - to-do lists', () => {
     expect(todos.find((t) => t.id === list.id).items.length).toBe(1);
   });
 
-  it('undoes a move into a list without undoing what was done to the list since', async () => {
+  it('undoes a move into a checklist without undoing what was done to the checklist since', async () => {
     const list = await scopeStoreService.addTodo('page', keys.page, 'Trip', [item('a', 'Passport')]);
     const single = await scopeStoreService.addTodo('page', keys.page, 'Charger');
-    const moved = await scopeStoreService.moveIntoList(single, list);
-    await scopeStoreService.updateWith('todos', moved.list, (current) => ({
+    const moved = await scopeStoreService.moveIntoChecklist(single, list);
+    await scopeStoreService.updateWith('todos', moved.checklist, (current) => ({
       items: current.items.map((i) => (i.id === 'a' ? { ...i, done: true } : i)),
     }));
 
-    await scopeStoreService.moveOutOfList(single, list, moved.itemId);
+    await scopeStoreService.moveOutOfChecklist(single, list, moved.itemId);
     const todos = await stored();
     expect(todos.find((t) => t.id === single.id)).toEqual(single);
     const back = todos.find((t) => t.id === list.id);
@@ -821,13 +821,13 @@ describe('ScopeStoreService - to-do lists', () => {
     expect(back.done).toBe(true);
   });
 
-  it('moves nothing into a list when either is gone, or the to-do is itself a list', async () => {
+  it('moves nothing into a checklist when either is gone, or the to-do is itself a checklist', async () => {
     const list = await scopeStoreService.addTodo('page', keys.page, 'Trip', [item('a', 'Passport')]);
     const other = await scopeStoreService.addTodo('page', keys.page, 'Shopping', [item('b', 'Milk')]);
     const single = await scopeStoreService.addTodo('page', keys.page, 'Charger');
-    expect(await scopeStoreService.moveIntoList(other, list)).toBe(null);
+    expect(await scopeStoreService.moveIntoChecklist(other, list)).toBe(null);
     await scopeStoreService.remove('todos', list);
-    expect(await scopeStoreService.moveIntoList(single, list)).toBe(null);
+    expect(await scopeStoreService.moveIntoChecklist(single, list)).toBe(null);
     expect((await stored()).length).toBe(2);
   });
 });

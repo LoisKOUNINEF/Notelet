@@ -121,7 +121,7 @@ describe('ConfirmDialogComponent - choose()', () => {
   });
 
   const choices = [{ value: 'a', label: 'Groceries · 1 of 2 done' }, { value: 'b', label: 'Trip · 0 of 3 done' }];
-  const chooseOptions = { title: 'Move “Call back” into a list', message: 'It becomes the list\'s last item.', choices };
+  const chooseOptions = { title: 'Move “Call back” into a checklist', message: 'It becomes the checklist\'s last item.', choices };
   const choiceButtons = () => [...modal().querySelectorAll('.confirm-dialog__choice')];
 
   it('shows the choices instead of a confirm button, the first one focused', () => {

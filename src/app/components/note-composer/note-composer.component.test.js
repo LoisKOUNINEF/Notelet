@@ -71,7 +71,7 @@ describe('NoteComposerComponent', () => {
     typeInto(input(), '');
   });
 
-  it('is text only: lists of things to check off are to-do lists', () => {
+  it('is text only: lists of things to check off are checklists', () => {
     mount('page');
     expect($('.note-composer__checklist')).toBeFalsy();
     expect($('.checklist-field__input')).toBeFalsy();

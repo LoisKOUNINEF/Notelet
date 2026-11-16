@@ -83,7 +83,7 @@ describe('TodoComposerComponent', () => {
 
 });
 
-describe('TodoComposerComponent - lists', () => {
+describe('TodoComposerComponent - checklists', () => {
   let panel;
   let composer;
 
@@ -93,7 +93,7 @@ describe('TodoComposerComponent - lists', () => {
     composer.render();
   };
   const input = () => $('.todo-composer__input');
-  const listButton = () => $('.todo-composer__list');
+  const checklistButton = () => $('.todo-composer__checklist');
   const fields = () => $$('.checklist-field__input');
   const values = () => fields().map((f) => f.value);
   const submit = async () => {
@@ -111,26 +111,26 @@ describe('TodoComposerComponent - lists', () => {
     await panel.stop();
   });
 
-  it('turns into a list with "List": the field names it, a first item is focused', () => {
+  it('turns into a checklist with "Checklist": the field names it, a first item is focused', () => {
     mount();
-    expect(listButton().textContent).toBe('List');
+    expect(checklistButton().textContent).toBe('Checklist');
     typeInto(input(), 'Groceries');
-    listButton().click();
+    checklistButton().click();
 
-    expect($('a11y-label').textContent).toBe('New to-do list for this page');
-    expect(input().getAttribute('placeholder')).toBe('List name…');
+    expect($('a11y-label').textContent).toBe('New checklist for this page');
+    expect(input().getAttribute('placeholder')).toBe('Checklist name…');
     expect(input().value).toBe('Groceries');
     expect(fields().length).toBe(1);
     expect(document.activeElement).toBe(fields()[0]);
-    expect(listButton().textContent).toBe('Add item');
+    expect(checklistButton().textContent).toBe('Add item');
     expect($('.todo-composer__hint').textContent).toBe('Ctrl+Enter to add');
-    expect($('.todo-composer__submit').textContent).toBe('Add list');
+    expect($('.todo-composer__submit').textContent).toBe('Add checklist');
   });
 
   it('adds the next item with Enter, and goes back to a single to-do once the last item is removed', () => {
     mount();
     typeInto(input(), 'Groceries');
-    listButton().click();
+    checklistButton().click();
     fields()[0].value = 'Milk';
     keydown(fields()[0], 'Enter');
     expect(values()).toEqual(['Milk', '']);
@@ -139,18 +139,18 @@ describe('TodoComposerComponent - lists', () => {
     $$('.checklist-field__remove')[1].click();
     $$('.checklist-field__remove')[0].click();
     expect(fields()).toEqual([]);
-    expect(listButton().textContent).toBe('List');
+    expect(checklistButton().textContent).toBe('Checklist');
     expect($('a11y-label').textContent).toBe('New to-do for this page');
-    expect(document.activeElement).toBe(listButton());
+    expect(document.activeElement).toBe(checklistButton());
   });
 
-  it('adds a list with its items, empty ones dropped, then starts afresh', async () => {
+  it('adds a checklist with its items, empty ones dropped, then starts afresh', async () => {
     mount();
     typeInto(input(), '  Groceries ');
-    listButton().click();
+    checklistButton().click();
     fields()[0].value = ' Milk ';
-    listButton().click();
-    listButton().click();
+    checklistButton().click();
+    checklistButton().click();
     fields()[2].value = 'Eggs';
     keydown(input(), 'Enter', { ctrlKey: true });
     await settle();
@@ -160,13 +160,13 @@ describe('TodoComposerComponent - lists', () => {
     expect(list.items.map((i) => [i.text, i.done])).toEqual([['Milk', false], ['Eggs', false]]);
     expect(fields()).toEqual([]);
     expect(input().value).toBe('');
-    expect(listButton().textContent).toBe('List');
+    expect(checklistButton().textContent).toBe('Checklist');
   });
 
   it('adds a single to-do when every item was left empty', async () => {
     mount();
     typeInto(input(), 'Just this');
-    listButton().click();
+    checklistButton().click();
     await submit();
     const [todo] = await todos();
     expect(todo.text).toBe('Just this');
@@ -176,13 +176,13 @@ describe('TodoComposerComponent - lists', () => {
   it('keeps the items being written as a draft, and gives everything back when adding fails', async () => {
     mount();
     typeInto(input(), 'Trip');
-    listButton().click();
+    checklistButton().click();
     fields()[0].value = 'Passport';
     composer.destroy();
     mount();
     expect(input().value).toBe('Trip');
     expect(values()).toEqual(['Passport']);
-    expect(listButton().textContent).toBe('Add item');
+    expect(checklistButton().textContent).toBe('Add item');
 
     panel.fake.storage.local.failNextSet = new Error('Quota exceeded.');
     await submit();
@@ -195,30 +195,30 @@ describe('TodoComposerComponent - lists', () => {
   it('goes back to the name with Escape from an item', () => {
     mount();
     typeInto(input(), 'Groceries');
-    listButton().click();
+    checklistButton().click();
     keydown(fields()[0], 'Escape');
     expect(document.activeElement).toBe(input());
   });
 
   it('keeps the focus on an empty name with "List" or "Add item", the item field added all the same', () => {
     mount();
-    listButton().click();
-    expect(input().getAttribute('placeholder')).toBe('List name…');
+    checklistButton().click();
+    expect(input().getAttribute('placeholder')).toBe('Checklist name…');
     expect(fields().length).toBe(1);
     expect(document.activeElement).toBe(input());
 
-    listButton().click();
+    checklistButton().click();
     expect(fields().length).toBe(2);
     expect(document.activeElement).toBe(input());
 
     typeInto(input(), 'Groceries');
-    listButton().click();
+    checklistButton().click();
     expect(document.activeElement).toBe(fields()[2]);
   });
 
-  it('offers no "Take out" on its items (only the list editor does)', () => {
+  it('offers no "Take out" on its items (only the to-do editor does)', () => {
     mount();
-    listButton().click();
+    checklistButton().click();
     expect(fields().length).toBe(1);
     expect($('.checklist-field__take-out')).toBeFalsy();
     expect($('.checklist-field__remove')).toBeTruthy();

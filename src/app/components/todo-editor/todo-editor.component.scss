@@ -1,31 +1,31 @@
-.list-editor__form {
+.todo-editor__form {
   display: grid;
   gap: var(--space-2);
 }
 
-.list-editor__actions {
+.todo-editor__actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1);
 }
 
-.list-editor__spacer {
+.todo-editor__spacer {
   flex: 1;
 }
 
-.list-editor__hint,
-.list-editor__restored {
+.todo-editor__hint,
+.todo-editor__restored {
   color: var(--color-text-muted);
   font-size: 0.75rem;
 }
 
-.list-editor__restored {
+.todo-editor__restored {
   font-style: italic;
 }
 
 // Items taken out: single to-dos once saved, each can be put back.
-.list-editor__taken-out {
+.todo-editor__taken-out {
   display: grid;
   gap: var(--space-1);
   padding: var(--space-2);
@@ -33,12 +33,12 @@
   border-radius: var(--radius-small);
 }
 
-.list-editor__taken-out-title {
+.todo-editor__taken-out-title {
   color: var(--color-text-muted);
   font-size: var(--font-small);
 }
 
-.list-editor__taken-out-list {
+.todo-editor__taken-out-list {
   display: grid;
   gap: var(--space-1);
   margin: 0;
@@ -46,26 +46,26 @@
   list-style: none;
 }
 
-.list-editor__taken-out-item {
+.todo-editor__taken-out-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
 }
 
-.list-editor__taken-out-text {
+.todo-editor__taken-out-text {
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
 // The name, told apart from the items: labelled (like the quick add's field), and bold like the
-// list's name in view mode.
-.list-editor__input {
+// checklist's name in view mode.
+.todo-editor__input {
   font-weight: 600;
 }
 
 // The items under the name, indented with a line, as in view mode.
-.list-editor__items {
+.todo-editor__items {
   padding-left: var(--space-3);
   border-left: 2px solid var(--color-border-strong);
 }

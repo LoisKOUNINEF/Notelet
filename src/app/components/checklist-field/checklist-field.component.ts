@@ -5,7 +5,7 @@ export interface IChecklistFieldOptions {
   onEnter: (id: string) => void;
   onRemove: (id: string) => void;
   onEscape: () => void;
-  // Set when items can be taken out of the list (the list editor): shows "Take out".
+  // Set when items can be taken out of the checklist (the to-do editor): shows "Take out".
   onTakeOut?: (id: string) => void;
 }
 
@@ -17,8 +17,8 @@ interface IChecklistFieldView {
 
 const templateFn = ({ item, number, canTakeOut }: IChecklistFieldView) => html`__TEMPLATE_PLACEHOLDER__`;
 
-// One item of a to-do list being written or edited: its text, a way to remove it, and (in the
-// list editor) to take it out of the list.
+// One item of a checklist being written or edited: its text, a way to remove it, and (in the
+// to-do editor) to take it out of the checklist.
 export class ChecklistFieldComponent extends Component<HTMLElement, IChecklistFieldView> {
   private _id: string;
   private _options: IChecklistFieldOptions;
@@ -34,7 +34,7 @@ export class ChecklistFieldComponent extends Component<HTMLElement, IChecklistFi
 
   private _onKeydown(event: KeyboardEvent): void {
     if (event.key === 'Enter' && !event.ctrlKey && !event.metaKey) {
-      // Not the form's submit: the next item, like in any list editor.
+      // Not the form's submit: the next item, like in any to-do editor.
       event.preventDefault();
       this._options.onEnter(this._id);
     } else if (event.key === 'Escape') {

@@ -4,6 +4,7 @@ import { plural } from '../../lib/plural.js';
 import { inOrder } from '../../lib/unchanged.js';
 import { confirmService } from '../../services/confirm/confirm.service.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
+import { isChecklist } from '../../services/scope-store/scope-items.js';
 import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
 import { settingsService } from '../../services/settings/settings.service.js';
 import { ItemOptionsCache, ReorderableList } from '../base/reorderable-list.js';
@@ -125,17 +126,17 @@ export class TodoListComponent extends ReorderableList<ITodo, ITodoListView> {
   }
 
   private itemOptions(group: ITodoItemOptions['group'], reorderable: boolean, selecting: boolean, grabbedId: string | null): ITodoItemOptions {
-    // Whether there are lists to move a to-do into: items are rebuilt only when that flips.
-    const hasLists = this.openLists().length > 0;
-    return this._itemOptions.get([group, reorderable, hasLists, selecting], grabbedId, () => ({
-      group, reorderable, grabbedId, keys: this._keys, hasLists, lists: () => this.openLists(),
+    // Whether there are checklists to move a to-do into: items are rebuilt only when that flips.
+    const hasChecklists = this.openChecklists().length > 0;
+    return this._itemOptions.get([group, reorderable, hasChecklists, selecting], grabbedId, () => ({
+      group, reorderable, grabbedId, keys: this._keys, hasChecklists, checklists: () => this.openChecklists(),
       selecting, isSelected: this.isSelected, onSelect: this.onSelect,
     }));
   }
 
-  // The open to-do lists, the ones "Move into a list…" offers.
-  private openLists(): ITodo[] {
-    return this.items.filter((todo) => !todo.done && (todo.items?.length ?? 0) > 0);
+  // The open checklists, the ones "Move into a checklist…" offers.
+  private openChecklists(): IChecklist[] {
+    return this.items.filter((todo): todo is IChecklist => !todo.done && isChecklist(todo));
   }
 
   private async _toggleDone(): Promise<void> {
