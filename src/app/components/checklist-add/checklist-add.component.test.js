@@ -49,6 +49,6 @@ describe('ChecklistAddComponent', () => {
     panel.fake.storage.local.failNextSet = new Error('Quota');
     await add('Tickets');
     expect(input().value).toBe('Tickets');
-    expect(panel.toasts.some(({ message }) => message.startsWith('Couldn\'t add the item.'))).toBe(true);
+    expect(panel.toasts.some(({ message }) => message.startsWith('Couldn\'t add “Tickets” to checklist “Trip”.'))).toBe(true);
   });
 });

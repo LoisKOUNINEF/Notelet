@@ -3,6 +3,7 @@ import { runAction } from '../../lib/actions.js';
 import { editOnClick } from '../../lib/card-click.js';
 import { overflowsOneLine, requireElement } from '../../lib/dom.js';
 import { getEditDraft } from '../../lib/drafts.js';
+import { firstLine, noteRef, sentence } from '../../lib/labels.js';
 import { byData } from '../../lib/focus.js';
 import { formatDateTime, formatTimeAgo } from '../../lib/pipes.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
@@ -183,7 +184,7 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
     this.config = { ...this.config, collapsed };
     this.render();
     this.element.querySelector<HTMLElement>('.note-item__toggle')?.focus();
-    await runAction('Couldn\'t update the note.', () => scopeStoreService.setCollapsed('notes', this._note, collapsed), {
+    await runAction(`Couldn't update ${noteRef(this._note)}.`, () => scopeStoreService.setCollapsed('notes', this._note, collapsed), {
       focus: [this.own('.note-item__toggle')],
       onError: () => {
         this.config = { ...this.config, collapsed: !collapsed };
@@ -202,7 +203,7 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
     // this one goes away with no draft to keep.
     this._editor?.close();
     // No name: none stored (storage drops `undefined`).
-    await runAction('Couldn\'t save the note.', () => scopeStoreService.update('notes', this._note, { text, name: name || undefined }), {
+    await runAction(`Couldn't save ${noteRef(this._note)}.`, () => scopeStoreService.update('notes', this._note, { text, name: name || undefined }), {
       focus: [this.own('.note-item__edit')],
       onError: () => this._editor?.reopen(),
     });
@@ -211,21 +212,21 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
   private async move(): Promise<void> {
     const note = this._note;
     const target = note.scope === 'page' ? 'site' : 'page';
-    const moved = await runAction('Couldn\'t move the note.', () => scopeStoreService.move('notes', note, this._options.keys), {
+    const moved = await runAction(`Couldn't move ${noteRef(note)}.`, () => scopeStoreService.move('notes', note, this._options.keys), {
       focus: this.focusAfterLeaving(),
     });
     if (moved) {
-      notifierService.undoable(`Moved to this ${target}'s notes.`, () => scopeStoreService.moveBack('notes', moved, note), 'Couldn\'t move the note back.', 'success');
+      notifierService.undoable(`${sentence(noteRef(note))} moved to this ${target}.`, () => scopeStoreService.moveBack('notes', moved, note), `Couldn't move ${noteRef(note)} back.`, 'success');
     }
   }
 
   private async _delete(): Promise<void> {
     const note = this._note;
-    const deleted = await runAction('Couldn\'t delete the note.', async () => {
+    const deleted = await runAction(`Couldn't delete ${noteRef(note)}.`, async () => {
       await scopeStoreService.remove('notes', note);
       return true;
     }, { focus: this.focusAfterLeaving() });
-    if (deleted) notifierService.undoable('Note deleted.', () => scopeStoreService.restore('notes', note), 'Couldn\'t restore the note.');
+    if (deleted) notifierService.undoable(`${sentence(noteRef(note))} deleted.`, () => scopeStoreService.restore('notes', note), `Couldn't restore ${noteRef(note)}.`);
   }
 
   // One of this note's controls, found again once the list has re-rendered it.
@@ -258,6 +259,6 @@ const LABEL_LENGTH = 60;
  * and while it's moved: its name if it has one, else its text's first line, cut to a readable length.
  */
 export function noteLabel(note: INote): string {
-  const label = note.name || ((note.text ?? '').split('\n').find((line) => line.trim()) ?? '').trim() || 'Note';
+  const label = note.name || firstLine(note.text ?? '') || 'Note';
   return label.length > LABEL_LENGTH ? `${label.slice(0, LABEL_LENGTH - 1).trimEnd()}…` : label;
 }

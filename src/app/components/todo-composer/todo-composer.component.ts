@@ -2,6 +2,7 @@ import { Component, html } from '../../../core/index.js';
 import { runAction } from '../../lib/actions.js';
 import { requireElement } from '../../lib/dom.js';
 import { getDraft, getJsonDraft, keepDraftsOf, setDraft, setJsonDraft } from '../../lib/drafts.js';
+import { todoRef } from '../../lib/labels.js';
 import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
 import { ChecklistFieldsComponent } from '../checklist-fields/checklist-fields.component.js';
 
@@ -113,7 +114,7 @@ export class TodoComposerComponent extends Component<HTMLElement, ITodoComposerV
     setDraft(draftId(this._scope, this._key), '');
     checklist.reset([]);
     this.setChecklistMode(false);
-    await runAction('Couldn\'t add the to-do.', () => scopeStoreService.addTodo(this._scope, this._key, text, items), {
+    await runAction(`Couldn't add ${todoRef({ text, items })}.`, () => scopeStoreService.addTodo(this._scope, this._key, text, items), {
       focus: [TODO_COMPOSER_INPUT],
       onError: () => {
         setDraft(draftId(this._scope, this._key), text);

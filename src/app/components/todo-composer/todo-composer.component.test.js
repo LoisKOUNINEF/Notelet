@@ -66,7 +66,7 @@ describe('TodoComposerComponent', () => {
     await submit();
 
     expect(input().value).toBe('Keep me');
-    expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t add the to-do. Quota exceeded.', type: 'error', duration: 6000 });
+    expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t add to-do “Keep me”. Quota exceeded.', type: 'error', duration: 6000 });
     // Nothing left asking for the focus: a later re-render won't pull it back to this field.
     expect(hasRequestedFocus()).toBe(false);
   });
@@ -186,7 +186,7 @@ describe('TodoComposerComponent - checklists', () => {
 
     panel.fake.storage.local.failNextSet = new Error('Quota exceeded.');
     await submit();
-    expect(panel.toasts.at(-1).message).toBe('Couldn\'t add the to-do. Quota exceeded.');
+    expect(panel.toasts.at(-1).message).toBe('Couldn\'t add checklist “Trip”. Quota exceeded.');
     expect(input().value).toBe('Trip');
     expect(values()).toEqual(['Passport']);
     expect(hasRequestedFocus()).toBe(false);

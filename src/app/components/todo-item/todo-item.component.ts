@@ -3,6 +3,7 @@ import { editOnClick } from '../../lib/card-click.js';
 import { runAction } from '../../lib/actions.js';
 import { getEditDraft } from '../../lib/drafts.js';
 import { byData, clearRequestedFocus } from '../../lib/focus.js';
+import { quoted, sentence, todoRef } from '../../lib/labels.js';
 import { confirmService } from '../../services/confirm/confirm.service.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
 import { isChecklist } from '../../services/scope-store/scope-items.js';
@@ -166,13 +167,14 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
   private async _toggle(done: boolean): Promise<void> {
     // Checked into a collapsed "Done" group, it disappears: focus stays among the open ones.
     const hidden = done && !settingsService.doneExpanded;
-    const updated = await runAction('Couldn\'t update the to-do.', () => scopeStoreService.update('todos', this._todo, { done }), {
+    const ref = todoRef(this._todo);
+    const updated = await runAction(`Couldn't update ${ref}.`, () => scopeStoreService.update('todos', this._todo, { done }), {
       focus: hidden ? this.focusAfterLeaving() : [this.own('.todo-item__checkbox')],
       // The checkbox shows what's stored again.
       onError: () => this.render(),
     });
     if (updated && hidden) {
-      notifierService.undoable('Marked as done.', () => scopeStoreService.update('todos', updated, { done: false }), 'Couldn\'t update the to-do.', 'success');
+      notifierService.undoable(`${sentence(ref)} marked as done.`, () => scopeStoreService.update('todos', updated, { done: false }), `Couldn't update ${ref}.`, 'success');
     }
   }
 
@@ -182,7 +184,7 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
     this.config = { ...this.config, collapsed };
     this.render();
     this.element.querySelector<HTMLElement>('.todo-item__toggle')?.focus();
-    await runAction('Couldn\'t update the checklist.', () => scopeStoreService.setCollapsed('todos', this._todo, collapsed), {
+    await runAction(`Couldn't update ${todoRef(this._todo)}.`, () => scopeStoreService.setCollapsed('todos', this._todo, collapsed), {
       focus: [this.own('.todo-item__toggle')],
       onError: () => {
         this.config = { ...this.config, collapsed: !collapsed };
@@ -209,7 +211,7 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
     // Comes back through `scope-content-changed` as a new list item, in view mode: this one goes
     // away with no draft to keep.
     this._editor?.close();
-    await runAction('Couldn\'t save the to-do.', () => scopeStoreService.editTodo(this._todo, text, items, takenOut), {
+    await runAction(`Couldn't save ${todoRef(this._todo)}.`, () => scopeStoreService.editTodo(this._todo, text, items, takenOut), {
       focus: [this.own('.todo-item__edit'), this.own('.todo-item__delete')],
       onError: () => this._editor?.reopen(),
     });
@@ -235,7 +237,7 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
     const checklist = checklists.find(({ id }) => id === checklistId);
     if (!checklist) return;
 
-    const moved = await runAction('Couldn\'t move the to-do.', () => scopeStoreService.moveIntoChecklist(this._todo, checklist), {
+    const moved = await runAction(`Couldn't move ${quoted(this._todo.text)} into ${quoted(checklist.text)}.`, () => scopeStoreService.moveIntoChecklist(this._todo, checklist), {
       focus: this.focusAfterLeaving(),
     });
     if (!moved) {
@@ -243,26 +245,26 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
       clearRequestedFocus();
       return;
     }
-    notifierService.undoable(`Moved into ${checklist.text}.`, () => scopeStoreService.moveOutOfChecklist(this._todo, checklist, moved.itemId), 'Couldn\'t move it back.');
+    notifierService.undoable(`${quoted(this._todo.text)} moved into ${quoted(checklist.text)}.`, () => scopeStoreService.moveOutOfChecklist(this._todo, checklist, moved.itemId), `Couldn't move ${quoted(this._todo.text)} back.`);
   }
 
   private async _delete(): Promise<void> {
     const todo = this._todo;
-    const deleted = await runAction('Couldn\'t delete the to-do.', async () => {
+    const deleted = await runAction(`Couldn't delete ${todoRef(todo)}.`, async () => {
       await scopeStoreService.remove('todos', todo);
       return true;
     }, { focus: this.focusAfterLeaving() });
-    if (deleted) notifierService.undoable('To-do deleted.', () => scopeStoreService.restore('todos', todo), 'Couldn\'t restore the to-do.');
+    if (deleted) notifierService.undoable(`${sentence(todoRef(todo))} deleted.`, () => scopeStoreService.restore('todos', todo), `Couldn't restore ${todoRef(todo)}.`);
   }
 
   private async move(): Promise<void> {
     const todo = this._todo;
     const target = todo.scope === 'page' ? 'site' : 'page';
-    const moved = await runAction('Couldn\'t move the to-do.', () => scopeStoreService.move('todos', todo, this._options.keys), {
+    const moved = await runAction(`Couldn't move ${todoRef(todo)}.`, () => scopeStoreService.move('todos', todo, this._options.keys), {
       focus: this.focusAfterLeaving(),
     });
     if (moved) {
-      notifierService.undoable(`Moved to this ${target}'s to-dos.`, () => scopeStoreService.moveBack('todos', moved, todo), 'Couldn\'t move the to-do back.', 'success');
+      notifierService.undoable(`${sentence(todoRef(todo))} moved to this ${target}.`, () => scopeStoreService.moveBack('todos', moved, todo), `Couldn't move ${todoRef(todo)} back.`, 'success');
     }
   }
 

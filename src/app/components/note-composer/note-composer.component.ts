@@ -2,6 +2,7 @@ import { Component, html } from '../../../core/index.js';
 import { runAction } from '../../lib/actions.js';
 import { requireElement } from '../../lib/dom.js';
 import { getDraft, setDraft } from '../../lib/drafts.js';
+import { noteRef } from '../../lib/labels.js';
 import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
 
 export interface INoteComposerConfig {
@@ -66,7 +67,7 @@ export class NoteComposerComponent extends Component<HTMLElement, INoteComposerV
     // Ready for the next note right away; restored if the save fails.
     input.value = '';
     setDraft(draftId(this._scope, this._key), '');
-    await runAction('Couldn\'t add the note.', () => scopeStoreService.addNote(this._scope, this._key, text), {
+    await runAction(`Couldn't add ${noteRef({ text })}.`, () => scopeStoreService.addNote(this._scope, this._key, text), {
       focus: [NOTE_COMPOSER_INPUT],
       onError: () => {
         input.value = typed;

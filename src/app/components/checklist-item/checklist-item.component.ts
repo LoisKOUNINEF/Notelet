@@ -1,6 +1,7 @@
 import { Component, html, raw } from '../../../core/index.js';
 import { runAction } from '../../lib/actions.js';
 import { byData } from '../../lib/focus.js';
+import { quoted, sentence, todoRef } from '../../lib/labels.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
 import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
 import { settingsService } from '../../services/settings/settings.service.js';
@@ -39,7 +40,7 @@ export class ChecklistItemComponent extends Component<HTMLElement, IChecklistIte
 
   private async _toggle(done: boolean): Promise<void> {
     const id = this._item.id;
-    const updated = await runAction('Couldn\'t update the item.', () => scopeStoreService.updateWith('todos', this._todo, checking(id, done)), {
+    const updated = await runAction(`Couldn't update ${quoted(this._item.text)}.`, () => scopeStoreService.updateWith('todos', this._todo, checking(id, done)), {
       // Checking the last item moves the checklist to "Done": if that group is collapsed, the checklist
       // leaves the view, and the focus goes to the group's toggle.
       focus: [`${byData('todo-id', this._todo.id)} ${byData('item-id', id)} .checklist-item__checkbox`, DONE_TOGGLE],
@@ -47,7 +48,7 @@ export class ChecklistItemComponent extends Component<HTMLElement, IChecklistIte
       onError: () => this.render(),
     });
     if (updated?.done && !this._todo.done && !settingsService.doneExpanded) {
-      notifierService.undoable('Checklist done.', () => scopeStoreService.updateWith('todos', updated, checking(id, false)), 'Couldn\'t update the checklist.', 'success');
+      notifierService.undoable(`${sentence(todoRef(updated))} done.`, () => scopeStoreService.updateWith('todos', updated, checking(id, false)), `Couldn't update ${todoRef(updated)}.`, 'success');
     }
   }
 }

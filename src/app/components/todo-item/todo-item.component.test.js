@@ -133,7 +133,7 @@ describe('TodoItemComponent', () => {
     expect(labels()).toEqual(['First', 'Third']);
     expect(document.activeElement).toBe(checkbox(todos[2]));
     const toast = panel.toasts.at(-1);
-    expect(toast.message).toBe('To-do deleted.');
+    expect(toast.message).toBe('To-do “Second” deleted.');
     expect(toast.actionText).toBe('Undo');
 
     toast.onAction();
@@ -154,7 +154,7 @@ describe('TodoItemComponent', () => {
     panel.fake.storage.local.failNextSet = new Error('Quota exceeded.');
     await check(todos[0]);
 
-    expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t update the to-do. Quota exceeded.', type: 'error', duration: 6000 });
+    expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t update to-do “First”. Quota exceeded.', type: 'error', duration: 6000 });
     expect(checkbox(todos[0]).checked).toBe(false);
   });
 
@@ -183,7 +183,7 @@ describe('TodoItemComponent', () => {
     item(todos[0]).querySelector('button[type="submit"]').click();
     await settle();
 
-    expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t save the to-do. Quota exceeded.', type: 'error', duration: 6000 });
+    expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t save to-do “First”. Quota exceeded.', type: 'error', duration: 6000 });
     expect(item(todos[0]).querySelector('.todo-editor__input').value).toBe('Renamed');
   });
 
@@ -192,7 +192,7 @@ describe('TodoItemComponent', () => {
     item(todos[1]).querySelector('.todo-item__delete').click();
     await settle();
 
-    expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t delete the to-do. Quota exceeded.', type: 'error', duration: 6000 });
+    expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t delete to-do “Second”. Quota exceeded.', type: 'error', duration: 6000 });
     expect(labels()).toEqual(['First', 'Second', 'Third']);
   });
 
@@ -203,7 +203,7 @@ describe('TodoItemComponent', () => {
     panel.toasts.at(-1).onAction();
     await settle();
 
-    expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t restore the to-do. Quota exceeded.', type: 'error', duration: 6000 });
+    expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t restore to-do “Second”. Quota exceeded.', type: 'error', duration: 6000 });
     expect(labels()).toEqual(['First', 'Third']);
   });
 
@@ -215,7 +215,7 @@ describe('TodoItemComponent', () => {
     expect(item(todos[1]).closest('[data-catalog]').dataset.catalog).toBe('done-todos');
     expect(document.activeElement).toBe(checkbox(todos[2]));
     const toast = panel.toasts.at(-1);
-    expect(toast.message).toBe('Marked as done.');
+    expect(toast.message).toBe('To-do “Second” marked as done.');
     expect(toast.type).toBe('success');
     expect(toast.actionText).toBe('Undo');
   });
@@ -242,7 +242,7 @@ describe('TodoItemComponent', () => {
     panel.fake.storage.local.failNextSet = new Error('Quota exceeded.');
     panel.toasts.at(-1).onAction();
     await settle();
-    expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t update the to-do. Quota exceeded.', type: 'error', duration: 6000 });
+    expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t update to-do “First”. Quota exceeded.', type: 'error', duration: 6000 });
   });
 
   it('keeps focus inside its own group when a done to-do is deleted', async () => {
@@ -331,7 +331,7 @@ describe('TodoItemComponent - actions menu', () => {
     expect(stored.page.todos.map((t) => t.text)).toEqual(['Second']);
     expect(stored.site.todos.map((t) => t.text)).toEqual(['First', 'Already on the site']);
     const toast = panel.toasts.at(-1);
-    expect(toast.message).toBe('Moved to this site\'s to-dos.');
+    expect(toast.message).toBe('To-do “First” moved to this site.');
     expect(toast.type).toBe('success');
     expect(toast.actionText).toBe('Undo');
     expect(document.activeElement).toBe(item(todos[1]).querySelector('.todo-item__checkbox'));
@@ -357,7 +357,7 @@ describe('TodoItemComponent - actions menu', () => {
     expect(menuItem(siteTodo).textContent).toBe('Move to this page');
     menuItem(siteTodo).click();
     await settle();
-    expect(panel.toasts.at(-1).message).toBe('Moved to this page\'s to-dos.');
+    expect(panel.toasts.at(-1).message).toBe('To-do “Already on the site” moved to this page.');
     expect((await content()).page.todos[0].text).toBe('Already on the site');
   });
 
@@ -385,7 +385,7 @@ describe('TodoItemComponent - actions menu', () => {
     panel.fake.storage.local.failNextSet = new Error('Quota exceeded.');
     menuItem(todos[0]).click();
     await settle();
-    expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t move the to-do. Quota exceeded.', type: 'error', duration: 6000 });
+    expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t move to-do “First”. Quota exceeded.', type: 'error', duration: 6000 });
     expect((await content()).page.todos.map((t) => t.text)).toEqual(['First', 'Second']);
   });
 
@@ -632,7 +632,7 @@ describe('TodoItemComponent - checklists', () => {
     expect(todos.map((t) => t.text)).toEqual(['Groceries']);
     expect(todos[0].items.map((i) => [i.text, i.done])).toEqual([['Milk', true], ['Eggs', false], ['Call back', false]]);
     const toast = panel.toasts.at(-1);
-    expect(toast.message).toBe('Moved into Groceries.');
+    expect(toast.message).toBe('“Call back” moved into “Groceries”.');
 
     // Undone after checking another item: that stays checked.
     await checkItem(list, 'b');

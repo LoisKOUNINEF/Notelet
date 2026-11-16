@@ -119,7 +119,7 @@ describe('NoteItemComponent', () => {
     expect(texts()).toEqual(['Third', 'First']);
     expect(document.activeElement).toBe(item(notes[0]).querySelector('.note-item__edit'));
     const toast = panel.toasts.at(-1);
-    expect(toast.message).toBe('Note deleted.');
+    expect(toast.message).toBe('Note “Second” deleted.');
     expect(toast.actionText).toBe('Undo');
 
     toast.onAction();
@@ -147,7 +147,7 @@ describe('NoteItemComponent', () => {
     expect(texts()).toEqual(['Second', 'First']);
     expect((await stored()).site.notes.map((n) => n.id)).toEqual([notes[2].id]);
     const toast = panel.toasts.at(-1);
-    expect(toast.message).toBe('Moved to this site\'s notes.');
+    expect(toast.message).toBe('Note “Third” moved to this site.');
     expect(toast.type).toBe('success');
     expect(toast.actionText).toBe('Undo');
 
@@ -167,7 +167,7 @@ describe('NoteItemComponent', () => {
     item(notes[0]).querySelector('button[type="submit"]').click();
     await settle();
 
-    expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t save the note. Quota exceeded.', type: 'error', duration: 6000 });
+    expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t save note “First”. Quota exceeded.', type: 'error', duration: 6000 });
     expect(item(notes[0]).querySelector('.note-editor__input').value).toBe('Too long for sync');
   });
 
@@ -224,7 +224,7 @@ describe('NoteItemComponent', () => {
     menuItem(siteNote, 'move').click();
     await settle();
 
-    expect(panel.toasts.at(-1).message).toBe('Moved to this page\'s notes.');
+    expect(panel.toasts.at(-1).message).toBe('Note “Only this page,…” moved to this page.');
     expect((await stored()).page.notes.map((n) => n.id)).toContain(siteNote.id);
     expect((await stored()).site.notes).toEqual([]);
   });
@@ -234,7 +234,7 @@ describe('NoteItemComponent', () => {
     menuItem(notes[0], 'move').click();
     await settle();
 
-    expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t move the note. Quota exceeded.', type: 'error', duration: 6000 });
+    expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t move note “First”. Quota exceeded.', type: 'error', duration: 6000 });
     expect(texts()).toEqual(['Third', 'Second', 'First']);
   });
 
@@ -243,7 +243,7 @@ describe('NoteItemComponent', () => {
     item(notes[1]).querySelector('.note-item__delete').click();
     await settle();
 
-    expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t delete the note. Quota exceeded.', type: 'error', duration: 6000 });
+    expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t delete note “Second”. Quota exceeded.', type: 'error', duration: 6000 });
     expect(texts()).toEqual(['Third', 'Second', 'First']);
   });
 
@@ -254,7 +254,7 @@ describe('NoteItemComponent', () => {
     panel.toasts.at(-1).onAction();
     await settle();
 
-    expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t restore the note. Quota exceeded.', type: 'error', duration: 6000 });
+    expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t restore note “Second”. Quota exceeded.', type: 'error', duration: 6000 });
     expect(texts()).toEqual(['Third', 'First']);
   });
 
@@ -526,7 +526,7 @@ describe('NoteItemComponent - folding', () => {
     panel.fake.storage.local.failNextSet = new Error('Quota exceeded.');
     toggle(named).click();
     await settle();
-    expect(panel.toasts.at(-1).message).toBe('Couldn\'t update the note. Quota exceeded.');
+    expect(panel.toasts.at(-1).message).toBe('Couldn\'t update note “Ideas”. Quota exceeded.');
     expect(toggle(named).getAttribute('aria-expanded')).toBe('true');
     expect(item(named).querySelector('.note-item__text')).toBeTruthy();
   });

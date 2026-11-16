@@ -71,7 +71,7 @@ describe('ChecklistItemComponent', () => {
     panel.fake.storage.local.failNextSet = new Error('Quota exceeded.');
     await check('a');
 
-    expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t update the item. Quota exceeded.', type: 'error', duration: 6000 });
+    expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t update “Passport”. Quota exceeded.', type: 'error', duration: 6000 });
     expect(box('a').checked).toBe(false);
     expect(list.items.length).toBe(3);
   });
@@ -92,7 +92,7 @@ describe('ChecklistItemComponent', () => {
     // "Done" is collapsed: the list left the view, the focus went to the group's toggle.
     expect(document.activeElement).toBe($('.todo-list__done-toggle'));
     const toast = panel.toasts.at(-1);
-    expect(toast.message).toBe('Checklist done.');
+    expect(toast.message).toBe('Checklist “Trip” done.');
 
     // Undo unchecks the item just checked: open again.
     toast.onAction();
