@@ -23,6 +23,7 @@ describe('ChecklistFieldComponent', () => {
 
   it('shows the item\'s text in a field numbered by its place', () => {
     expect($('.checklist-field__input').value).toBe('Milk');
+    expect($('.checklist-field__input').getAttribute('placeholder')).toBe('Write an item…');
     expect($('a11y-label').textContent).toBe('Item 3');
     expect($('.checklist-field__remove').getAttribute('aria-label')).toBe('Remove item 3');
     expect($('[data-item-id="a"]').classList.contains('checklist-field')).toBe(true);
