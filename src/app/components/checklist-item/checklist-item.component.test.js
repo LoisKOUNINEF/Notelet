@@ -1,5 +1,6 @@
 import { SidebarComponent } from '#root/dist/src/app/components/sidebar/sidebar.component.js';
 import { scopeStoreService } from '#root/dist/src/app/services/scope-store/scope-store.service.js';
+import { settingsService } from '#root/dist/src/app/services/settings/settings.service.js';
 import { KEYS, settle, startPanel } from '../../testing/panel.js';
 
 // Checked from the checklist, in the panel. An item's text is beside its checkbox, which it labels.
@@ -84,12 +85,28 @@ describe('ChecklistItemComponent', () => {
     expect((await scopeStoreService.load(KEYS)).page.todos[0].items).toBeUndefined();
   });
 
-  it('moves the checklist to "Done" once its last item is checked, and back when one is unchecked', async () => {
+  it('moves the checklist to "Done" once its last item is checked, unfolding it, focus still on that item', async () => {
     await check('a');
     expect($('.todo-list__done-toggle')).toBeFalsy();
+    expect(settingsService.doneExpanded).toBe(false);
+    box('b').focus();
     await check('b');
     expect($('.todo-list__done-toggle').textContent.trim()).toBe('Done (1)');
-    // "Done" is collapsed: the list left the view, the focus went to the group's toggle.
+    expect(settingsService.doneExpanded).toBe(true);
+    expect(row('b').closest('[data-catalog="done-todos"]')).toBeTruthy();
+    expect(document.activeElement).toBe(box('b'));
+    expect(panel.toasts.length).toBe(0);
+
+    // Unchecking one moves it back to the open ones.
+    await check('b', false);
+    expect(row('b').closest('[data-catalog="open-todos"]')).toBeTruthy();
+  });
+
+  it('when "Done" can\'t be unfolded, moves focus to its toggle and offers Undo', async () => {
+    await check('a');
+    panel.fake.storage.local.failNextSet = new Error('Quota exceeded.');
+    await check('b');
+    expect(settingsService.doneExpanded).toBe(false);
     expect(document.activeElement).toBe($('.todo-list__done-toggle'));
     const toast = panel.toasts.at(-1);
     expect(toast.message).toBe('Checklist “Trip” done.');

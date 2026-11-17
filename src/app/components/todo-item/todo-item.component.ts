@@ -1,6 +1,7 @@
 import { Component, html, raw } from '../../../core/index.js';
 import { editOnClick } from '../../lib/card-click.js';
 import { runAction } from '../../lib/actions.js';
+import { revealDoneGroup } from '../../lib/done-group.js';
 import { getEditDraft } from '../../lib/drafts.js';
 import { byData, clearRequestedFocus } from '../../lib/focus.js';
 import { quoted, sentence, todoRef } from '../../lib/labels.js';
@@ -49,7 +50,7 @@ interface ITodoItemView {
   selected: boolean;
 }
 
-type TodoMenuAction = 'move' | 'move-into-checklist';
+type TodoMenuAction = 'mark-all-done' | 'move' | 'move-into-checklist';
 
 const templateFn = ({ todo, items, doneCount, editing, collapsed, reorderable, grabbed, selecting, selected }: ITodoItemView) => html`__TEMPLATE_PLACEHOLDER__`;
 
@@ -131,7 +132,7 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
           id: `todo-${this._todo.id}`,
           name: this._todo.text,
           actions: this.menuActions(),
-          onAction: (action) => void (action === 'move' ? this.move() : this.moveIntoChecklist()),
+          onAction: (action) => this.onMenuAction(action),
         }),
       },
     ];
@@ -150,13 +151,23 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
     }
   }
 
-  // A single to-do can go into a checklist, when there's one; any to-do to the tab's other scope.
+  // A checklist can be checked all at once; a single to-do can go into a checklist, when there's one;
+  // any to-do to the tab's other scope.
   private menuActions(): IMenuAction<TodoMenuAction>[] {
     const single = !isChecklist(this._todo);
     return [
+      ...(single ? [] : [{ value: 'mark-all-done' as const, label: 'Mark all as done' }]),
       ...(single && this._options.hasChecklists ? [{ value: 'move-into-checklist' as const, label: 'Move into a checklist…' }] : []),
       { value: 'move', label: `Move to this ${this._todo.scope === 'page' ? 'site' : 'page'}` },
     ];
+  }
+
+  private onMenuAction(action: TodoMenuAction): void {
+    switch (action) {
+      case 'mark-all-done': void this.markAllDone(); break;
+      case 'move': void this.move(); break;
+      case 'move-into-checklist': void this.moveIntoChecklist(); break;
+    }
   }
 
   private _select(selected: boolean): void {
@@ -165,7 +176,9 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
   }
 
   private async _toggle(done: boolean): Promise<void> {
-    // Checked into a collapsed "Done" group, it disappears: focus stays among the open ones.
+    // "Done" unfolds to show it there, focus still on its checkbox. If that fails, it disappears into
+    // the folded group: focus stays among the open ones.
+    if (done) await revealDoneGroup();
     const hidden = done && !settingsService.doneExpanded;
     const ref = todoRef(this._todo);
     const updated = await runAction(`Couldn't update ${ref}.`, () => scopeStoreService.update('todos', this._todo, { done }), {
@@ -175,6 +188,22 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
     });
     if (updated && hidden) {
       notifierService.undoable(`${sentence(ref)} marked as done.`, () => scopeStoreService.update('todos', updated, { done: false }), `Couldn't update ${ref}.`, 'success');
+    }
+  }
+
+  // "Mark all as done": checks every item of a checklist, which moves it to "Done". Undo unchecks only
+  // the items that weren't checked yet.
+  private async markAllDone(): Promise<void> {
+    await revealDoneGroup();
+    const hidden = !settingsService.doneExpanded;
+    const ref = todoRef(this._todo);
+    const unchecked = (this._todo.items ?? []).filter((item) => !item.done).map((item) => item.id);
+    const updated = await runAction(`Couldn't update ${ref}.`, () => scopeStoreService.updateWith('todos', this._todo, settingItems(() => true)), {
+      focus: hidden ? this.focusAfterLeaving() : [this.own('.checklist-item__checkbox')],
+    });
+    if (updated) {
+      const undo = settingItems((item) => (unchecked.includes(item.id) ? false : item.done));
+      notifierService.undoable(`${sentence(ref)} marked as done.`, () => scopeStoreService.updateWith('todos', updated, undo), `Couldn't update ${ref}.`, 'success');
     }
   }
 
@@ -290,6 +319,11 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
     this.config = { ...this.config, editing };
     this.render();
   }
+}
+
+// The change that sets each item's `done`, applied to the checklist as stored.
+function settingItems(done: (item: IChecklistItem) => boolean): (current: ITodo) => Pick<ITodo, 'items'> {
+  return (current) => ({ items: (current.items ?? []).map((item) => ({ ...item, done: done(item) })) });
 }
 
 function sameItems(a: IChecklistItem[], b: IChecklistItem[]): boolean {

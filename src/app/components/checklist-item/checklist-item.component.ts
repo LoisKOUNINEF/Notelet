@@ -1,5 +1,6 @@
 import { Component, html, raw } from '../../../core/index.js';
 import { runAction } from '../../lib/actions.js';
+import { revealDoneGroup } from '../../lib/done-group.js';
 import { byData } from '../../lib/focus.js';
 import { quoted, sentence, todoRef } from '../../lib/labels.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
@@ -40,9 +41,10 @@ export class ChecklistItemComponent extends Component<HTMLElement, IChecklistIte
 
   private async _toggle(done: boolean): Promise<void> {
     const id = this._item.id;
+    // Checking the last open item moves the checklist to "Done": it unfolds first, to show it there.
+    if (done && (this._todo.items ?? []).every((item) => item.done || item.id === id)) await revealDoneGroup();
     const updated = await runAction(`Couldn't update ${quoted(this._item.text)}.`, () => scopeStoreService.updateWith('todos', this._todo, checking(id, done)), {
-      // Checking the last item moves the checklist to "Done": if that group is collapsed, the checklist
-      // leaves the view, and the focus goes to the group's toggle.
+      // If "Done" couldn't be unfolded, the checklist leaves the view: the focus goes to the group's toggle.
       focus: [`${byData('todo-id', this._todo.id)} ${byData('item-id', id)} .checklist-item__checkbox`, DONE_TOGGLE],
       // The checkbox shows what's stored again.
       onError: () => this.render(),

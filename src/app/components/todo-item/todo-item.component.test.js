@@ -151,6 +151,8 @@ describe('TodoItemComponent', () => {
   });
 
   it('reports a failed check and shows the to-do as it still is', async () => {
+    // Already open: the failure is the to-do's save, not the group's.
+    await settingsService.setDoneExpanded(true);
     panel.fake.storage.local.failNextSet = new Error('Quota exceeded.');
     await check(todos[0]);
 
@@ -207,10 +209,25 @@ describe('TodoItemComponent', () => {
     expect(labels()).toEqual(['First', 'Third']);
   });
 
-  it('with "Done" collapsed, hides the checked to-do and moves focus to the next open one', async () => {
+  it('with "Done" collapsed, unfolds it to show the checked to-do there, focus still on its checkbox', async () => {
     checkbox(todos[1]).focus();
     await check(todos[1]);
 
+    expect(settingsService.doneExpanded).toBe(true);
+    expect(item(todos[1]).closest('ul').hidden).toBe(false);
+    expect(item(todos[1]).closest('[data-catalog]').dataset.catalog).toBe('done-todos');
+    expect(document.activeElement).toBe(checkbox(todos[1]));
+    // It's in view: its checkbox undoes it, no toast needed.
+    expect(panel.toasts.length).toBe(0);
+  });
+
+  it('when "Done" can\'t be unfolded, hides the checked to-do and moves focus to the next open one', async () => {
+    // The setting's save fails, the to-do's goes through.
+    panel.fake.storage.local.failNextSet = new Error('Quota exceeded.');
+    checkbox(todos[1]).focus();
+    await check(todos[1]);
+
+    expect(settingsService.doneExpanded).toBe(false);
     expect(item(todos[1]).closest('ul').hidden).toBe(true);
     expect(item(todos[1]).closest('[data-catalog]').dataset.catalog).toBe('done-todos');
     expect(document.activeElement).toBe(checkbox(todos[2]));
@@ -220,15 +237,8 @@ describe('TodoItemComponent', () => {
     expect(toast.actionText).toBe('Undo');
   });
 
-  it('with "Done" collapsed, moves focus to the previous open one, then to the quick add', async () => {
-    await check(todos[2]);
-    expect(document.activeElement).toBe(checkbox(todos[1]));
-    await check(todos[1]);
-    await check(todos[0]);
-    expect(document.activeElement).toBe($('.todo-composer__input'));
-  });
-
-  it('undoes a check made while "Done" is collapsed', async () => {
+  it('undoes a check hidden in a "Done" that couldn\'t be unfolded', async () => {
+    panel.fake.storage.local.failNextSet = new Error('Quota exceeded.');
     await check(todos[0]);
     panel.toasts.at(-1).onAction();
     await settle();
@@ -238,6 +248,7 @@ describe('TodoItemComponent', () => {
   });
 
   it('reports a failed undo of a check', async () => {
+    panel.fake.storage.local.failNextSet = new Error('Quota exceeded.');
     await check(todos[0]);
     panel.fake.storage.local.failNextSet = new Error('Quota exceeded.');
     panel.toasts.at(-1).onAction();
@@ -496,6 +507,61 @@ describe('TodoItemComponent - checklists', () => {
     box.dispatchEvent(new window.Event('change', { bubbles: true }));
     await settle();
     expect(item(list).closest('[data-catalog="open-todos"]')).toBeTruthy();
+  });
+
+  const markAllDone = async (todo) => {
+    document.getElementById(`todo-${todo.id}-menu`).querySelector('[data-action="mark-all-done"]').click();
+    await settle();
+  };
+
+  it('offers "Mark all as done" first in a checklist\'s menu, not in a single to-do\'s', () => {
+    const labels = (todo) => [...document.getElementById(`todo-${todo.id}-menu`).querySelectorAll('[role="menuitem"]')].map((m) => m.textContent);
+    expect(labels(list)).toEqual(['Mark all as done', 'Move to this site']);
+    expect(labels(single)).not.toContain('Mark all as done');
+  });
+
+  it('marks every item as done, moving the checklist to "Done" with focus on its first item', async () => {
+    await settingsService.setDoneExpanded(true);
+    await settle();
+    await markAllDone(list);
+    const saved = await stored(list.id);
+    expect(saved.done).toBe(true);
+    expect(saved.items.map((i) => i.done)).toEqual([true, true]);
+    expect(item(list).closest('[data-catalog="done-todos"]')).toBeTruthy();
+    expect(document.activeElement).toBe(item(list).querySelector('[data-item-id="a"] .checklist-item__checkbox'));
+    expect(panel.toasts.at(-1).type).toBe('success');
+  });
+
+  it('with "Done" collapsed, unfolds it, focus on the checklist\'s first item', async () => {
+    await markAllDone(list);
+    expect((await stored(list.id)).done).toBe(true);
+    expect(settingsService.doneExpanded).toBe(true);
+    expect(document.activeElement).toBe(item(list).querySelector('[data-item-id="a"] .checklist-item__checkbox'));
+  });
+
+  it('when "Done" can\'t be unfolded, "Mark all as done" moves focus to the next open to-do', async () => {
+    panel.fake.storage.local.failNextSet = new Error('Quota exceeded.');
+    await markAllDone(list);
+    expect((await stored(list.id)).done).toBe(true);
+    expect(document.activeElement).toBe(item(single).querySelector('.todo-item__checkbox'));
+  });
+
+  it('undoes "Mark all as done": only the items checked by it are unchecked', async () => {
+    await markAllDone(list);
+    panel.toasts.at(-1).onAction();
+    await settle();
+    const saved = await stored(list.id);
+    expect(saved.done).toBe(false);
+    expect(saved.items.map((i) => i.done)).toEqual([true, false]);
+    expect(item(list).closest('[data-catalog="open-todos"]')).toBeTruthy();
+  });
+
+  it('reports a failed "Mark all as done" and keeps the checklist as it is', async () => {
+    await settingsService.setDoneExpanded(true);
+    panel.fake.storage.local.failNextSet = new Error('Quota exceeded.');
+    await markAllDone(list);
+    expect(panel.toasts.map((t) => t.type)).toEqual(['error']);
+    expect((await stored(list.id)).items.map((i) => i.done)).toEqual([true, false]);
   });
 
   it('edits a checklist: its name and items, with Save', async () => {
