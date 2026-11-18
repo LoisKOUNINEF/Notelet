@@ -33,3 +33,17 @@
     transform: rotate(90deg);
   }
 }
+
+// A chevron drawn with two borders (the sections' "Done" and "Pages on this site"), turned down while open.
+@mixin chevron-outline {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform var(--transition);
+
+  [aria-expanded='true'] > & {
+    transform: rotate(45deg);
+  }
+}
