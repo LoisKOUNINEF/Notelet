@@ -97,9 +97,18 @@ describe('ChecklistItemComponent', () => {
     expect(document.activeElement).toBe(box('b'));
     expect(panel.toasts.length).toBe(0);
 
-    // Unchecking one moves it back to the open ones.
+    // Unchecking one moves it back to the open ones, with Undo.
     await check('b', false);
     expect(row('b').closest('[data-catalog="open-todos"]')).toBeTruthy();
+    const toast = panel.toasts.at(-1);
+    expect(toast.message).toBe('Checklist “Trip” marked as undone.');
+    expect(toast.actionText).toBe('Undo');
+
+    // Undo checks it again: back in "Done".
+    toast.onAction();
+    await settle();
+    expect((await storedItems()).map((i) => i.done)).toEqual([true, true, true]);
+    expect(row('b').closest('[data-catalog="done-todos"]')).toBeTruthy();
   });
 
   it('when "Done" can\'t be unfolded, moves focus to its toggle and offers Undo', async () => {

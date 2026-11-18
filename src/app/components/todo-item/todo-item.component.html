@@ -18,6 +18,7 @@ ${selecting ? '' : html`<a11y-checkbox class="todo-item__check">
 <span class="todo-item__text" id="todo-${todo.id}-text">${todo.text}</span>`}
 ${selecting ? '' : html`<div class="todo-item__actions">
   ${todo.done ? '' : html`<button class="button button--small todo-item__edit" type="button" tabindex="0" aria-describedby="todo-${todo.id}-text" data-event="click:_edit">Edit</button>`}
+  ${todo.done ? html`<button class="button button--small todo-item__undone" type="button" tabindex="0" aria-describedby="todo-${todo.id}-text" data-event="click:_markUndone">${items.length > 0 ? 'Mark all as undone' : 'Mark as undone'}</button>` : ''}
   <button class="button button--small button--danger todo-item__delete" type="button" tabindex="0" aria-describedby="todo-${todo.id}-text" data-event="click:_delete">Delete</button>
   ${todo.done ? '' : html`<span data-component="item-menu"></span>`}
 </div>`}

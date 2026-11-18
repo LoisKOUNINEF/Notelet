@@ -52,6 +52,10 @@ export class ChecklistItemComponent extends Component<HTMLElement, IChecklistIte
     if (updated?.done && !this._todo.done && !settingsService.doneExpanded) {
       notifierService.undoable(`${sentence(todoRef(updated))} done.`, () => scopeStoreService.updateWith('todos', updated, checking(id, false)), `Couldn't update ${todoRef(updated)}.`, 'success');
     }
+    // Unchecking an item of a done checklist moves it back among the open ones: Undo checks it again.
+    if (updated && !updated.done && this._todo.done) {
+      notifierService.undoable(`${sentence(todoRef(updated))} marked as undone.`, () => scopeStoreService.updateWith('todos', updated, checking(id, true)), `Couldn't update ${todoRef(updated)}.`, 'success');
+    }
   }
 }
 

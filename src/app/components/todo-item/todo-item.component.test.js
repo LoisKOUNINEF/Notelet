@@ -372,16 +372,57 @@ describe('TodoItemComponent - actions menu', () => {
     expect((await content()).page.todos[0].text).toBe('Already on the site');
   });
 
-  it('offers only Delete on a done to-do, with no menu', async () => {
+  it('offers only "Mark as undone" and Delete on a done to-do, with no menu', async () => {
     const done = await scopeStoreService.update('todos', todos[1], { done: true });
     await settle();
-    expect([...item(done).querySelectorAll('.todo-item__actions button')].map((b) => b.textContent)).toEqual(['Delete']);
+    expect([...item(done).querySelectorAll('.todo-item__actions button')].map((b) => b.textContent)).toEqual(['Mark as undone', 'Delete']);
     expect(document.getElementById(`todo-${done.id}-menu`)).toBeFalsy();
 
     // Unchecked, it gets its actions back.
     item(done).querySelector('.todo-item__checkbox').click();
     await settle();
     expect([...item(done).querySelectorAll('.todo-item__actions button')].map((b) => b.textContent)).toEqual(['Edit', 'Delete', '⋯']);
+  });
+
+  it('offers "Mark as done" first in a single to-do\'s menu: checked as from its checkbox, focus on it', async () => {
+    const menu = document.getElementById(`todo-${todos[0].id}-menu`);
+    expect(menu.querySelector('[role="menuitem"]').textContent).toBe('Mark as done');
+    menu.querySelector('[data-action="mark-done"]').click();
+    await settle();
+
+    expect((await content()).page.todos.find((t) => t.id === todos[0].id).done).toBe(true);
+    expect(settingsService.doneExpanded).toBe(true);
+    expect(item(todos[0]).closest('[data-catalog]').dataset.catalog).toBe('done-todos');
+    expect(document.activeElement).toBe(item(todos[0]).querySelector('.todo-item__checkbox'));
+  });
+
+  it('reopens a done to-do with "Mark as undone", focus on its checkbox', async () => {
+    await settingsService.setDoneExpanded(true);
+    const done = await scopeStoreService.update('todos', todos[1], { done: true });
+    await settle();
+    item(done).querySelector('.todo-item__undone').click();
+    await settle();
+
+    expect((await content()).page.todos.find((t) => t.id === done.id).done).toBe(false);
+    expect(item(done).closest('[data-catalog]').dataset.catalog).toBe('open-todos');
+    expect(document.activeElement).toBe(item(done).querySelector('.todo-item__checkbox'));
+    const toast = panel.toasts.at(-1);
+    expect(toast.message).toBe('To-do “Second” marked as undone.');
+    expect(toast.actionText).toBe('Undo');
+
+    // Undo puts it back in "Done".
+    toast.onAction();
+    await settle();
+    expect((await content()).page.todos.find((t) => t.id === done.id).done).toBe(true);
+    expect(item(done).closest('[data-catalog]').dataset.catalog).toBe('done-todos');
+  });
+
+  it('offers Undo when a done to-do is unchecked from its checkbox too', async () => {
+    const done = await scopeStoreService.update('todos', todos[1], { done: true });
+    await settle();
+    item(done).querySelector('.todo-item__checkbox').click();
+    await settle();
+    expect(panel.toasts.at(-1).message).toBe('To-do “Second” marked as undone.');
   });
 
   it('ignores clicks in the menu outside its items', async () => {
@@ -493,13 +534,13 @@ describe('TodoItemComponent - checklists', () => {
     expect(panel.toasts.map((t) => t.type)).toEqual(['error']);
   });
 
-  it('moves to "Done" once every item is checked, then only offers Delete, items still checkable', async () => {
+  it('moves to "Done" once every item is checked, then only offers "Mark all as undone" and Delete, items still checkable', async () => {
     await settingsService.setDoneExpanded(true);
     await settle();
     await checkItem(list, 'b');
     expect((await stored(list.id)).done).toBe(true);
     expect(item(list).closest('[data-catalog="done-todos"]')).toBeTruthy();
-    expect([...item(list).querySelectorAll('.todo-item__actions button')].map((b) => b.textContent)).toEqual(['Delete']);
+    expect([...item(list).querySelectorAll('.todo-item__actions button')].map((b) => b.textContent)).toEqual(['Mark all as undone', 'Delete']);
     expect(item(list).querySelector('.checklist-add')).toBeFalsy();
 
     const box = item(list).querySelector('[data-item-id="b"] .checklist-item__checkbox');
@@ -554,6 +595,37 @@ describe('TodoItemComponent - checklists', () => {
     expect(saved.done).toBe(false);
     expect(saved.items.map((i) => i.done)).toEqual([true, false]);
     expect(item(list).closest('[data-catalog="open-todos"]')).toBeTruthy();
+  });
+
+  it('"Mark all as undone" unchecks every item, back among the open ones, with Undo', async () => {
+    await settingsService.setDoneExpanded(true);
+    await markAllDone(list);
+    item(list).querySelector('.todo-item__undone').click();
+    await settle();
+
+    let saved = await stored(list.id);
+    expect(saved.done).toBe(false);
+    expect(saved.items.map((i) => i.done)).toEqual([false, false]);
+    expect(item(list).closest('[data-catalog="open-todos"]')).toBeTruthy();
+    expect(document.activeElement).toBe(item(list).querySelector('[data-item-id="a"] .checklist-item__checkbox'));
+    const toast = panel.toasts.at(-1);
+    expect(toast.message).toBe('Checklist “Groceries” marked as undone.');
+
+    toast.onAction();
+    await settle();
+    saved = await stored(list.id);
+    expect(saved.done).toBe(true);
+    expect(saved.items.map((i) => i.done)).toEqual([true, true]);
+  });
+
+  it('reports a failed "Mark all as undone" and keeps the checklist done', async () => {
+    await settingsService.setDoneExpanded(true);
+    await markAllDone(list);
+    panel.fake.storage.local.failNextSet = new Error('Quota exceeded.');
+    item(list).querySelector('.todo-item__undone').click();
+    await settle();
+    expect(panel.toasts.at(-1).type).toBe('error');
+    expect((await stored(list.id)).done).toBe(true);
   });
 
   it('reports a failed "Mark all as done" and keeps the checklist as it is', async () => {
@@ -683,7 +755,7 @@ describe('TodoItemComponent - checklists', () => {
 
   it('moves a single to-do into a checklist, picked in a popup, with Undo', async () => {
     const menu = document.getElementById(`todo-${single.id}-menu`);
-    expect([...menu.querySelectorAll('[role="menuitem"]')].map((m) => m.textContent)).toEqual(['Move into a checklist…', 'Move to this site']);
+    expect([...menu.querySelectorAll('[role="menuitem"]')].map((m) => m.textContent)).toEqual(['Mark as done', 'Move into a checklist…', 'Move to this site']);
     expect(document.getElementById(`todo-${list.id}-menu`)?.querySelector('[data-action="move-into-checklist"]')).toBeFalsy();
 
     menu.querySelector('[data-action="move-into-checklist"]').click();

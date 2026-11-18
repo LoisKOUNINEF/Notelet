@@ -290,6 +290,40 @@ $button-inactive: ":disabled, [aria-disabled='true']";
   }
 }
 
+// Toasts (a11y-elements' snackbar): an action (e.g. "Undo") is an outlined button on the right;
+// the library's default is bold text that reads as part of the message.
+.a11y-snackbar-region .a11y-snackbar {
+  &:has(button) {
+    justify-content: space-between;
+
+    // The message stays centered in the space left of the button.
+    > span {
+      flex: 1;
+      text-align: center;
+    }
+  }
+
+  button {
+    flex-shrink: 0;
+    min-height: 2rem;
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid currentColor;
+    border-radius: var(--radius-small);
+    font: inherit;
+    font-weight: 600;
+    transition: background-color var(--transition);
+
+    &:hover {
+      background: rgb(255 255 255 / 15%);
+    }
+
+    // --color-focus is the info toast's own color: outline in the toast's text color instead.
+    &:focus-visible {
+      outline-color: currentColor;
+    }
+  }
+}
+
 .a11y-modal-wrapper:has(.confirm-dialog__title) {
   height: 50%;
 }

@@ -50,12 +50,12 @@ interface ITodoItemView {
   selected: boolean;
 }
 
-type TodoMenuAction = 'mark-all-done' | 'move' | 'move-into-checklist';
+type TodoMenuAction = 'mark-done' | 'mark-all-done' | 'move' | 'move-into-checklist';
 
 const templateFn = ({ todo, items, doneCount, editing, collapsed, reorderable, grabbed, selecting, selected }: ITodoItemView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 /**
- * One to-do: a checkbox labelled by its text, and its actions (a done one only offers Delete).
+ * One to-do: a checkbox labelled by its text, and its actions (a done one only offers Mark as undone and Delete).
  * Only the box checks it: a click on its text or elsewhere on it opens the editor, like Edit.
  * Checking it moves it below the open ones; focus follows it there.
  *
@@ -151,12 +151,12 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
     }
   }
 
-  // A checklist can be checked all at once; a single to-do can go into a checklist, when there's one;
-  // any to-do to the tab's other scope.
+  // A to-do can be marked as done (a checklist: all its items at once); a single to-do can go into a
+  // checklist, when there's one; any to-do to the tab's other scope.
   private menuActions(): IMenuAction<TodoMenuAction>[] {
     const single = !isChecklist(this._todo);
     return [
-      ...(single ? [] : [{ value: 'mark-all-done' as const, label: 'Mark all as done' }]),
+      single ? { value: 'mark-done' as const, label: 'Mark as done' } : { value: 'mark-all-done' as const, label: 'Mark all as done' },
       ...(single && this._options.hasChecklists ? [{ value: 'move-into-checklist' as const, label: 'Move into a checklist…' }] : []),
       { value: 'move', label: `Move to this ${this._todo.scope === 'page' ? 'site' : 'page'}` },
     ];
@@ -164,6 +164,7 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
 
   private onMenuAction(action: TodoMenuAction): void {
     switch (action) {
+      case 'mark-done': void this._toggle(true); break;
       case 'mark-all-done': void this.markAllDone(); break;
       case 'move': void this.move(); break;
       case 'move-into-checklist': void this.moveIntoChecklist(); break;
@@ -189,6 +190,10 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
     if (updated && hidden) {
       notifierService.undoable(`${sentence(ref)} marked as done.`, () => scopeStoreService.update('todos', updated, { done: false }), `Couldn't update ${ref}.`, 'success');
     }
+    // Back among the open ones, it leaves "Done": Undo puts it back there.
+    if (updated && !done) {
+      notifierService.undoable(`${sentence(ref)} marked as undone.`, () => scopeStoreService.update('todos', updated, { done: true }), `Couldn't update ${ref}.`, 'success');
+    }
   }
 
   // "Mark all as done": checks every item of a checklist, which moves it to "Done". Undo unchecks only
@@ -204,6 +209,19 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
     if (updated) {
       const undo = settingItems((item) => (unchecked.includes(item.id) ? false : item.done));
       notifierService.undoable(`${sentence(ref)} marked as done.`, () => scopeStoreService.updateWith('todos', updated, undo), `Couldn't update ${ref}.`, 'success');
+    }
+  }
+
+  // "Mark as undone" on a done to-do: unchecked, like from its checkbox. A checklist has all its items
+  // unchecked, which moves it back to the open ones; Undo checks them all again, as they were.
+  private async _markUndone(): Promise<void> {
+    if (!isChecklist(this._todo)) return this._toggle(false);
+    const ref = todoRef(this._todo);
+    const updated = await runAction(`Couldn't update ${ref}.`, () => scopeStoreService.updateWith('todos', this._todo, settingItems(() => false)), {
+      focus: [this.own('.checklist-item__checkbox')],
+    });
+    if (updated) {
+      notifierService.undoable(`${sentence(ref)} marked as undone.`, () => scopeStoreService.updateWith('todos', updated, settingItems(() => true)), `Couldn't update ${ref}.`, 'success');
     }
   }
 
