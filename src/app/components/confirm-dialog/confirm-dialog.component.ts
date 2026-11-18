@@ -12,6 +12,7 @@ interface IConfirmDialogView {
   choices: IChoice[];
 }
 
+// @ts-ignore : variable(s) used in HTML template
 const templateFn = ({ title, message, confirmLabel, choices }: IConfirmDialogView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 const MODAL_ID = 'confirm-dialog';
@@ -25,8 +26,7 @@ const MODAL_ID = 'confirm-dialog';
  * Like the "⋯" menus, the modal is an overlay on <body> (see lib/overlays.ts).
  */
 export class ConfirmDialogComponent extends Component<HTMLElement, IConfirmDialogView> implements IConfirmDialog {
-  // The answer of the question being asked, if one is: what was picked ('confirm' or a choice's
-  // value), or null.
+  // The answer of the question being asked, if one is: what was picked, or null.
   private _answer: ((value: string | null) => void) | null = null;
   private readonly _detach: () => void;
 

@@ -15,6 +15,7 @@ interface IChecklistFieldView {
   canTakeOut: boolean;
 }
 
+// @ts-ignore : variable(s) used in HTML template
 const templateFn = ({ item, number, canTakeOut }: IChecklistFieldView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 // One item of a checklist being written or edited: its text, a way to remove it, and (in the
@@ -32,6 +33,7 @@ export class ChecklistFieldComponent extends Component<HTMLElement, IChecklistFi
     this._options = options;
   }
 
+  // @ts-ignore : function used in HTML template
   private _onKeydown(event: KeyboardEvent): void {
     if (event.key === 'Enter' && !event.ctrlKey && !event.metaKey) {
       // Not the form's submit: the next item, like in any to-do editor.
@@ -43,10 +45,12 @@ export class ChecklistFieldComponent extends Component<HTMLElement, IChecklistFi
     }
   }
 
+  // @ts-ignore : function used in HTML template
   private _remove(): void {
     this._options.onRemove(this._id);
   }
 
+  // @ts-ignore : function used in HTML template
   private _takeOut(): void {
     this._options.onTakeOut?.(this._id);
   }

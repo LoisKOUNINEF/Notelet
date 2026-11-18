@@ -21,8 +21,7 @@ export interface ITabsConfig<T extends string> {
   small?: boolean;
   // Inside a container that draws the background for several rows.
   grouped?: boolean;
-  // Folder tabs: the selected one opens into the content below it, drawn by the parent with
-  // the same surface (--tabs-folder-surface), so what's below reads as that tab's own content.
+  // Folder tabs: the selected one opens into the content below it.
   folder?: boolean;
   onSelect: (value: T) => void;
 }
@@ -41,6 +40,7 @@ interface ITabsView {
   folder: boolean;
 }
 
+// @ts-ignore : variable(s) used in HTML template
 const templateFn = ({ tabs, label, panelId, small, grouped, folder }: ITabsView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 /**
@@ -75,6 +75,7 @@ export class TabsComponent<T extends string> extends Component<HTMLElement, ITab
     if (this.isValue(value) && value !== this._active) this._onSelect(value);
   }
 
+  // @ts-ignore : function used in HTML template
   private _onKeydown(event: KeyboardEvent): void {
     const values = this._values;
     const index = values.indexOf(this._active);

@@ -20,6 +20,7 @@ interface ISiteRowView {
   current: boolean;
 }
 
+// @ts-ignore : variable(s) used in HTML template
 const templateFn = ({ site, counts, current }: ISiteRowView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 /**
@@ -47,6 +48,7 @@ export class SiteRowComponent extends Component<HTMLElement, ISiteRowView> {
     });
   }
 
+  // @ts-ignore : function used in HTML template
   private async _delete(): Promise<void> {
     const { site } = this._site;
     const counts = countText(this._site);

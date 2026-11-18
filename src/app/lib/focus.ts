@@ -7,8 +7,7 @@ export function requestFocus(...selectors: string[]): void {
   requested = selectors;
 }
 
-// A target inside a hidden element (e.g. a collapsed "Done" group) can't take the focus: the
-// next selector is tried instead.
+// A target inside a hidden element can't take the focus: the next selector is tried instead.
 export function applyRequestedFocus(root: ParentNode = document): boolean {
   for (const selector of requested) {
     const target = root.querySelector<HTMLElement>(selector);
@@ -37,9 +36,8 @@ export function byData(name: string, value: string): string {
 
 /**
  * Runs `render`, which rebuilds the controls `selectors` match, then gives the focus back to the
- * one that had it, or the next one still usable (a control just disabled can't keep it). Leaves it
- * alone when the action that caused the render asked for it elsewhere (requestFocus), or when it
- * survived the render.
+ * one that had it, or the next one still usable.
+ * Leaves it alone when the action that caused the render asked for it elsewhere, or when it survived the render.
  */
 export function renderKeepingFocus(root: HTMLElement, selectors: string[], render: () => void): void {
   const active = document.activeElement;

@@ -26,8 +26,8 @@ export interface IConfirmDialog {
 
 /**
  * Asks the user to confirm before something that can't easily be taken back, through the
- * confirmation dialog the sidebar mounts. Without one, the answer is "no": nothing is ever
- * done unconfirmed.
+ * confirmation dialog the sidebar mounts. Without one, the answer is "no":
+ * nothing is ever done unconfirmed.
  */
 export class ConfirmService extends Service<ConfirmService> {
   private _dialog: IConfirmDialog | null = null;

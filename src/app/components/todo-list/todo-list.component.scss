@@ -1,11 +1,11 @@
 @use "reorder";
+@use "disclosure";
 
 .todo-list {
   display: grid;
   gap: var(--space-2);
 }
 
-// Like the notes' empty state.
 .todo-list__empty {
   padding: var(--space-4);
   color: var(--color-text-muted);
@@ -68,18 +68,8 @@
   }
 }
 
-// A CSS chevron, pointing right when closed and down when open.
 .todo-list__chevron {
-  width: 0.4rem;
-  height: 0.4rem;
-  border-right: 2px solid currentColor;
-  border-bottom: 2px solid currentColor;
-  transform: rotate(-45deg);
-  transition: transform var(--transition);
-
-  [aria-expanded='true'] > & {
-    transform: rotate(45deg);
-  }
+  @include disclosure.chevron-outline;
 }
 
 .todo-list__open > li {

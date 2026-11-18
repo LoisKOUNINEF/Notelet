@@ -28,7 +28,6 @@ function position(todo: ITodo): number {
   return todo.position ?? Number.MAX_SAFE_INTEGER;
 }
 
-// To-dos checked before doneAt existed have none: their last update is the closest guess.
 function doneTime(todo: ITodo): Timestamp {
   return todo.doneAt ?? todo.updatedAt;
 }
@@ -38,8 +37,8 @@ export function topPosition(todos: ITodo[]): number {
   return Math.min(0, ...todos.filter((todo) => !todo.done && todo.position !== undefined).map((todo) => todo.position!)) - 1;
 }
 
-// Stored lists are kept in display order, and sorted again on read. Malformed entries (a
-// hand-edited or foreign list) are dropped rather than breaking the whole panel.
+// Stored lists are kept in display order, and sorted again on read.
+// Malformed entries are dropped rather than breaking the whole panel.
 export function sortItems<K extends ScopeContentKind>(kind: K, value: unknown): IScopeItemKinds[K][] {
   if (!Array.isArray(value)) return [];
   const items = value.map((entry) => normalizeItem(kind, entry)).filter((item) => item !== null);
@@ -48,8 +47,8 @@ export function sortItems<K extends ScopeContentKind>(kind: K, value: unknown): 
 
 /**
  * The item as the panel can render it, or null. Only an id, a creation time and a text are
- * required; other fields that are missing or of the wrong type are repaired (a write saves the
- * list back as read, so an item dropped here would be lost for good).
+ * required; other fields that are missing or of the wrong type are repaired
+ * A write saves the list back as read, so an item dropped here would be lost for good.
  */
 function normalizeItem<K extends ScopeContentKind>(kind: K, value: unknown): IScopeItemKinds[K] | null {
   if (!value || typeof value !== 'object') return null;
@@ -57,7 +56,7 @@ function normalizeItem<K extends ScopeContentKind>(kind: K, value: unknown): ISc
   const { id, createdAt, text } = stored;
   if (typeof id !== 'string' || !isTime(createdAt) || typeof text !== 'string') return null;
 
-  // Copied as is (scope, key, and anything a newer version may have added), then repaired.
+  // Copied as is, then repaired.
   const item = { ...stored, id, text, createdAt, updatedAt: isTime(stored.updatedAt) ? stored.updatedAt : createdAt } as IScopeItem;
   if (item.position !== undefined && !Number.isFinite(item.position)) delete item.position;
   if (kind === 'notes') {
@@ -119,10 +118,6 @@ export function checklistDone(items: IChecklistItem[]): boolean {
   return items.length > 0 && items.every((item) => item.done);
 }
 
-/**
- * `current` after `changes`, edited `now`: a checklist (items left) is done once every item is, an
- * emptied one is a single to-do again; checking it records when, unchecking it clears that.
- */
 export function applyTodoEdit(current: ITodo, changes: Partial<ITodo>, now: Timestamp): ITodo {
   const todo: ITodo = { ...current, ...changes, updatedAt: now };
   if (isChecklist(todo)) todo.done = checklistDone(todo.items);

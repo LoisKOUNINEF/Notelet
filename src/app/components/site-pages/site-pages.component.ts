@@ -22,6 +22,7 @@ interface ISitePagesView {
   expanded: boolean;
 }
 
+// @ts-ignore : variable(s) used in HTML template
 const templateFn = ({ loading, pages, expanded }: ISitePagesView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 /**
@@ -60,12 +61,13 @@ export class SitePagesComponent extends Component<HTMLElement, ISitePagesView> {
     applyRequestedFocus(this.element);
   }
 
+  // @ts-ignore : function used in HTML template
   private _toggle(): void {
     this._expanded = !this._expanded;
     requestFocus('.site-pages__toggle');
     this.refresh();
   }
-
+  // @ts-ignore : function used in HTML template
   private async _open(url: string): Promise<void> {
     await runAction('Couldn\'t open the page.', () => chromeApiService.openInActiveTab(url));
   }

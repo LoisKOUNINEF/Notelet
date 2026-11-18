@@ -8,7 +8,7 @@ export function applyTheme(theme: ThemeName): void {
   else root.dataset.theme = theme;
 }
 
-/** Applies the saved theme, and each change (here or in another window). Returns the unsubscribe. */
+// Applies the saved theme, and each change (here or in another window). Returns the unsubscribe.
 export function initTheme(): () => void {
   const update = () => applyTheme(settingsService.theme);
   update();

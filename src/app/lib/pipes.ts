@@ -12,8 +12,7 @@ const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
 // One formatter per locale, for every time shown and each minute's refresh.
 const relativeFormats = new Map<string, Intl.RelativeTimeFormat>();
 
-// The panel's language (index.html's lang): its times read in the same language as its text,
-// whatever the browser's.
+// The panel's language: its times read in the same language as its text, whatever the browser's.
 export function uiLocale(): string {
   return document.documentElement.lang || 'en';
 }

@@ -16,6 +16,7 @@ interface IBackupDataView {
   busy: boolean;
 }
 
+// @ts-ignore : variable(s) used in HTML template
 const templateFn = ({ busy }: IBackupDataView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 const IMPORT_FAILED = 'Couldn\'t import that file.';

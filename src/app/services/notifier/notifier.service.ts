@@ -12,7 +12,7 @@ export interface INotifyAction {
  * paused while hovered or focused. Errors use role="alert".
  */
 export class NotifierService extends Service<NotifierService> {
-  // a11y-elements' notify(), behind a field tests can replace (jsdom doesn't upgrade the snackbar there).
+  // a11y-elements' notify(), behind a field tests can replace.
   private _notify: typeof notify = notify;
 
   constructor() {

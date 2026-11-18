@@ -18,6 +18,7 @@ interface ITodoComposerView {
   checklistMode: boolean;
 }
 
+// @ts-ignore : variable(s) used in HTML template
 const templateFn = ({ scope, draft, checklistMode }: ITodoComposerView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 // Where the focus goes once a to-do leaves the list.
@@ -93,6 +94,7 @@ export class TodoComposerComponent extends Component<HTMLElement, ITodoComposerV
     super.onBeforeDestroy();
   }
 
+  // @ts-ignore : function used in HTML template
   private _addChecklistItem(): void {
     if (!this.config.checklistMode) this.setChecklistMode(true);
     const named = this.input.value.trim() !== '';
@@ -100,6 +102,7 @@ export class TodoComposerComponent extends Component<HTMLElement, ITodoComposerV
     if (!named) this.input.focus();
   }
 
+  // @ts-ignore : function used in HTML template
   private async _add(): Promise<void> {
     const input = this.input;
     const text = input.value.trim();

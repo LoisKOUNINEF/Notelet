@@ -9,7 +9,6 @@
   gap: var(--space-1);
 }
 
-// The age and its button side by side, wrapping on a narrow panel.
 .delete-data__row {
   display: flex;
   flex-wrap: wrap;
@@ -17,7 +16,6 @@
   gap: var(--space-2);
 }
 
-// Like a11y-select's label ("Delete all older than"): the same rule, through its tokens.
 .delete-data__label {
   color: var(--a11y-select-color-text-muted);
   font-size: var(--a11y-select-label-font-size);

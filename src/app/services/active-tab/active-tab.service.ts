@@ -5,7 +5,6 @@ import { chromeApiService } from '../chrome-api/chrome-api.service.js';
 /**
  * Follows the tab shown next to the side panel and emits `active-scope-changed` when its
  * notes keys change: another tab activated, or a navigation in the same tab
- * (a hash change alone keeps the same page, so it doesn't emit).
  */
 export class ActiveTabService extends Service<ActiveTabService> {
   private _keys: IScopeKeys | null = null;

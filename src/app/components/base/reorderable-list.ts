@@ -20,12 +20,10 @@ export interface IReorderableListSettings {
   // The scope's key: where the order is saved.
   key: string;
   // The reorderable items' catalog, their grab handle, and the data attribute holding their id
-  // (`note-id` for `data-note-id`).
   listSelector: string;
   handleSelector: string;
   idAttribute: string;
   draggingClass: string;
-  // "Couldn't reorder the notes."
   failure: string;
   // Where "Move to this site/page" sends selected items.
   keys: IScopeKeys;
@@ -39,8 +37,7 @@ export interface IReorderableListSettings {
 
 /**
  * One options object per combination, reused across renders: a catalog keeps an item only while
- * its options are the same object. Picking an item up changes them (the items are rebuilt with
- * its state): the stable combinations are kept, and the current grab's alone.
+ * its options are the same object.
  */
 export class ItemOptionsCache<O> {
   private readonly _cache = new Map<string, O>();
@@ -66,10 +63,10 @@ export class ItemOptionsCache<O> {
 
 /**
  * A scope's notes or to-dos, kept by the sidebar across its renders and handed new items through
- * update(): the items that didn't change are kept (and an edit in progress with them). Its items
- * are reordered by their handles (see ListReorder); updates arriving during a gesture are held
- * until it ends. Its "Select" button lets several items be picked, then deleted or moved to the
- * tab's other scope at once (see SelectionBarComponent); reordering is off meanwhile.
+ * update(): the items that didn't change are kept (and an edit in progress with them).
+ * Its items are reordered by their handles (see ListReorder).
+ * Updates arriving during a gesture are helduntil it ends.
+ * Its "Select" button lets several items be picked, then deleted or moved to the tab's other scope at once (see SelectionBarComponent).
  */
 export abstract class ReorderableList<T extends IScopeItem, V> extends AppComponent<HTMLElement, V> {
   protected items: T[];
@@ -77,8 +74,7 @@ export abstract class ReorderableList<T extends IScopeItem, V> extends AppCompon
   private readonly _settings: IReorderableListSettings;
   // Handed over by update() while a gesture runs, applied once it ends.
   private _held: T[] | null = null;
-  // Multi-select: the ids picked, null while not selecting. The items read it through isSelected()
-  // and report changes through onSelect(), which patch the bar without re-rendering.
+  // Multi-select: the ids picked, null while not selecting.
   protected selection: Set<string> | null = null;
   private _selectionBar: SelectionBarComponent | null = null;
   // A new bar each time selecting starts (a kept one would show the previous round's state).
@@ -111,7 +107,7 @@ export abstract class ReorderableList<T extends IScopeItem, V> extends AppCompon
   protected abstract shownIds(): string[];
   // How an item is named while it's moved.
   protected abstract labelOf(item: T): string;
-  // The items as they'll come back once `order` (the reorderable ones' ids) is saved.
+  // The items as they'll come back once `order` is saved.
   protected abstract reordered(items: T[], order: string[]): T[];
 
   public update(items: T[]): void {
@@ -195,7 +191,6 @@ export abstract class ReorderableList<T extends IScopeItem, V> extends AppCompon
     return selection ? this.items.filter((item) => selection.has(item.id)) : [];
   }
 
-  // Left right away (the bar goes), then saved: the list re-renders without them, focus on Select.
   private async deleteSelected(): Promise<void> {
     const { kind, noun, composerInput } = this._settings;
     const picked = this.selectedItems();

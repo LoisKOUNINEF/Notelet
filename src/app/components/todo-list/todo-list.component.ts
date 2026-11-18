@@ -27,13 +27,14 @@ interface ITodoListView {
   emptyText: string;
 }
 
+// @ts-ignore : variable(s) used in HTML template
 const templateFn = ({ open, done, expanded, selecting, label, emptyText }: ITodoListView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 /**
- * One scope's to-dos: its quick add on top (like the note composer), the open ones, then the
- * done ones in a "Done (n)" group, collapsed or not as last left (a setting shared by every
- * page). Unchanged items and the quick add's text are kept as new to-dos come in; open to-dos are
- * reordered by their handles (see ReorderableList).
+ * One scope's to-dos: its quick add on top, the open ones, then the done ones in a "Done (n)" group.
+ * "Done (n)" group collapsed or not as last left (a setting shared by every page).
+ * Unchanged items and the quick add's text are kept as new to-dos come in.
+ * Open to-dos are reordered by their handles (see ReorderableList).
  */
 export class TodoListComponent extends ReorderableList<ITodo, ITodoListView> {
   private readonly _scope: NoteScope;
@@ -120,7 +121,7 @@ export class TodoListComponent extends ReorderableList<ITodo, ITodoListView> {
     ];
   }
 
-  // Done to-dos can only be deleted.
+  // Done to-dos cannot be reordered.
   protected override selectionMovable(todos: ITodo[]): boolean {
     return todos.every((todo) => !todo.done);
   }
@@ -139,6 +140,7 @@ export class TodoListComponent extends ReorderableList<ITodo, ITodoListView> {
     return this.items.filter((todo): todo is IChecklist => !todo.done && isChecklist(todo));
   }
 
+  // @ts-ignore : function used in HTML template
   private async _toggleDone(): Promise<void> {
     // Re-rendered by `settings-changed`, as in every other window.
     await runAction('Couldn\'t save that setting.', () => settingsService.setDoneExpanded(!settingsService.doneExpanded), {
@@ -146,7 +148,8 @@ export class TodoListComponent extends ReorderableList<ITodo, ITodoListView> {
     });
   }
 
-  // No confirmation: it can be undone, like deleting a single to-do.
+  // @ts-ignore : function used in HTML template
+  // No confirmation: it can be undone.
   private async _deleteDone(): Promise<void> {
     const done = this.config.done;
     // The group goes away with its last to-do.
@@ -159,6 +162,7 @@ export class TodoListComponent extends ReorderableList<ITodo, ITodoListView> {
     }
   }
 
+  // @ts-ignore : function used in HTML template
   private async _deleteAll(): Promise<void> {
     const confirmed = await confirmService.ask({
       title: `Delete all to-dos for this ${this._scope}?`,

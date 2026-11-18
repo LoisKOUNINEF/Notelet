@@ -1,3 +1,5 @@
+@use "disclosure";
+
 // Shown only if listing the pages takes a moment: a quick read never flashes it.
 .site-pages__loading {
   display: flex;
@@ -32,18 +34,8 @@
   }
 }
 
-// A CSS chevron, pointing right when closed and down when open.
 .site-pages__chevron {
-  width: 0.4rem;
-  height: 0.4rem;
-  border-right: 2px solid currentColor;
-  border-bottom: 2px solid currentColor;
-  transform: rotate(-45deg);
-  transition: transform var(--transition);
-
-  [aria-expanded='true'] > & {
-    transform: rotate(45deg);
-  }
+  @include disclosure.chevron-outline;
 }
 
 .site-pages__list {

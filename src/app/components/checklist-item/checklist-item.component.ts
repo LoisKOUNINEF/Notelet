@@ -8,7 +8,6 @@ import { scopeStoreService } from '../../services/scope-store/scope-store.servic
 import { settingsService } from '../../services/settings/settings.service.js';
 import { DONE_TOGGLE } from '../todo-list/todo-list.selectors.js';
 
-// What a checklist passes to each of its items (see createCatalogComponents).
 export interface IChecklistItemOptions {
   todo: ITodo;
 }
@@ -17,10 +16,11 @@ interface IChecklistItemView {
   item: IChecklistItem;
 }
 
+// @ts-ignore : variable(s) used in HTML template
 const templateFn = ({ item }: IChecklistItemView) => html`__TEMPLATE_PLACEHOLDER__`;
 
-// One item of a checklist, checked right from the checklist. Checked items stay in place; checking
-// the last one moves the whole checklist to "Done" (see ScopeStoreService.updateWith).
+// One item of a checklist, checked right from the checklist.
+// Checked items stay in place; checking the last one moves the whole checklist to "Done".
 export class ChecklistItemComponent extends Component<HTMLElement, IChecklistItemView> {
   private _item: IChecklistItem;
   private _todo: ITodo;
@@ -39,6 +39,7 @@ export class ChecklistItemComponent extends Component<HTMLElement, IChecklistIte
     this._todo = options.todo;
   }
 
+  // @ts-ignore : function used in HTML template
   private async _toggle(done: boolean): Promise<void> {
     const id = this._item.id;
     // Checking the last open item moves the checklist to "Done": it unfolds first, to show it there.
@@ -59,8 +60,7 @@ export class ChecklistItemComponent extends Component<HTMLElement, IChecklistIte
   }
 }
 
-// The change that checks (or unchecks) item `id`, applied to the checklist as stored: another item
-// checked a moment ago isn't overwritten.
+// The change that checks (or unchecks) item `id`, applied to the checklist as stored.
 function checking(id: string, done: boolean): (current: ITodo) => Pick<ITodo, 'items'> {
   return (current) => ({ items: (current.items ?? []).map((item) => (item.id === id ? { ...item, done } : item)) });
 }

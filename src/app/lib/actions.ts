@@ -5,7 +5,7 @@ import { clearRequestedFocus, requestFocus } from './focus.js';
 export interface IActionOptions {
   // Where the focus goes once the save re-renders the list (see requestFocus), in order of preference.
   focus?: string[];
-  // Puts back what the action showed ahead of the save (a rollback, a re-render, typed text).
+  // Puts back what the action showed ahead of the save.
   onError?: () => void;
 }
 

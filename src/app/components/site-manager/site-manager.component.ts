@@ -20,6 +20,7 @@ interface ISiteManagerView {
   orders: { value: SitesOrder; label: string; selected: boolean }[];
 }
 
+// @ts-ignore : variable(s) used in HTML template
 const templateFn = ({ loading, empty, orders }: ISiteManagerView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 // Where the focus goes when this page opens.
@@ -104,6 +105,7 @@ export class SiteManagerComponent extends AppComponent<HTMLElement, ISiteManager
     this.refresh();
   }
 
+  // @ts-ignore : function used in HTML template
   private async _setOrder(select: HTMLSelectElement): Promise<void> {
     const order = ORDERS.find(({ value }) => value === select.value)?.value;
     if (!order || order === this._order) return;
@@ -112,6 +114,7 @@ export class SiteManagerComponent extends AppComponent<HTMLElement, ISiteManager
     await runAction('Couldn\'t save that setting.', () => settingsService.setSitesOrder(order));
   }
 
+  // @ts-ignore : function used in HTML template
   private _back(): void {
     this._onBack();
   }

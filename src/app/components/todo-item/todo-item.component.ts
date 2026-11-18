@@ -17,10 +17,9 @@ import { TodoEditorComponent, type ITodoEditDraft } from '../todo-editor/todo-ed
 import { TODO_COMPOSER_INPUT } from '../todo-composer/todo-composer.component.js';
 import { todoCatalog } from '../todo-list/todo-list.selectors.js';
 
-// What TodoListComponent passes to each item, besides the to-do (see createCatalogComponents).
 export interface ITodoItemOptions {
   group: 'open' | 'done';
-  // Shows the grab handle (open to-dos, when there are at least two). The list runs the gestures.
+  // Shows the grab handle (when there are at least two). The list runs the gestures.
   reorderable: boolean;
   // The to-do picked up with the keyboard, if any.
   grabbedId: string | null;
@@ -37,7 +36,7 @@ export interface ITodoItemOptions {
 
 interface ITodoItemView {
   todo: ITodo;
-  // A checklist: its name, its items (checked right here) and how many are done.
+  // A checklist: its name, its items and how many are done.
   items: IChecklistItem[];
   doneCount: number;
   editing: boolean;
@@ -52,19 +51,19 @@ interface ITodoItemView {
 
 type TodoMenuAction = 'mark-done' | 'mark-all-done' | 'move' | 'move-into-checklist';
 
+// @ts-ignore : variable(s) used in HTML template
 const templateFn = ({ todo, items, doneCount, editing, collapsed, reorderable, grabbed, selecting, selected }: ITodoItemView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 /**
- * One to-do: a checkbox labelled by its text, and its actions (a done one only offers Mark as undone and Delete).
- * Only the box checks it: a click on its text or elsewhere on it opens the editor, like Edit.
- * Checking it moves it below the open ones; focus follows it there.
+ * One to-do: a checkbox labelled by its text, and its actions.
+ * Only the box checks it: a click on its text opens the editor, like Edit.
  *
  * A checklist has no checkbox of its own: its name, then its items, checked one by one; it's done
- * once they all are (see ScopeStoreService.updateWith). Its arrow folds it down to its name and
- * progress (saved on the to-do).
+ * once they all are (see ScopeStoreService.updateWith). Its arrow folds it down to its name and progress.
  *
- * Every to-do is edited in the to-do editor, in place: adding items to a single one makes it a
- * checklist, removing them all makes a checklist single, and items taken out become single to-dos after it.
+ * Adding items to a single to-do makes it a checklist
+ * Removing them all makes a checklist single.
+ * Items taken out become single to-dos.
  */
 export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
   private _todo: ITodo;
@@ -140,8 +139,7 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
 
   protected override onAfterRender(): void {
     super.onAfterRender();
-    // A checklist's items are checked by their checkboxes only: their text opens the checklist's editor
-    // too, focused on that item's field (elsewhere on the checklist: on its name).
+    // A checklist's items are checked by their checkboxes only.
     if (this.config.editing) return;
     // While selecting, a click on it (done or not) checks it instead.
     if (this.config.selecting) {
@@ -171,6 +169,7 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
     }
   }
 
+  // @ts-ignore : function used in HTML template
   private _select(selected: boolean): void {
     this.element.classList.toggle('todo-item--selected', selected);
     this._options.onSelect(this._todo.id, selected);
@@ -212,6 +211,7 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
     }
   }
 
+  // @ts-ignore : function used in HTML template
   // "Mark as undone" on a done to-do: unchecked, like from its checkbox. A checklist has all its items
   // unchecked, which moves it back to the open ones; Undo checks them all again, as they were.
   private async _markUndone(): Promise<void> {
@@ -225,6 +225,7 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
     }
   }
 
+  // @ts-ignore : function used in HTML template
   // Folded right away; the stored checklist then comes back as a new list item, focus on its arrow.
   private async _toggleCollapsed(): Promise<void> {
     const collapsed = !this.config.collapsed;
@@ -240,6 +241,7 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
     });
   }
 
+  // @ts-ignore : function used in HTML template
   private _edit(): void {
     this.edit();
   }

@@ -1,7 +1,7 @@
-// A reloaded list, with each item that didn't change replaced by its previous object, so a catalog
-// (which compares items shallowly) keeps it, along with an edit in progress. Every change to an item
-// gives it a new updatedAt (folding it aside). Its position doesn't count: reordering alone keeps
-// every item. Nor do its arrays (a checklist's items), new on every load.
+// A reloaded list, with each item that didn't change replaced by its previous object,
+// so a catalog (which compares items shallowly) keeps it, along with an edit in progress.
+// Every change to an item gives it a new updatedAt (folding it aside).
+// Its position doesn't count: reordering alone keeps every item.
 export function keepUnchanged<T extends IScopeItem & { collapsed?: boolean }>(previous: T[], next: T[]): T[] {
   const byId = new Map(previous.map((item) => [item.id, item]));
   return next.map((item) => {
@@ -10,8 +10,8 @@ export function keepUnchanged<T extends IScopeItem & { collapsed?: boolean }>(pr
   });
 }
 
-// `items` in the order of `ids` (the ids a reorder shows), in one pass over each. An id with no
-// item is skipped.
+// `items` in the order of `ids` (the ids a reorder shows), in one pass over each.
+// An id with no item is skipped.
 export function inOrder<T extends { id: string }>(items: T[], ids: string[]): T[] {
   const byId = new Map(items.map((item) => [item.id, item]));
   return ids.flatMap((id) => byId.get(id) ?? []);

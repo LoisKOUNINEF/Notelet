@@ -19,7 +19,7 @@ interface ICounts {
 
 interface IDeleteDataView {
   ages: { value: Age; label: string; selected: boolean }[];
-  // What each would delete ('' when nothing, or while counting), shown in its button's tooltip.
+  // What each would delete, shown in its button's tooltip.
   olderText: string;
   allText: string;
   // Nothing to delete: the button is aria-disabled (still focusable), its tooltip says why.
@@ -31,20 +31,20 @@ interface IDeleteDataView {
   busy: boolean;
 }
 
+// @ts-ignore : variable(s) used in HTML template
 const templateFn = ({ ages, olderText, allText, olderNothing, allNothing, olderDisabled, allDisabled, busy }: IDeleteDataView) => html`__TEMPLATE_PLACEHOLDER__`;
 
-// The controls whose focus survives a re-render (counts change under them), in fallback order.
+// The controls whose focus survives a re-render, in fallback order.
 const FOCUSABLE = ['.delete-data__select', '.delete-data__older-button', '.delete-data__all-button'];
 
 /**
  * Settings' "Delete everything" section: "Delete all older than <age>", then "Delete all notes
  * and to-dos". Both say how many notes and to-dos they'd delete, on every page and site, and are
- * disabled when that's none. Counts follow every change (here or in another window), and the
- * minutes passing while Settings stays open.
+ * disabled when that's none. Counts follow every change (here or in another window).
  */
 export class DeleteDataComponent extends AppComponent<HTMLElement, IDeleteDataView> {
   private _age: Age = DEFAULT_AGE;
-  // null while loading; also kept null after a failed load (counts unknown, buttons usable).
+  // null while loading; also kept null after a failed load.
   private _items: IStoredItem[] | null = null;
   private _loading = true;
   private _busy = false;
@@ -92,12 +92,14 @@ export class DeleteDataComponent extends AppComponent<HTMLElement, IDeleteDataVi
     this.refresh();
   }
 
+// @ts-ignore : function used in HTML template
   private _setAge(select: HTMLSelectElement): void {
     if (!isAge(select.value) || select.value === this._age) return;
     this._age = select.value;
     this.refresh();
   }
 
+// @ts-ignore : function used in HTML template
   private async _deleteOlder(): Promise<void> {
     if (this.config.olderNothing) return;
     const age = ageOption(this._age);
@@ -122,6 +124,7 @@ export class DeleteDataComponent extends AppComponent<HTMLElement, IDeleteDataVi
     notifierService.undoable(`${countText({ notes, todos })} deleted.`, () => scopeStoreService.restoreRemoved(removed), 'Couldn\'t restore them.');
   }
 
+// @ts-ignore : function used in HTML template
   private async _deleteEverything(): Promise<void> {
     if (this.config.allNothing) return;
     const all = this.allCounts();

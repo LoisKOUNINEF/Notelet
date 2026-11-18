@@ -2,10 +2,8 @@
 const CONTROLS = 'button, a, input, textarea, select, label, form, [role="menuitem"]';
 
 /**
- * A click on a card (a note, a to-do) anywhere but its controls opens it for editing, like its
- * Edit button, which stays for the keyboard. A click that ends a text selection within it (copying
- * a note's text) doesn't. `edit` gets what was clicked (e.g. which item of a checklist). Returns the
- * binding for the component's `eventListeners`.
+ * A click on a card (a note, a to-do) anywhere but its controls opens it for editing
+ * like itsEdit button, which stays for the keyboard.
  */
 export function editOnClick(card: HTMLElement, edit: (target: Element) => void): [EventTarget, string, EventListener] {
   const onClick: EventListener = (event) => {

@@ -19,7 +19,6 @@ export interface IScopeContent {
 
 export type ScopedContent = Record<NoteScope, IScopeContent>;
 
-// One stored note or to-do, with its kind (see listEverything()).
 export interface IStoredItem {
   kind: ScopeContentKind;
   item: IScopeItem;
@@ -41,7 +40,6 @@ export type ScopeItemChanges<K extends ScopeContentKind> = Partial<Omit<IScopeIt
 
 // What moveIntoChecklist() did, for its Undo (moveOutOfChecklist).
 export interface IMovedIntoChecklist {
-  // The to-do and the checklist, as they were.
   before: ITodo[];
   checklist: IChecklist;
   itemId: string;
@@ -117,7 +115,7 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
     return this.add('notes', this.newItem(scope, key, text));
   }
 
-  // A single to-do, or a checklist when given items (`text` is then the checklist's name).
+  // A single to-do, or a checklist when given items.
   public addTodo(scope: NoteScope, key: string, text: string, items: IChecklistItem[] = []): Promise<ITodo> {
     const todo: ITodo = { ...this.newItem(scope, key, text), done: false, doneAt: null };
     return this.add('todos', items.length > 0 ? { ...todo, items, done: checklistDone(items) } : todo);
@@ -178,7 +176,7 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
     return this.enqueue(() => this.write(kind, first.scope, first.key, (list) => [...list.filter((i) => !ids.has(i.id)), ...items]));
   }
 
-  // Empties one list (a scope's notes, or its to-dos) in a single write. Resolves to what was in it.
+  // Empties one list in a single write. Resolves to what was in it.
   public removeAll<K extends ScopeContentKind>(kind: K, scope: NoteScope, key: string): Promise<IScopeItemKinds[K][]> {
     return this.enqueue(() => this.writeList(kind, scope, key, (items) => ({ items: [], result: items })));
   }
@@ -194,11 +192,7 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
     return this.moveManyBack(kind, [moved], [original]);
   }
 
-  /**
-   * Moves several items of one list (one scope key) to the tab's other scope, in a single write.
-   * To-dos land on top of the other list in the order given; items gone meanwhile are skipped.
-   * Resolves to the items as moved.
-   */
+  // Moves several items of one list (one scope key) to the tab's other scope, in a single write.
   public moveMany<K extends ScopeContentKind>(kind: K, items: IScopeItemKinds[K][], keys: IScopeKeys): Promise<IScopeItemKinds[K][]> {
     const [first] = items;
     if (!first) return Promise.resolve([]);
@@ -229,7 +223,7 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
     });
   }
 
-  // Undoes moveMany() (`originals` as they were before it), in a single write. Edits made since stay.
+  // Undoes moveMany(), in a single write. Edits made since stay.
   public moveManyBack<K extends ScopeContentKind>(kind: K, moved: IScopeItemKinds[K][], originals: IScopeItemKinds[K][]): Promise<void> {
     const [first] = moved;
     const [original] = originals;
@@ -450,8 +444,7 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
     });
   }
 
-  // Replaces one item by `replace(current)`, in its list's write. Resolves to the new item, or the
-  // caller's copy if it's gone.
+  // Replaces one item by `replace(current)`, in its list's write.
   private replaceItem<K extends ScopeContentKind>(
     kind: K,
     item: IScopeItemKinds[K],

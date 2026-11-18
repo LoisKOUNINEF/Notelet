@@ -12,7 +12,6 @@
   overflow-wrap: anywhere;
 }
 
-// Muted text keeps a 4.5:1 contrast in both themes; the strike says "done" without color.
 .checklist-item--done .checklist-item__text {
   color: var(--color-text-muted);
   text-decoration: line-through;

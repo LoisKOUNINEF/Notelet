@@ -16,7 +16,7 @@
     background: var(--color-surface-muted);
   }
 
-  // A click opens it for editing (see lib/card-click.ts), or selects it while the list is selecting.
+  // A click opens it for editing, or selects it while the list is selecting.
   &:not(.todo-item--done):not(:has(.todo-editor)),
   &:has(.todo-item__select) {
     cursor: pointer;
@@ -32,21 +32,19 @@
   }
 }
 
-// The checkbox's <label> holds only the box: the text beside it takes the free space, and a click
-// on it opens the editor instead of checking the to-do.
+// The checkbox's <label> holds only the box: a click on text opens the editor.
 .todo-item__text {
   flex: 1;
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
-// Muted text keeps a 4.5:1 contrast in both themes; the strike says "done" without color.
 .todo-item--done .todo-item__text {
   color: var(--color-text-muted);
   text-decoration: line-through;
 }
 
-// A checklist's name, in place of a checkbox, with how much of it is done.
+// A checklist's name, with how much of it is done.
 .todo-item__title {
   flex: 1;
   min-width: 0;

@@ -9,6 +9,7 @@ interface IChecklistAddView {
   name: string;
 }
 
+// @ts-ignore : variable(s) used in HTML template
 const templateFn = ({ name }: IChecklistAddView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 // Its field: where the focus goes back once the checklist comes back with the item.
@@ -23,6 +24,7 @@ export class ChecklistAddComponent extends Component<HTMLElement, IChecklistAddV
     this._checklist = checklist;
   }
 
+  // @ts-ignore : function used in HTML template
   private async _add(): Promise<void> {
     const input = requireElement<HTMLInputElement>(this.element, CHECKLIST_ADD_INPUT);
     const typed = input.value;

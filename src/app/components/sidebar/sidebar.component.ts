@@ -22,6 +22,7 @@ interface ISidebarView {
   available: boolean;
 }
 
+// @ts-ignore : variable(s) used in HTML template
 const templateFn = ({ settingsPage, available }: ISidebarView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 const SETTINGS_TOGGLE = '.sidebar__settings-toggle';
@@ -156,6 +157,7 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
     else this._sitePages = null;
   }
 
+  // @ts-ignore : function used in HTML template
   // From any settings page back to the notes, or from the notes to the settings.
   private _toggleSettings(): void {
     if (this._settingsPage) this.openSettings(null, SETTINGS_TOGGLE);

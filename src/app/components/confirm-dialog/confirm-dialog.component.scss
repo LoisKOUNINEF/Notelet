@@ -1,5 +1,3 @@
-// The title and message centered in the space above the buttons: auto margins above and below
-// them share it, and shrink to nothing when a long message needs the room (it then scrolls).
 .confirm-dialog__title {
   margin-top: auto;
   margin-bottom: var(--space-2);
@@ -22,12 +20,10 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: var(--a11y-modal-footer-gap);
-  // At the bottom right, at least this far below the message.
   padding-top: var(--a11y-modal-footer-margin-top);
 }
 
-// confirmService.choose(): one full-width button per choice, under the message (which then
-// leaves its auto margin to the list: the list scrolls with the content when long).
+// confirmService.choose(): one full-width button per choice, under the message.
 .confirm-dialog__choices {
   display: grid;
   gap: var(--space-2);

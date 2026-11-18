@@ -137,8 +137,7 @@ export class ListReorder {
     }
   }
 
-  // Tabbing away (or clicking elsewhere) drops the item where it is. The re-renders that move
-  // the handle itself happen while previewing.
+  // Tabbing away (or clicking elsewhere) drops the item where it is..
   private onFocusout(): void {
     if (!this._grab || this._previewing) return;
     void this.drop(this._grab);
@@ -272,7 +271,7 @@ export class ListReorder {
     if (!this._disposed) this.host.settle(saved);
   }
 
-  // The item whose handle a keyboard or pointer event started on (their targets are elements).
+  // The item whose handle a keyboard or pointer event started on.
   private handleId(target: EventTarget | null): string | null {
     const handle = (target as Element).closest(this.host.handleSelector);
     return handle?.closest<HTMLElement>(`[data-${this.host.idAttribute}]`)?.dataset[dataKey(this.host.idAttribute)] ?? null;

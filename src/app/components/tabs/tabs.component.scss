@@ -50,7 +50,6 @@
 
 .tabs--folder {
   --tabs-folder-surface: var(--color-surface-muted);
-  // Inset: the selected tab's outer curves need card to sit on, even at the row's ends.
   gap: var(--space-1);
   padding: 0 var(--space-2);
   border-radius: 0;
@@ -69,7 +68,6 @@
       background: var(--tabs-folder-surface);
       box-shadow: none;
 
-      // The curves joining the tab to the card below, one on each side.
       &::before,
       &::after {
         content: '';

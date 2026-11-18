@@ -1,4 +1,4 @@
-// Moves `id` to `toIndex` (clamped to the list), without changing the given array.
+// Moves `id` to `toIndex`, without changing the given array.
 export function moveId(ids: string[], id: string, toIndex: number): string[] {
   const from = ids.indexOf(id);
   if (from === -1) return [...ids];
@@ -8,8 +8,8 @@ export function moveId(ids: string[], id: string, toIndex: number): string[] {
 }
 
 /**
- * Where a dragged item lands: past every other item whose vertical middle the pointer has
- * crossed. `midpoints` are every item's, in list order, the dragged one included (it's skipped).
+ * Where a dragged item lands: past every other item whose vertical middle the pointer has crossed.
+ * `midpoints` are every item's, in list order, the dragged one included.
  */
 export function targetIndex(pointerY: number, midpoints: number[], fromIndex: number): number {
   let index = fromIndex;

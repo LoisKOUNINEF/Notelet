@@ -30,6 +30,7 @@ interface ITodoEditorView {
   takenOut: IChecklistItem[];
 }
 
+// @ts-ignore : variable(s) used in HTML template
 const templateFn = ({ text, restored, hasItems, takenOut }: ITodoEditorView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 /**
@@ -144,6 +145,7 @@ export class TodoEditorComponent extends Component<HTMLElement, ITodoEditorView>
     return this._checklist;
   }
 
+  // @ts-ignore : function used in HTML template
   private _onKeydown(event: KeyboardEvent): void {
     if (event.key !== 'Escape') return;
     // Don't let Escape also reach the panel (it would close an open overlay).
@@ -151,10 +153,12 @@ export class TodoEditorComponent extends Component<HTMLElement, ITodoEditorView>
     this._cancel();
   }
 
+  // @ts-ignore : function used in HTML template
   private _addField(): void {
     this.checklist.add();
   }
 
+  // @ts-ignore : function used in HTML template
   // "Put back": a taken-out item returns to the end of the fields.
   private _putBack(id: string): void {
     const item = this._takenOut.find((taken) => taken.id === id);
@@ -164,6 +168,7 @@ export class TodoEditorComponent extends Component<HTMLElement, ITodoEditorView>
     this.checklist.add(item);
   }
 
+  // @ts-ignore : function used in HTML template
   private _save(): void {
     this.collect();
     const text = this._text.trim();

@@ -30,6 +30,7 @@ interface IChecklistFieldsView {
 // Unique ids for the captions (several editors may be open).
 let nextId = 0;
 
+// @ts-ignore : variable(s) used in HTML template
 const templateFn = ({ hasItems, label, className, caption, id }: IChecklistFieldsView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 /**
