@@ -3,7 +3,7 @@ export default {
     browsers: ['chrome', 'firefox'],
     // Firefox's add-on id. storage.sync data and addons.mozilla.org tie to it. 
     // Once extension is published, IT CAN NEVER CHANGE.
-    geckoId: 'notelet@kouninef.dev',
+    geckoId: 'notelet@lois-kouninef.eu',
   },
 
   // Build pipeline
