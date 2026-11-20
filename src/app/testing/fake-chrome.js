@@ -4,6 +4,8 @@
 //   beforeEach(() => { fake = installFakeChrome({ url: 'https://example.com/a' }); });
 //   afterEach(() => uninstallFakeChrome());
 
+const BROWSER = 'chrome'; // BROWSER = 'firefox' to make the extension's URLs moz-extension:// ones
+
 function createEvent() {
   const listeners = new Set();
   return {
@@ -57,8 +59,7 @@ function createStorageArea(name, onChanged, quota = {}) {
   };
 }
 
-// `browser: 'firefox'` makes the extension's URLs moz-extension:// ones, as in Firefox.
-export function createFakeChrome({ url = 'https://example.com/', browser = 'chrome' } = {}) {
+export function createFakeChrome({ url = 'https://example.com/', browser = BROWSER } = {}) {
   const onChanged = createEvent();
   const activeTab = { id: 1, windowId: 1, active: true, url };
 

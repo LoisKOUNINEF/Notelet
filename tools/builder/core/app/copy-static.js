@@ -73,16 +73,10 @@ async function copyPublic() {
 }
 
 async function copyConfig() {
-  const srcPath = path.resolve(path.join('config'));
   const temp = builderConfig.isProd ? PATHS.temp : PATHS.tempSource;
-  const destPath = path.join(temp, 'config');
   try {
-    await copyJsonFiles(srcPath, destPath);
-    await copyFile(path.resolve('nutin.config.js'), path.join(temp, 'nutin.config.js'));
-
     // for testin-nutin tests to run
     if (!builderConfig.isProd) {
-      await copyJsonFiles(srcPath, path.join(PATHS.temp, 'config'));
       await copyFile(path.resolve('nutin.config.js'), path.join(PATHS.temp, 'nutin.config.js'));
     }
   } catch (err) {
