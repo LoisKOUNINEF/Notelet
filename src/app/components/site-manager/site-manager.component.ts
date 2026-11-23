@@ -1,4 +1,8 @@
-import { html, raw } from '../../../core/index.js';
+import {
+  html,
+  // @ts-ignore : function used in HTML template
+  raw,
+} from '../../../core/index.js';
 import { runAction } from '../../lib/actions.js';
 import { failureMessage } from '../../lib/errors.js';
 import { applyRequestedFocus, renderKeepingFocus } from '../../lib/focus.js';

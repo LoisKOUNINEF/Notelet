@@ -21,6 +21,7 @@ interface IItemMenuView {
   actions: IMenuAction<string>[];
 }
 
+// @ts-ignore : variable(s) used in HTML template
 const templateFn = ({ id, name, actions }: IItemMenuView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 /**

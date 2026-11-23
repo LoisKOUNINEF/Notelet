@@ -19,6 +19,7 @@ interface ISelectionBarView {
   moveBlockedHint: string;
 }
 
+// @ts-ignore : variable(s) used in HTML template
 const templateFn = ({ target, count, moveBlockedHint }: ISelectionBarView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 /**
@@ -50,14 +51,17 @@ export class SelectionBarComponent extends Component<HTMLElement, ISelectionBarV
     if (hint) hint.hidden = !moveBlocked;
   }
 
+  // @ts-ignore : function used in HTML template
   private _delete(): void {
     this._bar.onDelete();
   }
 
+  // @ts-ignore : function used in HTML template
   private _move(): void {
     this._bar.onMove();
   }
 
+  // @ts-ignore : function used in HTML template
   private _cancel(): void {
     this._bar.onCancel();
   }

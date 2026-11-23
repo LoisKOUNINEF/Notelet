@@ -1,4 +1,9 @@
-import { Component, html, raw } from '../../../core/index.js';
+import {
+  Component,
+  html,
+  // @ts-ignore : function used in HTML template
+  raw,
+} from '../../../core/index.js';
 import { editOnClick } from '../../lib/card-click.js';
 import { runAction } from '../../lib/actions.js';
 import { revealDoneGroup } from '../../lib/done-group.js';
@@ -297,6 +302,7 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
     notifierService.undoable(`${quoted(this._todo.text)} moved into ${quoted(checklist.text)}.`, () => scopeStoreService.moveOutOfChecklist(this._todo, checklist, moved.itemId), `Couldn't move ${quoted(this._todo.text)} back.`);
   }
 
+  // @ts-ignore : function used in HTML template
   private async _delete(): Promise<void> {
     const todo = this._todo;
     const deleted = await runAction(`Couldn't delete ${todoRef(todo)}.`, async () => {

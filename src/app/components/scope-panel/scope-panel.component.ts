@@ -31,6 +31,7 @@ interface IScopePanelView {
   location: { text: string; full: string };
 }
 
+// @ts-ignore : variable(s) used in HTML template
 const templateFn = ({ scope, kind, loaded, location }: IScopePanelView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 const SCOPE_LABELS: Record<NoteScope, string> = { page: 'This page', site: 'This site' };

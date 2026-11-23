@@ -24,6 +24,7 @@ interface INoteEditorView {
   restored: boolean;
 }
 
+// @ts-ignore : variable(s) used in HTML template
 const templateFn = ({ text, name, restored }: INoteEditorView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 // A note in edit mode: its optional name and its text, in place of the note until saved or cancelled.
@@ -96,6 +97,7 @@ export class NoteEditorComponent extends Component<HTMLElement, INoteEditorView>
   }
 
   // In the name, Enter goes on to the text; Ctrl+Enter and Escape work as in the text.
+  // @ts-ignore : function used in HTML template
   private _onNameKeydown(event: KeyboardEvent): void {
     if (event.key === 'Enter' && !event.ctrlKey && !event.metaKey) {
       event.preventDefault();
@@ -116,6 +118,7 @@ export class NoteEditorComponent extends Component<HTMLElement, INoteEditorView>
     }
   }
 
+  // @ts-ignore : function used in HTML template
   private _save(): void {
     const text = this.textarea.value.trim();
     // Nothing left to keep: deleting a note is its own action.

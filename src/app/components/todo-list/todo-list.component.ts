@@ -1,4 +1,8 @@
-import { html, raw } from '../../../core/index.js';
+import {
+  html,
+  // @ts-ignore : function used in HTML template
+  raw,
+} from '../../../core/index.js';
 import { runAction } from '../../lib/actions.js';
 import { plural } from '../../lib/plural.js';
 import { inOrder } from '../../lib/unchanged.js';

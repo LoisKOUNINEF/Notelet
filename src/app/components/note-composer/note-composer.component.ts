@@ -15,6 +15,7 @@ interface INoteComposerView {
   draft: string;
 }
 
+// @ts-ignore : variable(s) used in HTML template
 const templateFn = ({ label, draft }: INoteComposerView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 // Its text field: where the focus goes once a note leaves the list.
@@ -51,6 +52,7 @@ export class NoteComposerComponent extends Component<HTMLElement, INoteComposerV
     this.eventListeners.push([input, 'input', onInput]);
   }
 
+  // @ts-ignore : function used in HTML template
   private _onKeydown(event: KeyboardEvent): void {
     if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
       event.preventDefault();
@@ -58,6 +60,7 @@ export class NoteComposerComponent extends Component<HTMLElement, INoteComposerV
     }
   }
 
+  // @ts-ignore : function used in HTML template
   private async _add(): Promise<void> {
     const input = this.input;
     const typed = input.value;

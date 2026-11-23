@@ -1,4 +1,8 @@
-import { html, raw } from '../../../core/index.js';
+import {
+  html,
+  // @ts-ignore : function used in HTML template
+  raw,
+} from '../../../core/index.js';
 import { runAction } from '../../lib/actions.js';
 import { downloadFile } from '../../lib/download.js';
 import { failureMessage } from '../../lib/errors.js';
@@ -40,6 +44,7 @@ export class BackupDataComponent extends AppComponent<HTMLElement, IBackupDataVi
     this.refresh();
   }
 
+  // @ts-ignore : function used in HTML template
   private async _export(): Promise<void> {
     await this.work(async () => {
       const backup = await runAction('Couldn\'t export your notes.', () => scopeStoreService.exportAll());
@@ -57,10 +62,12 @@ export class BackupDataComponent extends AppComponent<HTMLElement, IBackupDataVi
   }
 
   // The visible button opens the file picker: a styled <input type="file"> reads poorly.
+  // @ts-ignore : function used in HTML template
   private _pickFile(): void {
     this.element.querySelector<HTMLInputElement>('.backup-data__file')?.click();
   }
 
+  // @ts-ignore : function used in HTML template
   private async _import(input: HTMLInputElement): Promise<void> {
     const file = input.files?.[0];
     // Picking the same file again must fire `change` again.

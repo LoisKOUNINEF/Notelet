@@ -1,4 +1,9 @@
-import { Component, html, raw } from '../../../core/index.js';
+import {
+  Component,
+  html,
+  // @ts-ignore : function used in HTML template
+  raw,
+} from '../../../core/index.js';
 import { runAction } from '../../lib/actions.js';
 import { revealDoneGroup } from '../../lib/done-group.js';
 import { byData } from '../../lib/focus.js';

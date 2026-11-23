@@ -1,11 +1,20 @@
-import { Component, html, raw } from '../../../core/index.js';
+import {
+  Component,
+  html,
+  // @ts-ignore : function used in HTML template
+  raw,
+} from '../../../core/index.js';
 import { runAction } from '../../lib/actions.js';
 import { editOnClick } from '../../lib/card-click.js';
 import { overflowsOneLine, requireElement } from '../../lib/dom.js';
 import { getEditDraft } from '../../lib/drafts.js';
 import { firstLine, noteRef, sentence } from '../../lib/labels.js';
 import { byData } from '../../lib/focus.js';
-import { formatDateTime, formatTimeAgo } from '../../lib/pipes.js';
+import {
+  // @ts-ignore : function used in HTML template
+  formatDateTime,
+  formatTimeAgo,
+} from '../../lib/pipes.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
 import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
 import { ItemMenuComponent } from '../item-menu/item-menu.component.js';
@@ -47,6 +56,7 @@ export interface INoteItemOptions {
   onSelect: (id: string, selected: boolean) => void;
 }
 
+// @ts-ignore : variable(s) used in HTML template
 const templateFn = ({ note, editing, edited, reorderable, grabbed, name, canCollapse, collapsed, summary, more, selecting, selected }: INoteItemView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 /**
@@ -158,6 +168,7 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
     if (toggle && line) toggle.hidden = !overflowsOneLine(line);
   }
 
+  // @ts-ignore : function used in HTML template
   private _select(selected: boolean): void {
     this.element.classList.toggle('note-item--selected', selected);
     this._options.onSelect(this._note.id, selected);
@@ -179,6 +190,7 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
   }
 
   // Folded right away; the stored note then comes back as a new list item, focus on its arrow.
+  // @ts-ignore : function used in HTML template
   private async _toggleCollapsed(): Promise<void> {
     const collapsed = !this.config.collapsed;
     this.config = { ...this.config, collapsed };
@@ -220,6 +232,7 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
     }
   }
 
+  // @ts-ignore : function used in HTML template
   private async _delete(): Promise<void> {
     const note = this._note;
     const deleted = await runAction(`Couldn't delete ${noteRef(note)}.`, async () => {

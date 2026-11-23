@@ -1,7 +1,11 @@
 import { Component, html } from '../../../core/index.js';
 import { runAction } from '../../lib/actions.js';
 import { countList } from '../../lib/plural.js';
-import { formatDateTime, formatTimeAgo } from '../../lib/pipes.js';
+import {
+  // @ts-ignore : function used in HTML template
+  formatDateTime,
+  formatTimeAgo,
+} from '../../lib/pipes.js';
 import { confirmService } from '../../services/confirm/confirm.service.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
 import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';

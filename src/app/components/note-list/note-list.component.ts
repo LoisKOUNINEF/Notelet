@@ -23,6 +23,7 @@ interface INoteListView {
   emptyText: string;
 }
 
+// @ts-ignore : variable(s) used in HTML template
 const templateFn = ({ notes, reorderable, selecting, label, emptyText }: INoteListView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 const EMPTY_TEXT: Record<NoteScope, string> = {
@@ -104,6 +105,7 @@ export class NoteListComponent extends ReorderableList<INote, INoteListView> {
     return inOrder(notes, order);
   }
 
+  // @ts-ignore : function used in HTML template
   private async _deleteAll(): Promise<void> {
     const confirmed = await confirmService.ask({
       title: `Delete all notes for this ${this._scope}?`,
