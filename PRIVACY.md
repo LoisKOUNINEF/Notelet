@@ -1,6 +1,6 @@
 # Notelet privacy policy
 
-_Last updated: 29 October 2026_
+_Last updated: 20 November 2026_
 
 Notelet is a browser extension that keeps notes and to-dos for the web pages and sites you visit, in Chrome's side panel or Firefox's sidebar.
 
@@ -28,6 +28,10 @@ Notelet is a browser extension that keeps notes and to-dos for the web pages and
 ## Backups
 
 - "Export to a file" (Settings, "Backup") saves your notes and to-dos as a JSON file on your computer, where you choose. Notelet doesn't send it anywhere; "Import a file" reads one you pick.
+
+## Tipping
+
+- "Tip on Ko-fi" (Settings, "Support Notelet") is optional: it opens the developer's Ko-fi page (<https://ko-fi.com/loiskouninef>) in a new tab, and nothing else. Notelet sends nothing to Ko-fi; what you do on that page is covered by [Ko-fi's privacy policy](https://more.ko-fi.com/privacy).
 
 ## Deleting your data
 

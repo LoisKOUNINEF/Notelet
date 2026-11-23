@@ -1,4 +1,8 @@
-import { html, raw } from '../../../core/index.js';
+import {
+  html,
+  // @ts-ignore : function used in HTML template
+  raw,
+} from '../../../core/index.js';
 import { runAction } from '../../lib/actions.js';
 import { requireElement } from '../../lib/dom.js';
 import { failureMessage } from '../../lib/errors.js';
@@ -33,11 +37,15 @@ interface ISettingsPanelView {
   syncedWith: string;
 }
 
+// @ts-ignore : variable(s) used in HTML template
 const templateFn = ({ areas, themes, busy, pending, browser, syncedWith }: ISettingsPanelView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 // Where the focus goes when the settings open, and back from "Manage by site".
 export const SETTINGS_TITLE = '#settings-title';
 export const MANAGE_SITES_BUTTON = '.settings-panel__manage-sites';
+
+// "Support Notelet": opened in a new tab, nothing is sent from the extension.
+const TIP_URL = 'https://ko-fi.com/loiskouninef';
 
 const SYNCED_WITH: Record<BrowserName, string> = {
   chrome: 'your Chrome profile',
@@ -116,6 +124,7 @@ export class SettingsPanelComponent extends AppComponent<HTMLElement, ISettingsP
     };
   }
 
+  // @ts-ignore : function used in HTML template
   private _setArea(value: string): void {
     const area = AREA_VALUES.find((option) => option === value);
     if (!area) return;
@@ -123,6 +132,7 @@ export class SettingsPanelComponent extends AppComponent<HTMLElement, ISettingsP
     this.areaRadio(area).focus();
   }
 
+  // @ts-ignore : function used in HTML template
   private async _setTheme(value: string): Promise<void> {
     const theme = THEME_OPTIONS.find((option) => option.value === value)?.value;
     if (!theme) return;
@@ -137,10 +147,12 @@ export class SettingsPanelComponent extends AppComponent<HTMLElement, ISettingsP
     }
   }
 
+  // @ts-ignore : function used in HTML template
   private async _apply(): Promise<void> {
     if (this.config.pending) await this.migrate(this.config.pending);
   }
 
+  // @ts-ignore : function used in HTML template
   private _cancel(): void {
     this.setBusy(false);
     this.areaRadio(settingsService.storageArea).focus();
@@ -160,12 +172,19 @@ export class SettingsPanelComponent extends AppComponent<HTMLElement, ISettingsP
     }
   }
 
+  // @ts-ignore : function used in HTML template
   private _manageSites(): void {
     this._onManageSites();
   }
 
+  // @ts-ignore : function used in HTML template
   private async _openChromeSettings(url: string): Promise<void> {
     await runAction('Couldn\'t open Chrome\'s settings.', () => chromeApiService.openTab(url));
+  }
+
+  // @ts-ignore : function used in HTML template
+  private async _openTip(): Promise<void> {
+    await runAction('Couldn\'t open the tip page.', () => chromeApiService.openTab(TIP_URL));
   }
 
   private setBusy(busy: boolean): void {

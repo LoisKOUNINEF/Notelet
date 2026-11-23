@@ -198,6 +198,20 @@ describe('SettingsPanelComponent', () => {
     expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t open Chrome\'s settings. No tab for you.', type: 'error', duration: 6000 });
   });
 
+  it('opens the tip page in a new tab', async () => {
+    expect(sectionButton('Support Notelet').textContent).toBe('Tip on Ko-fi');
+    sectionButton('Support Notelet').click();
+    await settle();
+    expect(panel.fake.tabs.created).toEqual([{ url: 'https://ko-fi.com/loiskouninef' }]);
+  });
+
+  it('explains when the tip page can\'t be opened', async () => {
+    panel.fake.tabs.create = async () => { throw new Error('No tab for you.'); };
+    sectionButton('Support Notelet').click();
+    await settle();
+    expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t open the tip page. No tab for you.', type: 'error', duration: 6000 });
+  });
+
   it('offers help as collapsed questions under a "Help" heading', () => {
     const section = $$('.settings-panel__subtitle').find((h) => h.textContent === 'Help').parentElement;
     const entries = [...section.querySelectorAll('details')];
@@ -291,10 +305,10 @@ describe('SettingsPanelComponent - delete everything', () => {
     await panel.stop();
   });
 
-  it('comes right before the backup, with both ways to delete, the help coming last', () => {
+  it('comes right before the backup, with both ways to delete, the help and the tip coming last', () => {
     const titles = $$('.settings-panel__subtitle').map((h) => h.textContent);
     expect(titles.indexOf('Manage notes and to-dos')).toBe(titles.indexOf('Backup') - 1);
-    expect(titles.at(-1)).toBe('Help');
+    expect(titles.slice(-2)).toEqual(['Help', 'Support Notelet']);
     expect($('.backup-data__export')).toBeTruthy();
     expect($('.delete-data__select')).toBeTruthy();
     expect($('.delete-data__all-button').textContent).toBe('Delete all notes and to-dos');

@@ -1,4 +1,4 @@
-# Notelet - Built with Nutin
+# Notelet
 
 ```text
 Notes & tasks, at a glance.
@@ -60,3 +60,7 @@ The sources are `src/extension/` (Chrome's manifest and the background script) a
 ## Getting started
 
 See [Getting Started](GETTING_STARTED.md) for project-specific guidance.
+
+## Support
+
+If you find Notelet useful, consider supporting its development on [Ko-fi](https://ko-fi.com/loiskouninef)
