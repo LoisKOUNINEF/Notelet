@@ -64,7 +64,7 @@
 
   <div class="settings-panel__section">
     <h3 class="settings-panel__subtitle">Keyboard shortcut</h3>
-    <p class="settings-panel__text"><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd> opens and closes the panel, as does the toolbar button.</p>
+    <p class="settings-panel__text"><kbd>${altModifierKey()}</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd> opens and closes the panel, as does the toolbar button.</p>
     ${browser === 'firefox' ? html`
     <p class="settings-panel__text settings-panel__shortcut-help">To change it, open Add-ons and themes (<code>about:addons</code>), then ⚙ → Manage Extension Shortcuts.</p>` : html`
     <button class="button" type="button" tabindex="0" data-event="click:_openChromeSettings:'chrome://extensions/shortcuts'">Change the shortcut</button>`}
@@ -119,7 +119,7 @@
       </details>
       <details class="settings-panel__help-item">
         <summary>Keyboard shortcuts</summary>
-        <p><kbd>Ctrl</kbd>+<kbd>Enter</kbd> (<kbd>⌘</kbd>+<kbd>Enter</kbd> on a Mac) adds or saves, <kbd>Esc</kbd> cancels an edit, and <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd> opens the panel.</p>
+        <p><kbd>${modifierKey()}</kbd>+<kbd>Enter</kbd> adds or saves, <kbd>Esc</kbd> cancels an edit, and <kbd>${altModifierKey()}</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd> opens the panel.</p>
       </details>
     </div>
   </div>

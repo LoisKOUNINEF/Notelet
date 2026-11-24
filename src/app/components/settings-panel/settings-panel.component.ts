@@ -6,6 +6,7 @@ import {
 import { runAction } from '../../lib/actions.js';
 import { requireElement } from '../../lib/dom.js';
 import { failureMessage } from '../../lib/errors.js';
+import { altModifierKey, modifierKey } from '../../lib/platform.js';
 import { chromeApiService } from '../../services/chrome-api/chrome-api.service.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
 import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';

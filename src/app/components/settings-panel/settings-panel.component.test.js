@@ -212,6 +212,24 @@ describe('SettingsPanelComponent', () => {
     expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t open the tip page. No tab for you.', type: 'error', duration: 6000 });
   });
 
+  it('names the shortcut keys as the keyboard shows them: ⌘ and ⌥ on macOS, Ctrl and Alt elsewhere', () => {
+    const keys = () => $$('.settings-panel kbd').map((k) => k.textContent);
+    expect(keys()).toContain('Ctrl');
+    expect(keys()).toContain('Alt');
+    expect(keys()).not.toContain('⌘');
+
+    Object.defineProperty(window.navigator, 'platform', { value: 'MacIntel', configurable: true });
+    try {
+      settings.render();
+      expect(keys()).toContain('⌘');
+      expect(keys()).toContain('⌥');
+      expect(keys()).not.toContain('Ctrl');
+      expect(keys()).not.toContain('Alt');
+    } finally {
+      delete window.navigator.platform;
+    }
+  });
+
   it('offers help as collapsed questions under a "Help" heading', () => {
     const section = $$('.settings-panel__subtitle').find((h) => h.textContent === 'Help').parentElement;
     const entries = [...section.querySelectorAll('details')];

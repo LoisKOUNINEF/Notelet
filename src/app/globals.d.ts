@@ -37,21 +37,26 @@ declare interface IChecklistItem {
   id: string;
   text: string;
   done: boolean;
+  // Folded down to its first line, cut with an ellipsis (see ChecklistItemComponent). Not an edit.
+  collapsed?: boolean;
 }
 
 // A note: text only (lists of things to check off are checklists).
 declare interface INote extends IScopeItem {
   // Optional, set in the note editor: shown above the text, and names the note in labels.
   name?: string;
-  // Folded down to its name and first line (see NoteItemComponent). Not an edit: keeps updatedAt.
+  // Its text folded down to its first line (see NoteItemComponent). Not an edit: keeps updatedAt.
   collapsed?: boolean;
+  // Its name cut to one line, folded apart from the text (see NoteItemComponent). Not an edit either.
+  nameCollapsed?: boolean;
 }
 
 declare interface ITodo extends IScopeItem {
   // A checklist: its text is the checklist's name, and it's done once every item is (see ScopeStoreService).
   // Absent or empty: a single to-do.
   items?: IChecklistItem[];
-  // A checklist folded down to its name and progress. Not an edit: keeps updatedAt.
+  // Folded: a single to-do down to its first line, a checklist down to its name's first line and
+  // its progress (see TodoItemComponent). Not an edit: keeps updatedAt.
   collapsed?: boolean;
   done: boolean;
   // When it was last checked (null while open): done to-dos are listed in the order they were done.

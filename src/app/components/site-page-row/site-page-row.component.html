@@ -1,0 +1,13 @@
+${page.current ? html`
+<span class="site-page-row__page site-page-row__page--current" aria-current="page" title="${page.key}">
+  <span class="site-page-row__label" id="site-page-${page.key}-label">${page.label}</span>
+  <span class="site-page-row__counts">${page.countText}<span class="a11y-visually-hidden">${', current page'}</span></span>
+</span>` : html`
+<button class="site-page-row__page" type="button" tabindex="0" title="${page.key}" data-url="${page.key}" data-event="click:_open:@dataset:url">
+  <span class="site-page-row__label" id="site-page-${page.key}-label">${page.label}</span>
+  <span class="site-page-row__counts">${page.countText}</span>
+</button>`}
+<span class="site-page-row__actions">
+  <span data-component="item-menu"></span>
+  <button class="button button--small button--danger site-page-row__delete" type="button" tabindex="0" aria-describedby="site-page-${page.key}-label" data-event="click:_delete">Delete</button>
+</span>

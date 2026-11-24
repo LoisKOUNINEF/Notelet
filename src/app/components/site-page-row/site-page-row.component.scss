@@ -1,0 +1,56 @@
+// One page in "Pages on this site": the page (a button opening it), then its actions.
+.site-page-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  // Its width comes from the list, never from a long page path.
+  contain: inline-size;
+}
+
+.site-page-row__page {
+  display: flex;
+  flex: 1;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: var(--radius-small);
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+}
+
+button.site-page-row__page {
+  cursor: pointer;
+
+  &:hover {
+    background: var(--color-surface-muted);
+  }
+}
+
+.site-page-row__page--current {
+  background: var(--color-surface-muted);
+  font-weight: 600;
+}
+
+.site-page-row__label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.site-page-row__counts {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-weight: normal;
+}
+
+.site-page-row__actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+}

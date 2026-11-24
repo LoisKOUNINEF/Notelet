@@ -169,7 +169,7 @@ describe('SidebarComponent', () => {
     tab('site').click();
     await settle();
 
-    // The notes were loaded with the page's: only the "Pages on this site" list is read (all of it).
+    // The notes were loaded with the page's: only the "All pages from this site" list is read (all of it).
     expect(get.calls).toEqual([[null]]);
     get.restore();
     expect(tab('site').getAttribute('aria-selected')).toBe('true');
@@ -277,8 +277,8 @@ describe('SidebarComponent', () => {
     tab('site').click();
     await settle();
     $('.site-pages__toggle').click();
-    expect(texts('.site-pages__label')).toEqual(['/blog', '/docs']);
-    expect($('.site-pages__page--current .site-pages__label').textContent).toBe('/docs');
+    expect(texts('.site-page-row__label')).toEqual(['/blog', '/docs']);
+    expect($('.site-page-row__page--current .site-page-row__label').textContent).toBe('/docs');
 
     $('[data-url="https://example.com/blog"]').click();
     await settle();
@@ -287,7 +287,7 @@ describe('SidebarComponent', () => {
     expect(tab('site').getAttribute('aria-selected')).toBe('true');
     // Still open, now with the other page as the current one.
     expect($('.site-pages__toggle').getAttribute('aria-expanded')).toBe('true');
-    expect($('.site-pages__page--current .site-pages__label').textContent).toBe('/blog');
+    expect($('.site-page-row__page--current .site-page-row__label').textContent).toBe('/blog');
   });
 
   it('only lists the site\'s pages (a read of all storage) on the site tab', async () => {
@@ -308,7 +308,7 @@ describe('SidebarComponent', () => {
     expect(wholeReads()).toBe(2);
     get.restore();
     $('.site-pages__toggle').click();
-    expect(texts('.site-pages__label')).toEqual(['/blog', '/docs', '/new']);
+    expect(texts('.site-page-row__label')).toEqual(['/blog', '/docs', '/new']);
   });
 
   it('reads nothing again for changes it doesn\'t show', async () => {
@@ -380,15 +380,28 @@ describe('SidebarComponent', () => {
     expect($('.site-pages__loading')).toBeFalsy();
   });
 
-  it('adds a page to the site\'s list once it has notes', async () => {
+  it('adds a page to the site\'s list once it has items of the kind shown, and follows the kind tab', async () => {
     await mount();
     tab('site').click();
     await settle();
     expect($('.site-pages')).toBeFalsy();
 
+    // The Notes tab: a to-do doesn't list the page.
     await scopeStoreService.addTodo('page', KEYS.page, 'First to-do');
     await settle();
+    expect($('.site-pages')).toBeFalsy();
+
+    await scopeStoreService.addNote('page', KEYS.page, 'First note');
+    await settle();
     expect($('.site-pages__toggle').textContent.trim()).toBe('Pages on this site (1)');
+    $('.site-pages__toggle').click();
+    expect(texts('.site-page-row__counts')).toEqual(['1 note, current page']);
+
+    // The To-dos tab: its to-dos, the list still open.
+    $('#kind-tab-todos').click();
+    await settle();
+    expect($('.site-pages__toggle').getAttribute('aria-expanded')).toBe('true');
+    expect(texts('.site-page-row__counts')).toEqual(['1 to-do, current page']);
   });
 
   it('keeps the site\'s lists as they are when navigating to another page of the site', async () => {
@@ -409,7 +422,7 @@ describe('SidebarComponent', () => {
     expect($('.note-item')).toBe(note);
     expect($('.site-pages').parentElement).toBe(pages);
     expect(texts('.note-item__text')).toEqual(['Site-wide']);
-    expect($('.site-pages__page--current .site-pages__label').textContent).toBe('/other');
+    expect($('.site-page-row__page--current .site-page-row__label').textContent).toBe('/other');
 
     tab('page').click();
     await settle();

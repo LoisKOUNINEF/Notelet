@@ -4,61 +4,85 @@ import {
   // @ts-ignore : function used in HTML template
   raw,
 } from '../../../core/index.js';
-import { runAction } from '../../lib/actions.js';
 import { applyRequestedFocus, byData, renderKeepingFocus, requestFocus } from '../../lib/focus.js';
-import { countList, plural } from '../../lib/plural.js';
-import { chromeApiService } from '../../services/chrome-api/chrome-api.service.js';
+import { plural } from '../../lib/plural.js';
+import { SitePageRowComponent, type ISitePageEntry, type ISitePageRowOptions } from '../site-page-row/site-page-row.component.js';
 
 export interface ISitePagesConfig {
   // null while they're being listed (the first time for this site): a spinner shows.
   pages: ISitePage[] | null;
-  // The active tab's page key: shown, but not as a link.
-  currentPage: string;
-}
-
-interface ISitePageEntry extends ISitePage {
-  current: boolean;
-  countText: string;
+  // The active tab's keys: its page is shown, but not as a link; its site is where "Move all" sends.
+  keys: IScopeKeys;
+  // The kind tab shown: only the pages with notes, or with to-dos, are listed.
+  kind: ScopeContentKind;
 }
 
 interface ISitePagesView {
   loading: boolean;
-  pages: ISitePageEntry[];
+  count: number;
+  listLabel: string;
   expanded: boolean;
 }
 
 // @ts-ignore : variable(s) used in HTML template
-const templateFn = ({ loading, pages, expanded }: ISitePagesView) => html`__TEMPLATE_PLACEHOLDER__`;
+const templateFn = ({ loading, count, listLabel, expanded }: ISitePagesView) => html`__TEMPLATE_PLACEHOLDER__`;
+
+const TOGGLE = '.site-pages__toggle';
 
 /**
- * "Pages on this site (n)": a collapsible list of the site's pages that have notes or to-dos,
- * each opening in the active tab (the panel then follows it). The sidebar keeps it across
- * renders and hands it new pages through update(); open or closed stays as the user left it.
+ * "Pages on this site (n)": a collapsible list of the site's pages that have notes (the
+ * Notes tab) or to-dos (the To-dos tab), each opening in the active tab (the panel then follows
+ * it), with its own "Move all to this site" and "Delete" (see SitePageRowComponent). The sidebar
+ * keeps it across renders and hands it new pages through update(); open or closed stays as the
+ * user left it.
  */
 export class SitePagesComponent extends Component<HTMLElement, ISitePagesView> {
   private _pages: ISitePage[] | null;
-  private _currentPage: string;
+  private _keys: IScopeKeys;
+  private _kind: ScopeContentKind;
+  private _entries: ISitePageEntry[] = [];
+  // The same object while the kind and keys stay: the rows are kept (see createCatalogComponents).
+  private _rowOptions: ISitePageRowOptions;
   private _expanded = false;
 
-  constructor(mountTarget: HTMLElement, { pages, currentPage }: ISitePagesConfig) {
-    super({ templateFn, mountTarget, config: SitePagesComponent.viewOf(pages, currentPage, false) });
+  constructor(mountTarget: HTMLElement, { pages, keys, kind }: ISitePagesConfig) {
+    super({ templateFn, mountTarget, config: { loading: true, count: 0, listLabel: '', expanded: false } });
     this._pages = pages;
-    this._currentPage = currentPage;
+    this._keys = keys;
+    this._kind = kind;
+    this._rowOptions = rowOptions(kind, keys);
+    this.config = this.viewOf();
   }
 
-  private static viewOf(pages: ISitePage[] | null, currentPage: string, expanded: boolean): ISitePagesView {
+  private viewOf(): ISitePagesView {
+    this._entries = entriesOf(this._pages ?? [], this._keys.page, this._kind);
     return {
-      loading: pages === null,
-      pages: (pages ?? []).map((page) => ({ ...page, current: page.key === currentPage, countText: countText(page) })),
-      expanded,
+      loading: this._pages === null,
+      count: this._entries.length,
+      listLabel: `Pages of this site with ${this._kind === 'notes' ? 'notes' : 'to-dos'}`,
+      expanded: this._expanded,
     };
   }
 
-  public update(pages: ISitePage[] | null, currentPage: string): void {
-    if (pages === this._pages && currentPage === this._currentPage) return;
+  public update(pages: ISitePage[] | null, keys: IScopeKeys, kind: ScopeContentKind): void {
+    if (pages === this._pages && keys === this._keys && kind === this._kind) return;
+    if (keys !== this._keys || kind !== this._kind) this._rowOptions = rowOptions(kind, keys);
     this._pages = pages;
-    this._currentPage = currentPage;
+    this._keys = keys;
+    this._kind = kind;
     this.refresh();
+  }
+
+  public override registerChildren(): Nutin.ComponentConfig[] {
+    return this.createCatalogComponents({
+      items: this._entries,
+      selector: 'site-page-rows',
+      elementName: 'site-page-row',
+      elementTag: 'li',
+      component: SitePageRowComponent,
+      props: this._rowOptions,
+      keepBy: (entry: ISitePageEntry) => entry.key,
+    });
   }
 
   protected override onAfterRender(): void {
@@ -69,28 +93,38 @@ export class SitePagesComponent extends Component<HTMLElement, ISitePagesView> {
   // @ts-ignore : function used in HTML template
   private _toggle(): void {
     this._expanded = !this._expanded;
-    requestFocus('.site-pages__toggle');
+    requestFocus(TOGGLE);
     this.refresh();
-  }
-  // @ts-ignore : function used in HTML template
-  private async _open(url: string): Promise<void> {
-    await runAction('Couldn\'t open the page.', () => chromeApiService.openInActiveTab(url));
   }
 
   // Rebuilt on every render: whatever had the focus gets it back (a page link, or the toggle if
   // that link is gone), unless the action asked otherwise.
   private refresh(): void {
     const url = (document.activeElement as HTMLElement | null)?.dataset?.url;
-    const page = url ? [`.site-pages__page${byData('url', url)}`] : [];
-    renderKeepingFocus(this.element, [...page, '.site-pages__toggle'], () => {
-      this.config = SitePagesComponent.viewOf(this._pages, this._currentPage, this._expanded);
+    const page = url ? [`.site-page-row__page${byData('url', url)}`] : [];
+    renderKeepingFocus(this.element, [...page, TOGGLE], () => {
+      this.config = this.viewOf();
       this.render();
     });
   }
 }
 
-// What a page holds: its notes and open to-dos, like the scope tabs count them, or its done ones if that's all.
-function countText({ notes, todos, openTodos }: ISitePage): string {
-  const done = openTodos === 0 && todos > 0 ? `${plural(todos, 'to-do')} done` : '';
-  return [countList([[notes, 'note'], [openTodos, 'to-do']], ', '), done].filter(Boolean).join(', ');
+function rowOptions(kind: ScopeContentKind, keys: IScopeKeys): ISitePageRowOptions {
+  // Once no row is left, the list goes too: the kind tab takes the focus.
+  return { kind, keys, lastFocus: [`#kind-tab-${kind}`] };
+}
+
+// The pages holding the kind, with what they hold of it.
+function entriesOf(pages: ISitePage[], currentPage: string, kind: ScopeContentKind): ISitePageEntry[] {
+  return pages.flatMap(({ key, label, notes, todos, openTodos }) => {
+    const count = kind === 'notes' ? notes : todos;
+    if (count === 0) return [];
+    return [{ key, label, count, countText: countText(kind, notes, todos, openTodos), current: key === currentPage }];
+  });
+}
+
+// Its notes; or its open to-dos, like the scope tabs count them, or its done ones if that's all.
+function countText(kind: ScopeContentKind, notes: number, todos: number, openTodos: number): string {
+  if (kind === 'notes') return plural(notes, 'note');
+  return openTodos > 0 ? plural(openTodos, 'to-do') : `${plural(todos, 'to-do')} done`;
 }

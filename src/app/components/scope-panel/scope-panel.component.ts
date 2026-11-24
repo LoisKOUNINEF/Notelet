@@ -118,7 +118,7 @@ export class ScopePanelComponent extends Component<HTMLElement, IScopePanelView>
       // Kept while on the same site: open or closed survives navigating between its pages.
       {
         selector: 'site-pages',
-        factory: (el) => (this._sitePages = new SitePagesComponent(el, { pages: sitePages, currentPage: keys.page })),
+        factory: (el) => (this._sitePages = new SitePagesComponent(el, { pages: sitePages, keys, kind })),
         keep: keys.site,
       },
       // Kept while on the same scope and key: drafts and the lists' DOM survive other renders.
@@ -139,10 +139,10 @@ export class ScopePanelComponent extends Component<HTMLElement, IScopePanelView>
   // Kept lists still show the previous items: hand them the new ones.
   protected override onAfterRender(): void {
     super.onAfterRender();
-    const { keys, scope, content, sitePages } = this._state;
+    const { keys, scope, kind, content, sitePages } = this._state;
     if (this.shows(this._todoList)) this._todoList.update(content[scope].todos);
     if (this.shows(this._noteList)) this._noteList.update(content[scope].notes);
-    if (this.shows(this._sitePages)) this._sitePages.update(sitePages, keys.page);
+    if (this.shows(this._sitePages)) this._sitePages.update(sitePages, keys, kind);
   }
 
   // A child created by registerChildren() that's still in the panel (not one replaced since).
