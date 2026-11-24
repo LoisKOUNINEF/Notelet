@@ -71,6 +71,14 @@ describe('NoteComposerComponent', () => {
     typeInto(input(), '');
   });
 
+  it('adds the note with Ctrl+Enter from its button too', async () => {
+    mount('page');
+    typeInto(input(), 'From the button');
+    keydown($('.note-composer button'), 'Enter', { ctrlKey: true });
+    await settle();
+    expect((await scopeStoreService.load(KEYS)).page.notes.map((n) => n.text)).toEqual(['From the button']);
+  });
+
   it('is text only: lists of things to check off are checklists', () => {
     mount('page');
     expect($('.note-composer__checklist')).toBeFalsy();

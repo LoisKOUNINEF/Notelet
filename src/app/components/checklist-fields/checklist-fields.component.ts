@@ -130,7 +130,7 @@ export class ChecklistFieldsComponent extends Component<HTMLElement, IChecklistF
     this._fields = this._fields.map((field) => ({
       ...field,
       // Every field is rendered.
-      text: requireElement<HTMLInputElement>(this.element, `${byData('item-id', field.id)} .checklist-field__input`).value,
+      text: requireElement<HTMLTextAreaElement>(this.element, `${byData('item-id', field.id)} .checklist-field__input`).value,
     }));
   }
 
@@ -141,8 +141,8 @@ export class ChecklistFieldsComponent extends Component<HTMLElement, IChecklistF
   }
 
   // An item's field, or null when it's not among them.
-  public fieldOf(id: string): HTMLInputElement | null {
-    return this.element.querySelector<HTMLInputElement>(`${byData('item-id', id)} .checklist-field__input`);
+  public fieldOf(id: string): HTMLTextAreaElement | null {
+    return this.element.querySelector<HTMLTextAreaElement>(`${byData('item-id', id)} .checklist-field__input`);
   }
 
   private focusField(id: string): void {

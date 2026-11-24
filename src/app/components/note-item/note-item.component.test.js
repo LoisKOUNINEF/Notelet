@@ -435,7 +435,7 @@ describe('NoteItemComponent - folding', () => {
     expect(toggle(lines).hidden).toBe(false);
     expect(toggle(lines).getAttribute('aria-expanded')).toBe('true');
     expect(toggle(lines).getAttribute('aria-label')).toBe('Details: First line');
-    expect(toggle(lines).getAttribute('aria-controls')).toBe(item(lines).querySelector('.note-item__content').id);
+    expect(toggle(lines).getAttribute('aria-controls')).toBe(item(lines).querySelector('.note-item__text').id);
     expect(toggle(named).getAttribute('aria-label')).toBe('Details: Ideas');
   });
 
@@ -468,6 +468,8 @@ describe('NoteItemComponent - folding', () => {
     await settle();
     expect(item(named).querySelector('.note-item__name').textContent).toBe('Ideas');
     expect(item(named).querySelector('.note-item__text')).toBeFalsy();
+    // The name folds on its own (see "its name"): left whole.
+    expect(item(named).querySelector('.note-item__name').classList.contains('note-item__name--folded')).toBe(false);
     expect(item(named).querySelector('.note-item__summary').textContent).toBe('Body text');
     expect(item(named).querySelector('.note-item__edit').getAttribute('aria-describedby')).toBe(`note-${named.id}-name`);
     expect(item(named).querySelector('.note-item__edit')).toBeTruthy();
@@ -502,7 +504,138 @@ describe('NoteItemComponent - folding', () => {
     }
   });
 
-  it('is a disclosure button controlling the note\'s content, named after the note, its chevron hidden', async () => {
+  // A long name, too long for one line: jsdom lays nothing out, so headings (the name) are made
+  // to overflow their width here, not the text. Undone by noLongNames().
+  const longName = 'A name far too long to fit on a single line of the panel';
+  const nameToggle = (note) => item(note).querySelector('.note-item__name-toggle');
+  const nameOf = (note) => item(note).querySelector('.note-item__name');
+  const cut = (note) => nameOf(note).classList.contains('note-item__name--folded');
+  const withLongName = async (text = 'Body text\nMore') => {
+    Object.defineProperty(HTMLHeadingElement.prototype, 'scrollWidth', { configurable: true, get: () => 500 });
+    Object.defineProperty(HTMLHeadingElement.prototype, 'clientWidth', { configurable: true, get: () => 100 });
+    const note = await scopeStoreService.update('notes', await scopeStoreService.addNote('page', KEYS.page, text), { name: longName });
+    await settle();
+    return note;
+  };
+  const noLongNames = () => {
+    delete HTMLHeadingElement.prototype.scrollWidth;
+    delete HTMLHeadingElement.prototype.clientWidth;
+  };
+
+  it('sets a named note\'s text, its arrow included, a little in under the name', () => {
+    const row = (note) => item(note).querySelector('.note-item__toggle').parentElement;
+    expect(row(named).classList.contains('note-item__secondary')).toBe(true);
+    expect(row(named).querySelector('.note-item__text, .note-item__summary')).toBeTruthy();
+    expect(row(named).contains(item(named).querySelector('.note-item__name'))).toBe(false);
+    expect(row(lines).classList.contains('note-item__secondary')).toBe(false);
+  });
+
+  it('gives a name its own arrow only while too long to fit on one line, none without a name', async () => {
+    try {
+      const long = await withLongName();
+      expect(nameToggle(long).hidden).toBe(false);
+      expect(nameToggle(oneLine)).toBeFalsy();
+    } finally {
+      noLongNames();
+    }
+    await scopeStoreService.update('notes', named, { name: 'Ideas!' });
+    await settle();
+    expect(nameToggle(named).hidden).toBe(true);
+  });
+
+  it('makes the name\'s arrow a disclosure button controlling the name, its chevron hidden', async () => {
+    try {
+      const long = await withLongName();
+      expect(nameToggle(long).getAttribute('type')).toBe('button');
+      expect(nameToggle(long).getAttribute('aria-label')).toBe('Full name');
+      expect(nameToggle(long).getAttribute('aria-expanded')).toBe('true');
+      expect(nameToggle(long).getAttribute('aria-controls')).toBe(nameOf(long).id);
+      expect(nameToggle(long).querySelector('.note-item__chevron').getAttribute('aria-hidden')).toBe('true');
+    } finally {
+      noLongNames();
+    }
+  });
+
+  it('cuts a long name to one line and shows it whole again, saved apart from the text, not as an edit', async () => {
+    try {
+      const long = await withLongName();
+      nameToggle(long).click();
+      expect(document.activeElement).toBe(nameToggle(long));
+      await settle();
+      expect(cut(long)).toBe(true);
+      expect(nameOf(long).textContent).toBe(longName);
+      expect(nameToggle(long).getAttribute('aria-expanded')).toBe('false');
+      expect(nameToggle(long).hidden).toBe(false);
+      expect(document.activeElement).toBe(nameToggle(long));
+      expect(item(long).querySelector('.note-item__text')).toBeTruthy();
+      const saved = await stored(long);
+      expect(saved.nameCollapsed).toBe(true);
+      expect(saved.collapsed).toBeUndefined();
+      expect(saved.updatedAt).toBe(long.updatedAt);
+
+      nameToggle(long).click();
+      await settle();
+      expect(cut(long)).toBe(false);
+      expect('nameCollapsed' in (await stored(long))).toBe(false);
+    } finally {
+      noLongNames();
+    }
+  });
+
+  it('folds the name and the text independently', async () => {
+    try {
+      const long = await withLongName();
+      // The text folded: the name stays whole.
+      toggle(long).click();
+      await settle();
+      expect(item(long).querySelector('.note-item__summary')).toBeTruthy();
+      expect(cut(long)).toBe(false);
+
+      // Both folded, then the text unfolded: the name stays cut.
+      nameToggle(long).click();
+      await settle();
+      expect(cut(long)).toBe(true);
+      expect(item(long).querySelector('.note-item__summary')).toBeTruthy();
+      toggle(long).click();
+      await settle();
+      expect(item(long).querySelector('.note-item__text')).toBeTruthy();
+      expect(cut(long)).toBe(true);
+      const saved = await stored(long);
+      expect(saved.nameCollapsed).toBe(true);
+      expect(saved.collapsed).toBeUndefined();
+    } finally {
+      noLongNames();
+    }
+  });
+
+  it('gives a short note with a long name an arrow for its name only', async () => {
+    try {
+      const short = await withLongName('Short text');
+      expect(nameToggle(short).hidden).toBe(false);
+      expect(toggle(short).hidden).toBe(true);
+    } finally {
+      noLongNames();
+    }
+  });
+
+  it('shows a name cut in another window cut here too, and reports a cut that couldn\'t be saved', async () => {
+    try {
+      const long = await withLongName();
+      await scopeStoreService.setNameCollapsed(long, true);
+      await settle();
+      expect(cut(long)).toBe(true);
+
+      panel.fake.storage.local.failNextSet = new Error('Quota exceeded.');
+      nameToggle(long).click();
+      await settle();
+      expect(panel.toasts.at(-1).message).toBe('Couldn\'t update note “A name far too…”. Quota exceeded.');
+      expect(cut(long)).toBe(true);
+    } finally {
+      noLongNames();
+    }
+  });
+
+  it('is a disclosure button controlling the note\'s text, named after the note, its chevron hidden', async () => {
     const controlled = () => document.getElementById(toggle(named).getAttribute('aria-controls'));
     expect(toggle(named).tagName).toBe('BUTTON');
     expect(toggle(named).getAttribute('type')).toBe('button');

@@ -1,15 +1,22 @@
 @use "reorder";
 @use "disclosure";
 
+// The first line's height: its controls' and the actions' (small buttons). The text's first line is
+// centered on it, the checkbox and arrow too: they stay there when the text wraps.
+$first-line: 1.75rem;
+
 .todo-item {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-1) var(--space-2);
   padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-small);
   transition: background-color var(--transition);
+  // Its width comes from its list, never from its text: a folded line (nowrap) would otherwise
+  // widen every list around it past the panel, instead of being cut.
+  contain: inline-size;
 
   &:hover,
   &:focus-within {
@@ -32,11 +39,25 @@
   }
 }
 
+// <a11y-checkbox> itself is `display: contents`: its <label> is the row's item.
+:is(.todo-item__check, .todo-item__select) > .a11y-checkbox {
+  min-height: $first-line;
+}
+
 // The checkbox's <label> holds only the box: a click on text opens the editor.
+// No basis of its own: it wraps beside the actions rather than pushing them, or itself, down a row.
 .todo-item__text {
-  flex: 1;
+  flex: 1 1 0;
   min-width: 0;
+  padding-block: calc(($first-line - 1lh) / 2);
   overflow-wrap: anywhere;
+}
+
+// Folded: its first line, cut with an ellipsis.
+.todo-item__text--folded {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .todo-item--done .todo-item__text {
@@ -46,8 +67,9 @@
 
 // A checklist's name, with how much of it is done.
 .todo-item__title {
-  flex: 1;
+  flex: 1 1 0;
   min-width: 0;
+  padding-block: calc(($first-line - 1lh) / 2);
   font-weight: 600;
   overflow-wrap: anywhere;
 }
@@ -56,6 +78,24 @@
   color: var(--color-text-muted);
   font-size: var(--font-small);
   font-weight: normal;
+}
+
+// Folded: the name's first line, cut with an ellipsis, and its progress whole after it.
+.todo-item__title--folded {
+  display: flex;
+  align-items: baseline;
+
+  .todo-item__name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .todo-item__progress {
+    flex: none;
+    white-space: pre;
+  }
 }
 
 // A checklist's items and its "Add an item" field take full rows under its name.
@@ -83,6 +123,12 @@
   gap: var(--space-1);
 }
 
+// Its text wraps: the actions take a row of their own under it, on the right (like a note's).
+.todo-item--wrapped > .todo-item__actions {
+  flex-basis: 100%;
+  justify-content: flex-end;
+}
+
 .todo-item__handle {
   @include reorder.handle;
   margin: 0 calc(-1 * var(--space-1)) 0 calc(-1 * var(--space-1));
@@ -92,9 +138,10 @@
   @include reorder.grip;
 }
 
-// A checklist's arrow, before its name: folds it down to its name and progress.
+// The arrow, before a checklist's name or after a to-do's checkbox: folds it down to its first line.
 .todo-item__toggle {
   @include disclosure.toggle;
+  margin-block: calc(($first-line - 1.5rem) / 2);
 }
 
 .todo-item__chevron {

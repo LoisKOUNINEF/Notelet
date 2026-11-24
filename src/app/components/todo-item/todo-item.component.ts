@@ -7,6 +7,7 @@ import {
 import { editOnClick } from '../../lib/card-click.js';
 import { runAction } from '../../lib/actions.js';
 import { revealDoneGroup } from '../../lib/done-group.js';
+import { onWidthChange, overflowsOneLine } from '../../lib/dom.js';
 import { getEditDraft } from '../../lib/drafts.js';
 import { byData, clearRequestedFocus } from '../../lib/focus.js';
 import { quoted, sentence, todoRef } from '../../lib/labels.js';
@@ -45,7 +46,8 @@ interface ITodoItemView {
   items: IChecklistItem[];
   doneCount: number;
   editing: boolean;
-  // A checklist folded down to its name and progress (see _toggleCollapsed).
+  // Folded (see _toggleCollapsed): a single to-do down to its first line, a checklist down to its
+  // name's first line and its progress.
   collapsed: boolean;
   reorderable: boolean;
   grabbed: boolean;
@@ -62,9 +64,12 @@ const templateFn = ({ todo, items, doneCount, editing, collapsed, reorderable, g
 /**
  * One to-do: a checkbox labelled by its text, and its actions.
  * Only the box checks it: a click on its text opens the editor, like Edit.
+ * A text too long for one line gets an arrow beside its checkbox, folding it down to its first
+ * line (saved on the to-do); unfolded, its actions then take a row of their own under it.
  *
  * A checklist has no checkbox of its own: its name, then its items, checked one by one; it's done
- * once they all are (see ScopeStoreService.updateWith). Its arrow folds it down to its name and progress.
+ * once they all are (see ScopeStoreService.updateWith). Its arrow folds it down to its name's first
+ * line and its progress.
  *
  * Adding items to a single to-do makes it a checklist
  * Removing them all makes a checklist single.
@@ -76,6 +81,7 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
   private _group: ITodoItemOptions['group'];
   private _options: ITodoItemOptions;
   private _editor: TodoEditorComponent | null = null;
+  private _stopWatching: (() => void) | null = null;
 
   constructor(mountTarget: HTMLElement, config: ITodo & { index: number }, options: ITodoItemOptions) {
     const { index, ...todo } = config;
@@ -92,7 +98,7 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
         doneCount: items.filter((item) => item.done).length,
         // An edit left open when this to-do last went away comes back, still open.
         editing: getEditDraft<ITodoEditDraft>('todo', todo.id) !== null,
-        collapsed: items.length > 0 && !!todo.collapsed,
+        collapsed: !!todo.collapsed,
         reorderable: options.reorderable,
         grabbed: options.grabbedId === todo.id,
         selecting: options.selecting,
@@ -142,16 +148,48 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
     ];
   }
 
+  protected override onBeforeRender(): void {
+    this.stopWatching();
+    super.onBeforeRender();
+  }
+
   protected override onAfterRender(): void {
     super.onAfterRender();
     // A checklist's items are checked by their checkboxes only.
     if (this.config.editing) return;
+    this.fit();
+    this._stopWatching = onWidthChange(this.element, () => this.fit());
     // While selecting, a click on it (done or not) checks it instead.
     if (this.config.selecting) {
       this.eventListeners.push(editOnClick(this.element, () => this.element.querySelector<HTMLInputElement>('.todo-item__select-box')?.click()));
     } else if (!this._todo.done) {
       this.eventListeners.push(editOnClick(this.element, (target) => this.edit(target.closest<HTMLElement>('[data-item-id]')?.dataset.itemId)));
     }
+  }
+
+  protected override onBeforeDestroy(): void {
+    this.stopWatching();
+    super.onBeforeDestroy();
+  }
+
+  private stopWatching(): void {
+    this._stopWatching?.();
+    this._stopWatching = null;
+  }
+
+  // Whether its text (a checklist: its name and progress) fits on one line beside its actions,
+  // measured with them there: moving them can't undo the measure. If it doesn't, a single to-do
+  // shows its arrow (folded, its line is cut), and an unfolded one moves its actions under it.
+  private fit(): void {
+    const line = this.element.querySelector<HTMLElement>('.todo-item__text, .todo-item__title');
+    if (!line) return;
+    this.element.classList.remove('todo-item--wrapped');
+    const overflows = overflowsOneLine(line);
+    if (!isChecklist(this._todo)) {
+      const toggle = this.element.querySelector<HTMLElement>('.todo-item__toggle');
+      if (toggle) toggle.hidden = !overflows;
+    }
+    this.element.classList.toggle('todo-item--wrapped', overflows && !this.config.collapsed);
   }
 
   // A to-do can be marked as done (a checklist: all its items at once); a single to-do can go into a
@@ -231,7 +269,7 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
   }
 
   // @ts-ignore : function used in HTML template
-  // Folded right away; the stored checklist then comes back as a new list item, focus on its arrow.
+  // Folded right away; the stored to-do then comes back as a new list item, focus on its arrow.
   private async _toggleCollapsed(): Promise<void> {
     const collapsed = !this.config.collapsed;
     this.config = { ...this.config, collapsed };

@@ -1,17 +1,17 @@
 <form class="note-editor" data-event="submit:_save">
   ${restored ? html`<p class="note-editor__restored">Unsaved changes restored.</p>` : ''}
-  <a11y-input class="note-editor__name-field">
+  <a11y-textarea class="note-editor__name-field line-field">
     <a11y-label>Name (optional)</a11y-label>
-    <input class="note-editor__name" type="text" name="name" autocomplete="off" maxlength="100" value="${name}" data-event="keydown:_onNameKeydown:@event">
-  </a11y-input>
+    <textarea class="note-editor__name" name="name" rows="1" autocomplete="off" data-event="keydown:_onNameKeydown:@event">${name}</textarea>
+  </a11y-textarea>
   <a11y-textarea class="note-editor__field">
     <a11y-label>Note</a11y-label>
-    <textarea class="note-editor__input" name="text" rows="4" data-event="keydown:_onKeydown:@event">${text}</textarea>
+    <textarea class="note-editor__input" name="text" rows="4">${text}</textarea>
   </a11y-textarea>
   <div class="note-editor__actions">
     <span class="note-editor__spacer"></span>
     <button class="button button--primary" type="submit" tabindex="0">Save</button>
     <button class="button" type="button" tabindex="0" data-event="click:_cancel">Cancel</button>
   </div>
-  <span class="note-editor__hint" aria-hidden="true">Ctrl+Enter to save · Esc to cancel</span>
+  <span class="note-editor__hint" aria-hidden="true">${submitShortcut()} to save · Esc to cancel</span>
 </form>

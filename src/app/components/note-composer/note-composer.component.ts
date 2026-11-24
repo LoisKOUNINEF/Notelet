@@ -1,8 +1,9 @@
 import { Component, html } from '../../../core/index.js';
 import { runAction } from '../../lib/actions.js';
-import { requireElement } from '../../lib/dom.js';
+import { formKeys, requireElement } from '../../lib/dom.js';
 import { getDraft, setDraft } from '../../lib/drafts.js';
 import { noteRef } from '../../lib/labels.js';
+import { submitShortcut } from '../../lib/platform.js';
 import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
 
 export interface INoteComposerConfig {
@@ -45,19 +46,11 @@ export class NoteComposerComponent extends Component<HTMLElement, INoteComposerV
 
   protected override onAfterRender(): void {
     super.onAfterRender();
-    // `input` is the only event left to the textarea: data-event already holds its keydown.
     const input = this.input;
     const onInput = () => setDraft(draftId(this._scope, this._key), input.value);
     input.addEventListener('input', onInput);
-    this.eventListeners.push([input, 'input', onInput]);
-  }
-
-  // @ts-ignore : function used in HTML template
-  private _onKeydown(event: KeyboardEvent): void {
-    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
-      event.preventDefault();
-      requireElement<HTMLFormElement>(this.element, 'form').requestSubmit();
-    }
+    // Plain Enter adds a line; Ctrl/Cmd+Enter adds the note, from the button too.
+    this.eventListeners.push([input, 'input', onInput], ...formKeys(requireElement<HTMLFormElement>(this.element, 'form')));
   }
 
   // @ts-ignore : function used in HTML template

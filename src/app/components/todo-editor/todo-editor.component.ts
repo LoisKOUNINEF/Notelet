@@ -1,7 +1,8 @@
 import { Component, html } from '../../../core/index.js';
 import { announce } from '../../lib/announce.js';
-import { requireElement } from '../../lib/dom.js';
+import { formKeys, lineField, requireElement } from '../../lib/dom.js';
 import { keepDraftsOf, setEditDraft } from '../../lib/drafts.js';
+import { submitShortcut } from '../../lib/platform.js';
 import { ChecklistFieldsComponent } from '../checklist-fields/checklist-fields.component.js';
 
 // What an edit in progress holds, kept as a draft if the editor goes away unsaved.
@@ -106,6 +107,12 @@ export class TodoEditorComponent extends Component<HTMLElement, ITodoEditorView>
 
   protected override onAfterRender(): void {
     super.onAfterRender();
+    // Enter in the name saves, as in a one-line field. Ctrl/Cmd+Enter saves and Escape cancels
+    // from anywhere in the editor, buttons included.
+    this.eventListeners.push(
+      ...lineField(this.input),
+      ...formKeys(requireElement<HTMLFormElement>(this.element, 'form'), { onEscape: () => this._cancel() }),
+    );
     if (this._restored && !this._announced) {
       this._announced = true;
       announce('Unsaved changes restored.');
@@ -135,7 +142,7 @@ export class TodoEditorComponent extends Component<HTMLElement, ITodoEditorView>
     }];
   }
 
-  private get input(): HTMLInputElement {
+  private get input(): HTMLTextAreaElement {
     return requireElement(this.element, '.todo-editor__input');
   }
 
@@ -143,14 +150,6 @@ export class TodoEditorComponent extends Component<HTMLElement, ITodoEditorView>
   private get checklist(): ChecklistFieldsComponent {
     if (!this._checklist) throw new Error('The checklist fields are rendered with the editor.');
     return this._checklist;
-  }
-
-  // @ts-ignore : function used in HTML template
-  private _onKeydown(event: KeyboardEvent): void {
-    if (event.key !== 'Escape') return;
-    // Don't let Escape also reach the panel (it would close an open overlay).
-    event.stopPropagation();
-    this._cancel();
   }
 
   // @ts-ignore : function used in HTML template

@@ -29,10 +29,12 @@ interface INoteItemView {
   grabbed: boolean;
   // How the handle and the "⋯" trigger name this note (see noteLabel).
   name: string;
-  // Folding hides lines after the first: the arrow always shows. A single line gets it only while
-  // too long to fit on one (measured, see fitArrow).
+  // Folding the text hides lines after the first: its arrow always shows. A single line gets it only
+  // while too long to fit on one (measured, see fitArrows).
   canCollapse: boolean;
   collapsed: boolean;
+  // The name cut to one line, by its own arrow (shown while it doesn't fit on one, see fitArrows).
+  nameCollapsed: boolean;
   // Its text's first line: what a note shows (under its name, if any) when folded.
   summary: string;
   // More lines follow the summary: it ends with dots.
@@ -57,7 +59,7 @@ export interface INoteItemOptions {
 }
 
 // @ts-ignore : variable(s) used in HTML template
-const templateFn = ({ note, editing, edited, reorderable, grabbed, name, canCollapse, collapsed, summary, more, selecting, selected }: INoteItemView) => html`__TEMPLATE_PLACEHOLDER__`;
+const templateFn = ({ note, editing, edited, reorderable, grabbed, name, canCollapse, collapsed, nameCollapsed, summary, more, selecting, selected }: INoteItemView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 /**
  * One note: its name if it has one, its text, when it was last edited, and its actions (Edit,
@@ -101,6 +103,7 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
     return {
       canCollapse: lines.length > 1,
       collapsed: !!note.collapsed,
+      nameCollapsed: !!note.nameCollapsed,
       summary: (lines[0] ?? '').trim(),
       more: lines.length > 1,
       note,
@@ -147,11 +150,11 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
     if (this.config.editing) return;
     // While selecting, a click on it checks it instead.
     this.eventListeners.push(editOnClick(this.element, () => (this.config.selecting ? this.selectBox()?.click() : this._edit())));
-    if (this.config.canCollapse) return;
-    this.fitArrow();
-    // The article's width, which its arrow doesn't change: showing it can't undo the measure.
+    if (this.config.canCollapse && !this._note.name) return;
+    this.fitArrows();
+    // The article's width, which its arrows don't change: showing one can't undo the measure.
     if (typeof ResizeObserver !== 'undefined') {
-      this._resizeObserver = new ResizeObserver(() => this.fitArrow());
+      this._resizeObserver = new ResizeObserver(() => this.fitArrows());
       this._resizeObserver.observe(this.element);
     }
   }
@@ -161,8 +164,13 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
     super.onBeforeDestroy();
   }
 
-  // A single line gets its arrow only while it doesn't fit on one line (wrapped, or cut when folded).
-  private fitArrow(): void {
+  // Each arrow shows only while folding would hide something: the name's while it doesn't fit on
+  // one line (wrapped, or cut when folded), the text's too when it's a single line.
+  private fitArrows(): void {
+    const nameToggle = this.element.querySelector<HTMLElement>('.note-item__name-toggle');
+    const name = this.element.querySelector<HTMLElement>('.note-item__name');
+    if (nameToggle && name) nameToggle.hidden = !overflowsOneLine(name);
+    if (this.config.canCollapse) return;
     const toggle = this.element.querySelector<HTMLElement>('.note-item__toggle');
     const line = this.element.querySelector<HTMLElement>('.note-item__text, .note-item__summary');
     if (toggle && line) toggle.hidden = !overflowsOneLine(line);
@@ -200,6 +208,22 @@ export class NoteItemComponent extends Component<HTMLElement, INoteItemView> {
       focus: [this.own('.note-item__toggle')],
       onError: () => {
         this.config = { ...this.config, collapsed: !collapsed };
+        this.render();
+      },
+    });
+  }
+
+  // The name cut to one line (or shown whole) right away, apart from the text; saved like a fold.
+  // @ts-ignore : function used in HTML template
+  private async _toggleNameCollapsed(): Promise<void> {
+    const nameCollapsed = !this.config.nameCollapsed;
+    this.config = { ...this.config, nameCollapsed };
+    this.render();
+    this.element.querySelector<HTMLElement>('.note-item__name-toggle')?.focus();
+    await runAction(`Couldn't update ${noteRef(this._note)}.`, () => scopeStoreService.setNameCollapsed(this._note, nameCollapsed), {
+      focus: [this.own('.note-item__name-toggle')],
+      onError: () => {
+        this.config = { ...this.config, nameCollapsed: !nameCollapsed };
         this.render();
       },
     });

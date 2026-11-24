@@ -1,8 +1,9 @@
 import { Component, html } from '../../../core/index.js';
 import { runAction } from '../../lib/actions.js';
-import { requireElement } from '../../lib/dom.js';
+import { fitHeight, formKeys, lineField, requireElement } from '../../lib/dom.js';
 import { getDraft, getJsonDraft, keepDraftsOf, setDraft, setJsonDraft } from '../../lib/drafts.js';
 import { todoRef } from '../../lib/labels.js';
+import { submitShortcut } from '../../lib/platform.js';
 import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
 import { ChecklistFieldsComponent } from '../checklist-fields/checklist-fields.component.js';
 
@@ -47,7 +48,7 @@ export class TodoComposerComponent extends Component<HTMLElement, ITodoComposerV
     this._items = items;
   }
 
-  private get input(): HTMLInputElement {
+  private get input(): HTMLTextAreaElement {
     return requireElement(this.element, TODO_COMPOSER_INPUT);
   }
 
@@ -74,17 +75,9 @@ export class TodoComposerComponent extends Component<HTMLElement, ITodoComposerV
     const input = this.input;
     const onInput = () => setDraft(draftId(this._scope, this._key), input.value);
     input.addEventListener('input', onInput);
-    this.eventListeners.push([input, 'input', onInput]);
+    this.eventListeners.push([input, 'input', onInput], ...lineField(input));
     // In checklist mode Enter in an item adds the next one: Ctrl/Cmd+Enter adds the checklist from anywhere.
-    const form = requireElement<HTMLFormElement>(this.element, 'form');
-    const onKeydown = (event: Event) => {
-      const { key, ctrlKey, metaKey } = event as KeyboardEvent;
-      if (key !== 'Enter' || !(ctrlKey || metaKey)) return;
-      event.preventDefault();
-      form.requestSubmit();
-    };
-    form.addEventListener('keydown', onKeydown);
-    this.eventListeners.push([form, 'keydown', onKeydown]);
+    this.eventListeners.push(...formKeys(requireElement<HTMLFormElement>(this.element, 'form')));
   }
 
   // Items typed but not added yet survive a tab switch, like the name.
@@ -114,6 +107,7 @@ export class TodoComposerComponent extends Component<HTMLElement, ITodoComposerV
 
     // Ready for the next one; restored if the save fails.
     input.value = '';
+    fitHeight(input);
     setDraft(draftId(this._scope, this._key), '');
     checklist.reset([]);
     this.setChecklistMode(false);
@@ -124,6 +118,7 @@ export class TodoComposerComponent extends Component<HTMLElement, ITodoComposerV
         if (fields.length > 0) this.setChecklistMode(true);
         checklist.reset(fields);
         this.input.value = text;
+        fitHeight(this.input);
       },
     });
   }

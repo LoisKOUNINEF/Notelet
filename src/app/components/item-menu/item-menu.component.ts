@@ -1,9 +1,16 @@
-import { Component, html } from '../../../core/index.js';
+import {
+  Component,
+  html,
+  // @ts-ignore : function used in HTML template
+  raw,
+} from '../../../core/index.js';
 import { delegateActions, removeOverlays } from '../../lib/overlays.js';
 
 export interface IMenuAction<A extends string> {
   value: A;
   label: string;
+  // Shown and read out, but skipped by the arrow keys and inert (aria-disabled, like the settings' buttons).
+  disabled?: boolean;
 }
 
 export interface IItemMenuConfig<A extends string> {
@@ -37,7 +44,8 @@ export class ItemMenuComponent<A extends string> extends Component<HTMLElement, 
   constructor(mountTarget: HTMLElement, { id, name, actions, onAction }: IItemMenuConfig<A>) {
     super({ templateFn, mountTarget, tagName: 'span', props: { className: 'item-menu' }, config: { id, name, actions } });
     this._id = id;
-    this._actions = actions.map((action) => action.value);
+    // A disabled item does nothing when picked.
+    this._actions = actions.filter((action) => !action.disabled).map((action) => action.value);
     this._onAction = onAction;
   }
 

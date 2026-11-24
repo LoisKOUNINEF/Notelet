@@ -4,14 +4,22 @@ ${editing ? html`<div data-component="note-editor"></div>` : html`
   <a11y-checkbox class="note-item__select">
     <input class="note-item__select-box" type="checkbox" tabindex="0" aria-label="Select: ${name}" data-select ${selected ? raw('checked') : ''} data-event="change:_select:@checked">
   </a11y-checkbox>` : ''}
-  <button class="note-item__toggle" type="button" tabindex="0" aria-expanded="${collapsed ? 'false' : 'true'}" aria-controls="note-${note.id}-content" aria-label="Details: ${name}" data-event="click:_toggleCollapsed" ${canCollapse ? '' : raw('hidden')}>
-    <span class="note-item__chevron" aria-hidden="true"></span>
-  </button>
   <div class="note-item__content" id="note-${note.id}-content">
-    ${note.name ? html`<h2 class="note-item__name" id="note-${note.id}-name">${note.name}</h2>` : ''}
-    ${collapsed
-      ? html`<p class="note-item__summary${more ? ' note-item__summary--more' : ''}" id="note-${note.id}-summary">${summary}</p>`
-      : html`<p class="note-item__text" id="note-${note.id}-text">${note.text}</p>`}
+    ${note.name ? html`
+    <div class="note-item__row">
+      <button class="note-item__name-toggle" type="button" tabindex="0" aria-expanded="${nameCollapsed ? 'false' : 'true'}" aria-controls="note-${note.id}-name" aria-label="Full name" data-event="click:_toggleNameCollapsed" hidden>
+        <span class="note-item__chevron" aria-hidden="true"></span>
+      </button>
+      <h2 class="note-item__name${nameCollapsed ? ' note-item__name--folded' : ''}" id="note-${note.id}-name">${note.name}</h2>
+    </div>` : ''}
+    <div class="note-item__row${note.name ? ' note-item__secondary' : ''}">
+      <button class="note-item__toggle" type="button" tabindex="0" aria-expanded="${collapsed ? 'false' : 'true'}" aria-controls="note-${note.id}-${collapsed ? 'summary' : 'text'}" aria-label="Details: ${name}" data-event="click:_toggleCollapsed" ${canCollapse ? '' : raw('hidden')}>
+        <span class="note-item__chevron" aria-hidden="true"></span>
+      </button>
+      ${collapsed
+        ? html`<p class="note-item__summary${more ? ' note-item__summary--more' : ''}" id="note-${note.id}-summary">${summary}</p>`
+        : html`<p class="note-item__text" id="note-${note.id}-text">${note.text}</p>`}
+    </div>
   </div>
 </div>
 <div class="note-item__footer">

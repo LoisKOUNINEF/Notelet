@@ -1,7 +1,8 @@
 import { Component, html } from '../../../core/index.js';
 import { announce } from '../../lib/announce.js';
-import { requireElement } from '../../lib/dom.js';
+import { formKeys, isPlainEnter, lineField, requireElement } from '../../lib/dom.js';
 import { keepDraftsOf, setEditDraft } from '../../lib/drafts.js';
+import { submitShortcut } from '../../lib/platform.js';
 
 // What an edit in progress holds, kept as a draft if the editor goes away unsaved.
 export interface INoteEditDraft {
@@ -69,7 +70,7 @@ export class NoteEditorComponent extends Component<HTMLElement, INoteEditorView>
   // The edit as a draft, unless closed (saved or cancelled), unchanged, or not rendered yet.
   private saveDraft(): void {
     const textarea = this.element.querySelector<HTMLTextAreaElement>('.note-editor__input');
-    const nameInput = this.element.querySelector<HTMLInputElement>('.note-editor__name');
+    const nameInput = this.element.querySelector<HTMLTextAreaElement>('.note-editor__name');
     if (this._closed || !textarea || !nameInput) return;
     const text = textarea.value;
     const name = nameInput.value;
@@ -79,6 +80,12 @@ export class NoteEditorComponent extends Component<HTMLElement, INoteEditorView>
 
   protected override onAfterRender(): void {
     super.onAfterRender();
+    // The name wraps like a checklist's (no length limit). Ctrl/Cmd+Enter saves and Escape
+    // cancels from anywhere in the editor, buttons included.
+    this.eventListeners.push(
+      ...lineField(requireElement<HTMLTextAreaElement>(this.element, '.note-editor__name'), { submitOn: 'ctrl-enter' }),
+      ...formKeys(requireElement<HTMLFormElement>(this.element, 'form'), { onEscape: () => this._cancel() }),
+    );
     if (this._restored && !this._announced) {
       this._announced = true;
       announce('Unsaved changes restored.');
@@ -96,26 +103,12 @@ export class NoteEditorComponent extends Component<HTMLElement, INoteEditorView>
     return requireElement(this.element, '.note-editor__input');
   }
 
-  // In the name, Enter goes on to the text; Ctrl+Enter and Escape work as in the text.
+  // In the name, Enter goes on to the text (as in a checklist's items: the next field).
   // @ts-ignore : function used in HTML template
   private _onNameKeydown(event: KeyboardEvent): void {
-    if (event.key === 'Enter' && !event.ctrlKey && !event.metaKey) {
-      event.preventDefault();
-      this.focus();
-    } else {
-      this._onKeydown(event);
-    }
-  }
-
-  private _onKeydown(event: KeyboardEvent): void {
-    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
-      event.preventDefault();
-      requireElement<HTMLFormElement>(this.element, 'form').requestSubmit();
-    } else if (event.key === 'Escape') {
-      // Don't let Escape also reach the panel (it would close an open overlay).
-      event.stopPropagation();
-      this._cancel();
-    }
+    if (!isPlainEnter(event)) return;
+    event.preventDefault();
+    this.focus();
   }
 
   // @ts-ignore : function used in HTML template
@@ -123,7 +116,7 @@ export class NoteEditorComponent extends Component<HTMLElement, INoteEditorView>
     const text = this.textarea.value.trim();
     // Nothing left to keep: deleting a note is its own action.
     if (!text) return;
-    this._onSave(text, requireElement<HTMLInputElement>(this.element, '.note-editor__name').value.trim());
+    this._onSave(text, requireElement<HTMLTextAreaElement>(this.element, '.note-editor__name').value.trim());
   }
 
   private _cancel(): void {

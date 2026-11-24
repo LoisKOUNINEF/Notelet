@@ -52,6 +52,16 @@ describe('TodoComposerComponent', () => {
     expect(input().value).toBe('');
   });
 
+  it('adds it with Enter, as a one-line field that wraps', async () => {
+    mount('page');
+    expect(input().tagName).toBe('TEXTAREA');
+    expect(input().rows).toBe(1);
+    typeInto(input(), 'Renew the certificate');
+    keydown(input(), 'Enter');
+    await settle();
+    expect(await stored('page')).toEqual(['Renew the certificate']);
+  });
+
   it('ignores an empty or blank to-do', async () => {
     mount('page');
     typeInto(input(), '   ');
@@ -161,6 +171,23 @@ describe('TodoComposerComponent - checklists', () => {
     expect(fields()).toEqual([]);
     expect(input().value).toBe('');
     expect(checklistButton().textContent).toBe('Checklist');
+  });
+
+  it('adds a checklist once with Ctrl+Enter from an item, and with Enter from its name', async () => {
+    mount();
+    typeInto(input(), 'Groceries');
+    checklistButton().click();
+    fields()[0].value = 'Milk';
+    keydown(fields()[0], 'Enter', { ctrlKey: true });
+    await settle();
+    expect((await todos()).map((t) => [t.text, t.items.length])).toEqual([['Groceries', 1]]);
+
+    typeInto(input(), 'Trip');
+    checklistButton().click();
+    fields()[0].value = 'Passport';
+    keydown(input(), 'Enter');
+    await settle();
+    expect((await todos()).map((t) => t.text).sort()).toEqual(['Groceries', 'Trip']);
   });
 
   it('adds a single to-do when every item was left empty', async () => {

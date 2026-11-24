@@ -11,11 +11,14 @@ ${items.length > 0 ? html`
 <button class="todo-item__toggle" type="button" tabindex="0" aria-expanded="${collapsed ? 'false' : 'true'}" aria-controls="todo-${todo.id}-items" aria-label="Details: ${todo.text}" data-event="click:_toggleCollapsed">
   <span class="todo-item__chevron" aria-hidden="true"></span>
 </button>
-<span class="todo-item__title" id="todo-${todo.id}-text">${todo.text}<span class="todo-item__progress">${' · '}${doneCount} of ${items.length} done</span></span>` : html`
+<span class="todo-item__title${collapsed ? ' todo-item__title--folded' : ''}" id="todo-${todo.id}-text"><span class="todo-item__name">${todo.text}</span><span class="todo-item__progress">${' · '}${doneCount} of ${items.length} done</span></span>` : html`
 ${selecting ? '' : html`<a11y-checkbox class="todo-item__check">
   <input class="todo-item__checkbox" type="checkbox" tabindex="0" aria-labelledby="todo-${todo.id}-text" ${todo.done ? raw('checked') : ''} data-event="change:_toggle:@checked">
 </a11y-checkbox>`}
-<span class="todo-item__text" id="todo-${todo.id}-text">${todo.text}</span>`}
+<button class="todo-item__toggle" type="button" tabindex="0" aria-expanded="${collapsed ? 'false' : 'true'}" aria-controls="todo-${todo.id}-text" aria-label="Details: ${todo.text}" data-event="click:_toggleCollapsed" hidden>
+  <span class="todo-item__chevron" aria-hidden="true"></span>
+</button>
+<span class="todo-item__text${collapsed ? ' todo-item__text--folded' : ''}" id="todo-${todo.id}-text">${todo.text}</span>`}
 ${selecting ? '' : html`<div class="todo-item__actions">
   ${todo.done ? '' : html`<button class="button button--small todo-item__edit" type="button" tabindex="0" aria-describedby="todo-${todo.id}-text" data-event="click:_edit">Edit</button>`}
   ${todo.done ? html`<button class="button button--small todo-item__undone" type="button" tabindex="0" aria-describedby="todo-${todo.id}-text" data-event="click:_markUndone">${items.length > 0 ? 'Mark all as undone' : 'Mark as undone'}</button>` : ''}

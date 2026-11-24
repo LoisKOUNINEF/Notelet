@@ -1,4 +1,5 @@
 import { Component, html } from '../../../core/index.js';
+import { isPlainEnter, lineField, requireElement } from '../../lib/dom.js';
 
 // What the field list passes to each field (see createCatalogComponents).
 export interface IChecklistFieldOptions {
@@ -33,9 +34,15 @@ export class ChecklistFieldComponent extends Component<HTMLElement, IChecklistFi
     this._options = options;
   }
 
+  // Enter goes to the next item (below); Ctrl/Cmd+Enter submits the form, as in a one-line field.
+  protected override onAfterRender(): void {
+    super.onAfterRender();
+    this.eventListeners.push(...lineField(requireElement<HTMLTextAreaElement>(this.element, '.checklist-field__input'), { submitOn: 'ctrl-enter' }));
+  }
+
   // @ts-ignore : function used in HTML template
   private _onKeydown(event: KeyboardEvent): void {
-    if (event.key === 'Enter' && !event.ctrlKey && !event.metaKey) {
+    if (isPlainEnter(event)) {
       // Not the form's submit: the next item, like in any to-do editor.
       event.preventDefault();
       this._options.onEnter(this._id);

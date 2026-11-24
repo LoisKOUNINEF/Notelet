@@ -1,6 +1,6 @@
 import { Component, html } from '../../../core/index.js';
 import { runAction } from '../../lib/actions.js';
-import { requireElement } from '../../lib/dom.js';
+import { fitHeight, lineField, requireElement } from '../../lib/dom.js';
 import { byData } from '../../lib/focus.js';
 import { quoted, todoRef } from '../../lib/labels.js';
 import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
@@ -24,21 +24,31 @@ export class ChecklistAddComponent extends Component<HTMLElement, IChecklistAddV
     this._checklist = checklist;
   }
 
+  // Enter adds the item, as in a one-line field.
+  protected override onAfterRender(): void {
+    super.onAfterRender();
+    this.eventListeners.push(...lineField(requireElement<HTMLTextAreaElement>(this.element, CHECKLIST_ADD_INPUT)));
+  }
+
   // @ts-ignore : function used in HTML template
   private async _add(): Promise<void> {
-    const input = requireElement<HTMLInputElement>(this.element, CHECKLIST_ADD_INPUT);
+    const input = requireElement<HTMLTextAreaElement>(this.element, CHECKLIST_ADD_INPUT);
     const typed = input.value;
     const text = typed.trim();
     if (!text) return;
 
     // Emptied right away (a second Enter before the save ends adds nothing); restored if it fails.
     input.value = '';
+    fitHeight(input);
     await runAction(`Couldn't add ${quoted(text)} to ${todoRef(this._checklist)}.`, () => scopeStoreService.updateWith('todos', this._checklist, (current) => ({
       items: [...(current.items ?? []), { id: crypto.randomUUID(), text, done: false }],
     })), {
       // The checklist comes back with the item as a new list item: focus the field again there.
       focus: [`${byData('todo-id', this._checklist.id)} ${CHECKLIST_ADD_INPUT}`],
-      onError: () => { input.value = typed; },
+      onError: () => {
+        input.value = typed;
+        fitHeight(input);
+      },
     });
   }
 }

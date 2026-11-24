@@ -126,4 +126,58 @@ describe('ChecklistItemComponent', () => {
     expect($('.todo-list__done-toggle')).toBeFalsy();
     expect((await storedItems()).map((i) => i.done)).toEqual([true, false, true]);
   });
+
+  it('offers to fold an item too long for one line, saved on the item without editing the checklist', async () => {
+    // One that fits: no arrow.
+    expect(row('a').querySelector('.checklist-item__toggle').hidden).toBe(true);
+
+    // jsdom lays nothing out: every span overflows its width here.
+    Object.defineProperty(HTMLSpanElement.prototype, 'scrollWidth', { configurable: true, get: () => 500 });
+    Object.defineProperty(HTMLSpanElement.prototype, 'clientWidth', { configurable: true, get: () => 100 });
+    try {
+      const long = await scopeStoreService.addTodo('page', KEYS.page, 'Packing', [{ id: 'x', text: 'An item too long to fit on one line', done: false }]);
+      await settle();
+      const toggle = () => row('x').querySelector('.checklist-item__toggle');
+      const text = () => row('x').querySelector('.checklist-item__text');
+      const storedItem = async () => (await scopeStoreService.load(KEYS)).page.todos.find((t) => t.id === long.id);
+      expect(toggle().hidden).toBe(false);
+      expect(toggle().getAttribute('aria-expanded')).toBe('true');
+      expect(toggle().getAttribute('aria-controls')).toBe(text().id);
+      expect(toggle().getAttribute('aria-label')).toBe('Details: An item too long to fit on one line');
+
+      toggle().click();
+      expect(document.activeElement).toBe(toggle());
+      await settle();
+      expect(toggle().getAttribute('aria-expanded')).toBe('false');
+      expect(text().classList.contains('checklist-item__text--folded')).toBe(true);
+      expect(document.activeElement).toBe(toggle());
+      const saved = await storedItem();
+      expect(saved.items[0].collapsed).toBe(true);
+      expect(saved.updatedAt).toBe(long.updatedAt);
+
+      toggle().click();
+      await settle();
+      expect(text().classList.contains('checklist-item__text--folded')).toBe(false);
+      expect('collapsed' in (await storedItem()).items[0]).toBe(false);
+    } finally {
+      delete HTMLSpanElement.prototype.scrollWidth;
+      delete HTMLSpanElement.prototype.clientWidth;
+    }
+  });
+
+  it('reports a failed fold and shows the item unfolded again', async () => {
+    Object.defineProperty(HTMLSpanElement.prototype, 'scrollWidth', { configurable: true, get: () => 500 });
+    Object.defineProperty(HTMLSpanElement.prototype, 'clientWidth', { configurable: true, get: () => 100 });
+    try {
+      panel.fake.storage.local.failNextSet = new Error('Quota exceeded.');
+      row('a').querySelector('.checklist-item__toggle').click();
+      await settle();
+      expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t update “Passport”. Quota exceeded.', type: 'error', duration: 6000 });
+      expect(row('a').querySelector('.checklist-item__toggle').getAttribute('aria-expanded')).toBe('true');
+      expect(row('a').querySelector('.checklist-item__text--folded')).toBeFalsy();
+    } finally {
+      delete HTMLSpanElement.prototype.scrollWidth;
+      delete HTMLSpanElement.prototype.clientWidth;
+    }
+  });
 });

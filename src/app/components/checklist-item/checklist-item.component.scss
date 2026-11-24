@@ -1,18 +1,49 @@
+@use "disclosure";
+
+// The first line's height: the arrow's. The text's first line is centered on it, the checkbox
+// too: they stay there when the text wraps.
+$first-line: 1.5rem;
+
 .checklist-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--space-2);
   padding: 2px 0;
+  // Its width comes from the checklist, never from its text: a folded line (nowrap) would otherwise
+  // widen the checklist past its to-do, instead of being cut.
+  contain: inline-size;
+}
+
+// <a11y-checkbox> itself is `display: contents`: its <label> is the row's item.
+.checklist-item__check > .a11y-checkbox {
+  min-height: $first-line;
 }
 
 // Not part of the checkbox's <label>: a click on it opens the checklist's editor (see lib/card-click.ts).
 .checklist-item__text {
-  flex: 1;
+  flex: 1 1 0;
   min-width: 0;
+  padding-block: calc(($first-line - 1lh) / 2);
   overflow-wrap: anywhere;
+}
+
+// Folded: its first line, cut with an ellipsis.
+.checklist-item__text--folded {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .checklist-item--done .checklist-item__text {
   color: var(--color-text-muted);
   text-decoration: line-through;
+}
+
+// Shown only when the text doesn't fit on one line: folds it down to its first line.
+.checklist-item__toggle {
+  @include disclosure.toggle;
+}
+
+.checklist-item__chevron {
+  @include disclosure.chevron;
 }

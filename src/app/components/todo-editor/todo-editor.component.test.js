@@ -91,6 +91,21 @@ describe('TodoEditorComponent', () => {
     expect(calls).toEqual([['save', 'Shopping', [{ id: 'a', text: 'Oat milk', done: true }], []]]);
   });
 
+  it('saves with Enter in the name, or Ctrl+Enter in an item (Enter there adds the next one)', () => {
+    mount(list);
+    expect(input().tagName).toBe('TEXTAREA');
+    input().value = 'Shopping';
+    keydown(input(), 'Enter');
+    expect(calls.length).toBe(1);
+    expect(calls[0][1]).toBe('Shopping');
+
+    keydown(fields()[0], 'Enter');
+    expect(fields().length).toBe(3);
+    expect(calls.length).toBe(1);
+    keydown(fields()[0], 'Enter', { metaKey: true });
+    expect(calls.length).toBe(2);
+  });
+
   it('refuses to save a blank name', () => {
     mount(list);
     input().value = '   ';
@@ -112,6 +127,30 @@ describe('TodoEditorComponent', () => {
     keydown(input(), 'a');
     expect(calls.length).toBe(3);
     expect(reached).toEqual(['a']);
+  });
+
+  it('saves with Ctrl+Enter and cancels with Escape from its buttons too', () => {
+    mount(list);
+    keydown($('.todo-editor__add-item'), 'Enter', { ctrlKey: true });
+    keydown($('.todo-editor__cancel'), 'Escape');
+    expect(calls.map(([kind]) => kind)).toEqual(['save', 'cancel']);
+  });
+
+  it('says how to save: Enter for a single to-do, Ctrl+Enter once it has items', () => {
+    mount(single);
+    expect($('.todo-editor__hint').textContent).toBe('Enter to save · Esc to cancel');
+    $('.todo-editor__add-item').click();
+    expect($('.todo-editor__hint').textContent).toBe('Ctrl+Enter to save · Esc to cancel');
+  });
+
+  it('shows ⌘ instead of Ctrl on macOS', () => {
+    Object.defineProperty(window.navigator, 'platform', { value: 'MacIntel', configurable: true });
+    try {
+      mount(list);
+      expect($('.todo-editor__hint').textContent).toBe('⌘+Enter to save · Esc to cancel');
+    } finally {
+      delete window.navigator.platform;
+    }
   });
 
   it('takes items out, to be saved as single to-dos, and puts them back at the end', () => {

@@ -50,8 +50,8 @@ describe('TodoItemComponent', () => {
 
     const checkId = el.querySelector('.todo-item__text').id;
     expect(checkbox(todos[0]).getAttribute('aria-labelledby')).toBe(checkId);
-    // The reorder handle is described by the reorder help, and "⋯" names the to-do in its label.
-    el.querySelectorAll('button:not(.todo-item__handle):not(.item-menu__trigger)').forEach((button) => expect(button.getAttribute('aria-describedby')).toBe(checkId));
+    // The reorder handle is described by the reorder help, "⋯" and the arrow name the to-do in their label.
+    el.querySelectorAll('button:not(.todo-item__handle):not(.item-menu__trigger):not(.todo-item__toggle)').forEach((button) => expect(button.getAttribute('aria-describedby')).toBe(checkId));
   });
 
   it('with "Done" open, checks a to-do, moves it below the open ones and keeps focus on its checkbox', async () => {
@@ -451,6 +451,71 @@ describe('TodoItemComponent - actions menu', () => {
     expect(count(todos[1])).toBe(0);
   });
 
+  it('offers to fold a to-do too long for one line, its actions on a row of their own while unfolded', async () => {
+    const toggle = (todo) => item(todo).querySelector('.todo-item__toggle');
+    // One that fits: no arrow, its actions beside it.
+    expect(toggle(todos[0]).hidden).toBe(true);
+    expect(item(todos[0]).classList.contains('todo-item--wrapped')).toBe(false);
+
+    // jsdom lays nothing out: every span overflows its width here.
+    Object.defineProperty(HTMLSpanElement.prototype, 'scrollWidth', { configurable: true, get: () => 500 });
+    Object.defineProperty(HTMLSpanElement.prototype, 'clientWidth', { configurable: true, get: () => 100 });
+    try {
+      const long = await scopeStoreService.addTodo('page', KEYS.page, 'A to-do too long to fit on one line');
+      await settle();
+      const text = () => item(long).querySelector('.todo-item__text');
+      expect(toggle(long).hidden).toBe(false);
+      expect(toggle(long).getAttribute('aria-expanded')).toBe('true');
+      expect(toggle(long).getAttribute('aria-controls')).toBe(text().id);
+      expect(toggle(long).getAttribute('aria-label')).toBe('Details: A to-do too long to fit on one line');
+      expect(item(long).classList.contains('todo-item--wrapped')).toBe(true);
+
+      toggle(long).click();
+      expect(document.activeElement).toBe(toggle(long));
+      await settle();
+      expect(toggle(long).getAttribute('aria-expanded')).toBe('false');
+      expect(text().classList.contains('todo-item__text--folded')).toBe(true);
+      expect(text().textContent).toBe('A to-do too long to fit on one line');
+      // Folded, it's one line: its actions go back beside it.
+      expect(item(long).classList.contains('todo-item--wrapped')).toBe(false);
+      expect(document.activeElement).toBe(toggle(long));
+      const saved = (await scopeStoreService.load(KEYS)).page.todos.find((t) => t.id === long.id);
+      expect(saved.collapsed).toBe(true);
+      expect(saved.updatedAt).toBe(long.updatedAt);
+
+      // A click on its text still opens the editor.
+      text().click();
+      expect(item(long).querySelector('.todo-editor__input').value).toBe('A to-do too long to fit on one line');
+      item(long).querySelector('.todo-editor__cancel').click();
+
+      toggle(long).click();
+      await settle();
+      expect(text().classList.contains('todo-item__text--folded')).toBe(false);
+      expect((await scopeStoreService.load(KEYS)).page.todos.find((t) => t.id === long.id).collapsed).toBeUndefined();
+    } finally {
+      delete HTMLSpanElement.prototype.scrollWidth;
+      delete HTMLSpanElement.prototype.clientWidth;
+    }
+  });
+
+  it('reports a failed fold and shows the to-do unfolded again', async () => {
+    Object.defineProperty(HTMLSpanElement.prototype, 'scrollWidth', { configurable: true, get: () => 500 });
+    Object.defineProperty(HTMLSpanElement.prototype, 'clientWidth', { configurable: true, get: () => 100 });
+    try {
+      const long = await scopeStoreService.addTodo('page', KEYS.page, 'A to-do too long to fit on one line');
+      await settle();
+      panel.fake.storage.local.failNextSet = new Error('Quota exceeded.');
+      item(long).querySelector('.todo-item__toggle').click();
+      await settle();
+      expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t update to-do “A to-do too long…”. Quota exceeded.', type: 'error', duration: 6000 });
+      expect(item(long).querySelector('.todo-item__toggle').getAttribute('aria-expanded')).toBe('true');
+      expect(item(long).querySelector('.todo-item__text--folded')).toBeFalsy();
+    } finally {
+      delete HTMLSpanElement.prototype.scrollWidth;
+      delete HTMLSpanElement.prototype.clientWidth;
+    }
+  });
+
   async function check(todo, checked = true) {
     const box = item(todo).querySelector('.todo-item__checkbox');
     box.checked = checked;
@@ -824,8 +889,8 @@ describe('TodoItemComponent - checklists', () => {
     expect(document.activeElement).toBe(item(list).querySelector('.todo-editor__input'));
   });
 
-  it('folds a checklist down to its name and progress, not a single to-do', async () => {
-    expect(item(single).querySelector('.todo-item__toggle')).toBeFalsy();
+  it('folds a checklist down to its name and progress (a single to-do only once it\'s too long)', async () => {
+    expect(item(single).querySelector('.todo-item__toggle').hidden).toBe(true);
     const toggle = () => item(list).querySelector('.todo-item__toggle');
     expect(toggle().getAttribute('aria-expanded')).toBe('true');
     expect(toggle().getAttribute('aria-controls')).toBe(item(list).querySelector('.todo-item__checklist').id);
@@ -837,6 +902,10 @@ describe('TodoItemComponent - checklists', () => {
     expect(item(list).querySelector('.todo-item__checklist')).toBeFalsy();
     expect(item(list).querySelector('.checklist-add')).toBeFalsy();
     expect(item(list).querySelector('.todo-item__title').textContent).toBe('Groceries · 1 of 2 done');
+    // Only the name is cut: the progress stays whole after it.
+    expect(item(list).querySelector('.todo-item__title').classList.contains('todo-item__title--folded')).toBe(true);
+    expect(item(list).querySelector('.todo-item__name').textContent).toBe('Groceries');
+    expect(item(list).querySelector('.todo-item__name .todo-item__progress')).toBeFalsy();
     expect(document.activeElement).toBe(toggle());
     const saved = await stored(list.id);
     expect(saved.collapsed).toBe(true);

@@ -88,6 +88,45 @@ describe('NoteEditorComponent', () => {
     expect((await stored()).name).toBeUndefined();
   });
 
+  it('takes a name of any length, wrapping like a checklist\'s name (no line breaks)', async () => {
+    const nameField = $('.note-editor__name');
+    expect(nameField.tagName).toBe('TEXTAREA');
+    expect(nameField.closest('a11y-textarea').classList.contains('line-field')).toBe(true);
+    expect(nameField.hasAttribute('maxlength')).toBe(false);
+
+    nameField.value = 'Packing\nlist';
+    nameField.dispatchEvent(new window.Event('input', { bubbles: true }));
+    expect(nameField.value).toBe('Packing list');
+
+    const long = 'A long name '.repeat(20).trim();
+    nameField.value = long;
+    await save();
+    expect((await stored()).name).toBe(long);
+  });
+
+  it('leaves Shift+Enter in the name alone (no line, no move)', () => {
+    const nameField = $('.note-editor__name');
+    nameField.focus();
+    keydown(nameField, 'Enter', { shiftKey: true });
+    expect(document.activeElement).toBe(nameField);
+  });
+
+  it('saves with Ctrl+Enter and cancels with Escape from its buttons too', async () => {
+    const button = (label) => $$('.note-editor button').find((b) => b.textContent === label);
+    textarea().value = 'Trip to Porto';
+    keydown(button('Save'), 'Enter', { ctrlKey: true });
+    await settle();
+    expect((await stored()).text).toBe('Trip to Porto');
+    expect(editor()).toBeFalsy();
+
+    $(`[data-note-id="${note.id}"] .note-item__edit`).click();
+    textarea().value = 'Discarded';
+    keydown(button('Cancel'), 'Escape');
+    await settle();
+    expect(editor()).toBeFalsy();
+    expect((await stored()).text).toBe('Trip to Porto');
+  });
+
   it('removes the name when it\'s left blank', async () => {
     await scopeStoreService.update('notes', note, { name: 'Packing' });
     await settle();
