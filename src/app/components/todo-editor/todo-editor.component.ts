@@ -1,6 +1,6 @@
 import { Component, html } from '../../../core/index.js';
 import { announce } from '../../lib/announce.js';
-import { formKeys, lineField, requireElement } from '../../lib/dom.js';
+import { formKeys, lineField, requireElement, requireText } from '../../lib/dom.js';
 import { keepDraftsOf, setEditDraft } from '../../lib/drafts.js';
 import { submitShortcut } from '../../lib/platform.js';
 import { ChecklistFieldsComponent } from '../checklist-fields/checklist-fields.component.js';
@@ -107,6 +107,7 @@ export class TodoEditorComponent extends Component<HTMLElement, ITodoEditorView>
 
   protected override onAfterRender(): void {
     super.onAfterRender();
+    requireText(this.input);
     // Enter in the name saves, as in a one-line field. Ctrl/Cmd+Enter saves and Escape cancels
     // from anywhere in the editor, buttons included.
     this.eventListeners.push(

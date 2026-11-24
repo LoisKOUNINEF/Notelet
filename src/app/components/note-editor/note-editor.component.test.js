@@ -1,6 +1,7 @@
 import { SidebarComponent } from '#root/dist/src/app/components/sidebar/sidebar.component.js';
 import { scopeStoreService } from '#root/dist/src/app/services/scope-store/scope-store.service.js';
 import { KEYS, keydown, settle, startPanel } from '../../testing/panel.js';
+import { refusesBlank } from '../../testing/fields.js';
 
 // Opened from its note's Edit button, in the panel.
 describe('NoteEditorComponent', () => {
@@ -45,6 +46,7 @@ describe('NoteEditorComponent', () => {
   });
 
   it('refuses to save an empty note and stays in edit mode', async () => {
+    expect(refusesBlank(textarea())).toBe(true);
     textarea().value = '   ';
     await save();
     expect(editor()).toBeTruthy();

@@ -1,6 +1,6 @@
 import { Component, html } from '../../../core/index.js';
 import { announce } from '../../lib/announce.js';
-import { formKeys, isPlainEnter, lineField, requireElement } from '../../lib/dom.js';
+import { formKeys, isPlainEnter, lineField, requireElement, requireText } from '../../lib/dom.js';
 import { keepDraftsOf, setEditDraft } from '../../lib/drafts.js';
 import { submitShortcut } from '../../lib/platform.js';
 
@@ -80,6 +80,7 @@ export class NoteEditorComponent extends Component<HTMLElement, INoteEditorView>
 
   protected override onAfterRender(): void {
     super.onAfterRender();
+    requireText(this.textarea);
     // The name wraps like a checklist's (no length limit). Ctrl/Cmd+Enter saves and Escape
     // cancels from anywhere in the editor, buttons included.
     this.eventListeners.push(

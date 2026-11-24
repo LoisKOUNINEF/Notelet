@@ -1,6 +1,7 @@
 import { TodoEditorComponent } from '#root/dist/src/app/components/todo-editor/todo-editor.component.js';
 import { clearDrafts, getEditDraft, setEditDraft } from '#root/dist/src/app/lib/drafts.js';
 import { keydown, spoken } from '../../testing/panel.js';
+import { refusesBlank } from '../../testing/fields.js';
 
 // On its own, with recording callbacks: the to-do item's tests cover it in the panel.
 describe('TodoEditorComponent', () => {
@@ -53,6 +54,7 @@ describe('TodoEditorComponent', () => {
     mount(single);
     expect(input().value).toBe('Call back');
     expect(label()).toBe('To-do');
+    expect(refusesBlank(input())).toBe(true);
     expect(fields()).toEqual([]);
     expect($('.todo-editor__restored')).toBeFalsy();
     expect($('.todo-editor__taken-out')).toBeFalsy();

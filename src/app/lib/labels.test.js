@@ -1,4 +1,4 @@
-import { firstLine, noteRef, quoted, sentence, shortLabel, todoRef } from '#root/dist/src/app/lib/labels.js';
+import { firstLine, noteRef, quoted, sentence, shortLabel, shortPath, todoRef } from '#root/dist/src/app/lib/labels.js';
 
 describe('labels', () => {
   it('reads the first non-empty line, trimmed, its spaces made single', () => {
@@ -16,6 +16,24 @@ describe('labels', () => {
   it('cuts one long word right at the limit', () => {
     expect(shortLabel('Supercalifragilisticexpialidocious')).toBe('Supercalifragilisti…');
     expect(shortLabel('Supercalifragilisticexpialidocious').length).toBe(20);
+  });
+
+  it('keeps a short path as it is', () => {
+    expect(shortPath('/')).toBe('/');
+    expect(shortPath('/blog')).toBe('/blog');
+    const exact = `/${'a'.repeat(29)}`;
+    expect(shortPath(exact)).toBe(exact);
+  });
+
+  it('cuts a long path in the middle, keeping its first segments and its last one', () => {
+    expect(shortPath('/docs/guides/getting-started/install')).toBe('/docs/guides/…/install');
+    expect(shortPath('/search/results/page?q=a/b&sort=new')).toBe('/search/…/page?q=a/b&sort=new');
+  });
+
+  it('keeps the start and the end of a last segment too long on its own', () => {
+    expect(shortPath('/docs/getting-started-with-everything-today')).toBe('/docs/…d-with-everything-today');
+    expect(shortPath('/docs/getting-started-with-everything-today').length).toBe(30);
+    expect(shortPath(`/${'a'.repeat(20)}${'b'.repeat(20)}`)).toBe(`/${'a'.repeat(14)}…${'b'.repeat(14)}`);
   });
 
   it('names a note by its name, else its first line', () => {

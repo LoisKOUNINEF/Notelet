@@ -65,6 +65,24 @@ describe('SitePageRowComponent', () => {
     expect(labels()).toEqual(['/blog', '/docs']);
   });
 
+  it('names a long page by its shortened path in the confirmation and the toast, which keeps its Undo', async () => {
+    const LONG = 'https://example.com/docs/guides/getting-started/install';
+    await open();
+    await scopeStoreService.addNote('page', LONG, 'Install note');
+    await settle();
+    row(LONG).querySelector('.site-page-row__delete').click();
+    await settle();
+
+    expect(asked.at(-1).title).toBe('Delete 1 note on /docs/guides/…/install?');
+    expect(asked.at(-1).message).toBe(`Every note on ${LONG}.`);
+    const toast = panel.toasts.at(-1);
+    expect(toast.message).toBe('/docs/guides/…/install: 1 note deleted.');
+    expect(toast.actionText).toBe('Undo');
+    toast.onAction();
+    await settle();
+    expect(labels()).toContain('/docs/guides/getting-started/install');
+  });
+
   it('hands the focus to the previous row when the last one leaves', async () => {
     await open();
     row(KEYS.page).querySelector('.site-page-row__delete').click();

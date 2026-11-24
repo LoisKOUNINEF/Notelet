@@ -1,10 +1,22 @@
-// One page in "Pages on this site": the page (a button opening it), then its actions.
+@use "disclosure";
+
+// One page in "Pages on this site": its arrow (for a long path), the page (a button opening it),
+// then its actions.
 .site-page-row {
   display: flex;
   align-items: center;
   gap: var(--space-1);
   // Its width comes from the list, never from a long page path.
   contain: inline-size;
+}
+
+// The arrow and the page: the arrow stays on the path's first line, however many it wraps to.
+.site-page-row__main {
+  display: flex;
+  flex: 1;
+  align-items: flex-start;
+  gap: var(--space-1);
+  min-width: 0;
 }
 
 .site-page-row__page {
@@ -37,8 +49,36 @@ button.site-page-row__page {
 }
 
 .site-page-row__label {
+  flex: 1 1 0;
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+// Folded: its first line, cut with an ellipsis.
+.site-page-row__label--folded {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// After the active tab's page, as "(current)" after its site in "Manage by site".
+.site-page-row__current {
+  flex: none;
+  color: var(--color-text-muted);
+  font-size: var(--font-small);
+  font-weight: normal;
+}
+
+// Shown only when the path doesn't fit on one line: folds it down to its first line.
+.site-page-row__toggle {
+  @include disclosure.toggle;
+  // Centered on the first line: the page's padding, then half of what a line and the arrow differ by.
+  font: inherit;
+  margin-top: calc(var(--space-1) + (1lh - 1.5rem) / 2);
+}
+
+.site-page-row__chevron {
+  @include disclosure.chevron;
 }
 
 .site-page-row__counts {

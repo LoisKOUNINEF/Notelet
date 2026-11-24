@@ -20,6 +20,30 @@ export function shortLabel(text: string, max: number = SHORT_LENGTH): string {
   return `${(space >= max / 2 ? room.slice(0, space) : room).trimEnd()}…`;
 }
 
+/**
+ * A page's path cut in the middle to `max` characters (the "…" included), so both ends stay
+ * recognizable: its first segments, then its last one (query string included), as in
+ * "/docs/guides/…/install". When that last segment alone is too long: the path's start, then
+ * the end of it ("/docs/…started-with-everything").
+ */
+export function shortPath(path: string, max: number = 30): string {
+  if (path.length <= max) return path;
+  const query = path.indexOf('?');
+  const cut = (query === -1 ? path : path.slice(0, query)).lastIndexOf('/');
+  const tail = path.slice(cut + 1);
+  // As many leading segments as fit before "…/" and the last one, each ending on a "/".
+  let head = '';
+  for (let slash = path.indexOf('/'); slash !== -1 && slash < cut; slash = path.indexOf('/', slash + 1)) {
+    const candidate = path.slice(0, slash + 1);
+    if (candidate.length + 2 + tail.length > max) break;
+    head = candidate;
+  }
+  if (head) return `${head}…/${tail}`;
+  const second = path.indexOf('/', 1);
+  const start = second !== -1 && second < max / 2 ? path.slice(0, second + 1) : path.slice(0, Math.floor(max / 2));
+  return `${start}…${path.slice(path.length - (max - start.length - 1))}`;
+}
+
 // “Its short label”, in curly quotes.
 export function quoted(text: string): string {
   return `“${shortLabel(text)}”`;

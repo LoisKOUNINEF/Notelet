@@ -6,7 +6,7 @@ import {
 } from '../../../core/index.js';
 import { applyRequestedFocus, byData, renderKeepingFocus, requestFocus } from '../../lib/focus.js';
 import { plural } from '../../lib/plural.js';
-import { SitePageRowComponent, type ISitePageEntry, type ISitePageRowOptions } from '../site-page-row/site-page-row.component.js';
+import { SITE_PAGE_TOGGLE, SitePageRowComponent, type ISitePageEntry, type ISitePageRowOptions } from '../site-page-row/site-page-row.component.js';
 
 export interface ISitePagesConfig {
   // null while they're being listed (the first time for this site): a spinner shows.
@@ -97,12 +97,15 @@ export class SitePagesComponent extends Component<HTMLElement, ISitePagesView> {
     this.refresh();
   }
 
-  // Rebuilt on every render: whatever had the focus gets it back (a page link, or the toggle if
-  // that link is gone), unless the action asked otherwise.
+  // Rebuilt on every render: whatever had the focus gets it back (a page link or a path's arrow,
+  // or the toggle if that row is gone), unless the action asked otherwise.
   private refresh(): void {
-    const url = (document.activeElement as HTMLElement | null)?.dataset?.url;
+    const active = document.activeElement as HTMLElement | null;
+    const url = active?.dataset?.url;
+    const pageKey = active?.matches(SITE_PAGE_TOGGLE) ? active.closest<HTMLElement>('.site-page-row')?.dataset.pageKey : undefined;
     const page = url ? [`.site-page-row__page${byData('url', url)}`] : [];
-    renderKeepingFocus(this.element, [...page, TOGGLE], () => {
+    const arrow = pageKey ? [`.site-page-row${byData('page-key', pageKey)} ${SITE_PAGE_TOGGLE}`] : [];
+    renderKeepingFocus(this.element, [...page, ...arrow, TOGGLE], () => {
       this.config = this.viewOf();
       this.render();
     });

@@ -1,6 +1,6 @@
 import { Component, html } from '../../../core/index.js';
 import { runAction } from '../../lib/actions.js';
-import { fitHeight, lineField, requireElement } from '../../lib/dom.js';
+import { fitHeight, lineField, requireElement, requireText } from '../../lib/dom.js';
 import { byData } from '../../lib/focus.js';
 import { quoted, todoRef } from '../../lib/labels.js';
 import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
@@ -24,10 +24,12 @@ export class ChecklistAddComponent extends Component<HTMLElement, IChecklistAddV
     this._checklist = checklist;
   }
 
-  // Enter adds the item, as in a one-line field.
+  // Enter adds the item, as in a one-line field. A blank item is highlighted instead.
   protected override onAfterRender(): void {
     super.onAfterRender();
-    this.eventListeners.push(...lineField(requireElement<HTMLTextAreaElement>(this.element, CHECKLIST_ADD_INPUT)));
+    const input = requireElement<HTMLTextAreaElement>(this.element, CHECKLIST_ADD_INPUT);
+    requireText(input);
+    this.eventListeners.push(...lineField(input));
   }
 
   // @ts-ignore : function used in HTML template

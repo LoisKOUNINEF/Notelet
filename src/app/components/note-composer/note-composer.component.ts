@@ -1,6 +1,6 @@
 import { Component, html } from '../../../core/index.js';
 import { runAction } from '../../lib/actions.js';
-import { formKeys, requireElement } from '../../lib/dom.js';
+import { formKeys, requireElement, requireText } from '../../lib/dom.js';
 import { getDraft, setDraft } from '../../lib/drafts.js';
 import { noteRef } from '../../lib/labels.js';
 import { submitShortcut } from '../../lib/platform.js';
@@ -47,6 +47,7 @@ export class NoteComposerComponent extends Component<HTMLElement, INoteComposerV
   protected override onAfterRender(): void {
     super.onAfterRender();
     const input = this.input;
+    requireText(input);
     const onInput = () => setDraft(draftId(this._scope, this._key), input.value);
     input.addEventListener('input', onInput);
     // Plain Enter adds a line; Ctrl/Cmd+Enter adds the note, from the button too.

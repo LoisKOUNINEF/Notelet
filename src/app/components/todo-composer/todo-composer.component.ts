@@ -1,6 +1,6 @@
 import { Component, html } from '../../../core/index.js';
 import { runAction } from '../../lib/actions.js';
-import { fitHeight, formKeys, lineField, requireElement } from '../../lib/dom.js';
+import { fitHeight, formKeys, lineField, requireElement, requireText } from '../../lib/dom.js';
 import { getDraft, getJsonDraft, keepDraftsOf, setDraft, setJsonDraft } from '../../lib/drafts.js';
 import { todoRef } from '../../lib/labels.js';
 import { submitShortcut } from '../../lib/platform.js';
@@ -73,6 +73,7 @@ export class TodoComposerComponent extends Component<HTMLElement, ITodoComposerV
   protected override onAfterRender(): void {
     super.onAfterRender();
     const input = this.input;
+    requireText(input);
     const onInput = () => setDraft(draftId(this._scope, this._key), input.value);
     input.addEventListener('input', onInput);
     this.eventListeners.push([input, 'input', onInput], ...lineField(input));

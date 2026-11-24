@@ -2,6 +2,7 @@ import { hasRequestedFocus } from '#root/dist/src/app/lib/focus.js';
 import { NoteComposerComponent } from '#root/dist/src/app/components/note-composer/note-composer.component.js';
 import { scopeStoreService } from '#root/dist/src/app/services/scope-store/scope-store.service.js';
 import { KEYS, keydown, settle, startPanel, typeInto } from '../../testing/panel.js';
+import { refusesBlank } from '../../testing/fields.js';
 
 describe('NoteComposerComponent', () => {
   let panel;
@@ -26,7 +27,7 @@ describe('NoteComposerComponent', () => {
   it('labels the field with its scope', () => {
     mount('site');
     expect($('a11y-label').textContent).toBe('New note for this site');
-    expect(input().required).toBe(true);
+    expect(refusesBlank(input())).toBe(true);
   });
 
   it('adds the trimmed note to its scope', async () => {

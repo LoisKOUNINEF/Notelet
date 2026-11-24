@@ -395,13 +395,13 @@ describe('SidebarComponent', () => {
     await settle();
     expect($('.site-pages__toggle').textContent.trim()).toBe('Pages on this site (1)');
     $('.site-pages__toggle').click();
-    expect(texts('.site-page-row__counts')).toEqual(['1 note, current page']);
+    expect(texts('.site-page-row__counts')).toEqual(['1 note']);
 
     // The To-dos tab: its to-dos, the list still open.
     $('#kind-tab-todos').click();
     await settle();
     expect($('.site-pages__toggle').getAttribute('aria-expanded')).toBe('true');
-    expect(texts('.site-page-row__counts')).toEqual(['1 to-do, current page']);
+    expect(texts('.site-page-row__counts')).toEqual(['1 to-do']);
   });
 
   it('keeps the site\'s lists as they are when navigating to another page of the site', async () => {

@@ -1,3 +1,5 @@
+import type { TextareaElement } from 'a11y-elements/components/textarea/element';
+
 /**
  * The element `selector` matches in `root`, for one its template always renders. Throws, naming
  * the selector, rather than failing later on a null.
@@ -127,4 +129,20 @@ export function fitHeight(textarea: HTMLTextAreaElement): void {
     return;
   }
   textarea.style.height = `${textarea.scrollHeight + textarea.offsetHeight - textarea.clientHeight}px`;
+}
+
+// What a blank field says, spaces only included: as the browsers' own `required` message.
+const BLANK_MESSAGE = 'Please fill out this field.';
+
+/**
+ * Makes `textarea` invalid while its text is blank, spaces only included (`required` alone lets
+ * those through): its form's submit is blocked, and its `<a11y-textarea>` highlights it and
+ * focuses it, as for an empty `required` field. To call after each render (a new field).
+ */
+export function requireText(textarea: HTMLTextAreaElement): void {
+  const host = textarea.closest<TextareaElement>('a11y-textarea');
+  if (!host) throw new Error('requireText: the textarea is not in an <a11y-textarea>.');
+  // Upgraded first: set on an element not upgraded yet, the property would hide its setter.
+  customElements.upgrade(host);
+  host.validators = [(value) => (value.trim() ? null : BLANK_MESSAGE)];
 }

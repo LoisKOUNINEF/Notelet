@@ -2,6 +2,7 @@ import { hasRequestedFocus } from '#root/dist/src/app/lib/focus.js';
 import { TodoComposerComponent } from '#root/dist/src/app/components/todo-composer/todo-composer.component.js';
 import { scopeStoreService } from '#root/dist/src/app/services/scope-store/scope-store.service.js';
 import { KEYS, keydown, settle, startPanel, typeInto } from '../../testing/panel.js';
+import { refusesBlank } from '../../testing/fields.js';
 
 describe('TodoComposerComponent', () => {
   let panel;
@@ -38,7 +39,7 @@ describe('TodoComposerComponent', () => {
 
   it('asks for text like the note composer, and says Enter adds', () => {
     mount('page');
-    expect(input().required).toBe(true);
+    expect(refusesBlank(input())).toBe(true);
     expect($('.todo-composer__hint').textContent).toBe('Enter to add');
     expect($('.todo-composer__hint').getAttribute('aria-hidden')).toBe('true');
   });

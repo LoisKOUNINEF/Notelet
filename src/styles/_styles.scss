@@ -311,9 +311,12 @@ $button-inactive: ":disabled, [aria-disabled='true']";
   &:has(button) {
     justify-content: space-between;
 
-    // The message stays centered in the space left of the button.
+    // The message stays centered in the space left of the button, and wraps there: a long word
+    // (a page's path) can't push "Undo" and "×" out of the toast.
     > span {
       flex: 1;
+      min-width: 0;
+      overflow-wrap: anywhere;
       text-align: center;
     }
   }

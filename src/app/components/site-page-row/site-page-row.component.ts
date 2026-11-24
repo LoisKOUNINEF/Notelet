@@ -1,8 +1,9 @@
 import { Component, html } from '../../../core/index.js';
 import { runAction } from '../../lib/actions.js';
 import { announce } from '../../lib/announce.js';
+import { onWidthChange, overflowsOneLine } from '../../lib/dom.js';
 import { byData } from '../../lib/focus.js';
-import { sentence } from '../../lib/labels.js';
+import { sentence, shortPath } from '../../lib/labels.js';
 import { plural } from '../../lib/plural.js';
 import { chromeApiService } from '../../services/chrome-api/chrome-api.service.js';
 import { confirmService } from '../../services/confirm/confirm.service.js';
@@ -33,10 +34,19 @@ export interface ISitePageRowOptions {
 
 interface ISitePageRowView {
   page: ISitePageEntry;
+  // Its path cut to one line with "…" (see _toggleFolded).
+  folded: boolean;
 }
 
 // @ts-ignore : variable(s) used in HTML template
-const templateFn = ({ page }: ISitePageRowView) => html`__TEMPLATE_PLACEHOLDER__`;
+const templateFn = ({ page, folded }: ISitePageRowView) => html`__TEMPLATE_PLACEHOLDER__`;
+
+// The pages whose path was unfolded, for as long as the panel stays open: a row the list
+// recreates (new counts, another kind tab) shows its path as the user left it.
+const unfolded = new Set<string>();
+
+// Its arrow: where the focus goes back once it folded or unfolded the path.
+export const SITE_PAGE_TOGGLE = '.site-page-row__toggle';
 
 type RowMenuAction = 'open-tab' | 'move';
 
@@ -47,15 +57,17 @@ const DELETE = '.site-page-row__delete';
  * One page in "Pages on this site": its path and how many notes or to-dos it holds (a click
  * opens it in the active tab), a "⋯" menu with "Open in a new tab" (not for the current page) and
  * "Move all notes (or to-dos) to this site", and a "Delete" for all of them (asked first). Moving
- * and deleting are undoable.
+ * and deleting are undoable. A path too long for one line is cut with "…", with an arrow
+ * beside it unfolding it (and folding it back).
  */
 export class SitePageRowComponent extends Component<HTMLElement, ISitePageRowView> {
   private readonly _page: ISitePageEntry;
   private readonly _options: ISitePageRowOptions;
+  private _stopWatching: (() => void) | null = null;
 
   constructor(mountTarget: HTMLElement, config: ISitePageEntry & { index: number }, options: ISitePageRowOptions) {
     const { index: _index, ...page } = config;
-    super({ templateFn, mountTarget, props: { className: 'site-page-row' }, config: { page } });
+    super({ templateFn, mountTarget, props: { className: 'site-page-row' }, config: { page, folded: !unfolded.has(page.key) } });
     // Lets a row leaving the list hand the focus to this one (see focusAfterLeaving).
     this.element.dataset.pageKey = page.key;
     this._page = page;
@@ -74,6 +86,44 @@ export class SitePageRowComponent extends Component<HTMLElement, ISitePageRowVie
     }];
   }
 
+  protected override onBeforeRender(): void {
+    this.stopWatching();
+    super.onBeforeRender();
+  }
+
+  protected override onAfterRender(): void {
+    super.onAfterRender();
+    this.fitArrow();
+    this._stopWatching = onWidthChange(this.element, () => this.fitArrow());
+  }
+
+  protected override onBeforeDestroy(): void {
+    this.stopWatching();
+    super.onBeforeDestroy();
+  }
+
+  private stopWatching(): void {
+    this._stopWatching?.();
+    this._stopWatching = null;
+  }
+
+  // The arrow shows only while the path doesn't fit on one line (wrapped, or cut when folded).
+  private fitArrow(): void {
+    const toggle = this.element.querySelector<HTMLElement>(SITE_PAGE_TOGGLE);
+    const label = this.element.querySelector<HTMLElement>('.site-page-row__label');
+    if (toggle && label) toggle.hidden = !overflowsOneLine(label);
+  }
+
+  // @ts-ignore : function used in HTML template
+  private _toggleFolded(): void {
+    const folded = !this.config.folded;
+    if (folded) unfolded.delete(this._page.key);
+    else unfolded.add(this._page.key);
+    this.config = { ...this.config, folded };
+    this.render();
+    this.element.querySelector<HTMLElement>(SITE_PAGE_TOGGLE)?.focus();
+  }
+
   // The current page is already open: no "Open in a new tab" for it.
   private menuActions(): IMenuAction<RowMenuAction>[] {
     return [
@@ -89,7 +139,7 @@ export class SitePageRowComponent extends Component<HTMLElement, ISitePageRowVie
       await chromeApiService.openInBackgroundTab(key);
       return true;
     });
-    if (opened) announce(`${label} opened in a new tab.`);
+    if (opened) announce(`${shortPath(label)} opened in a new tab.`);
   }
 
   // @ts-ignore : function used in HTML template
@@ -106,7 +156,7 @@ export class SitePageRowComponent extends Component<HTMLElement, ISitePageRowVie
     if (!result || result.moved.length === 0) return;
     const { moved, originals } = result;
     notifierService.undoable(
-      `${sentence(plural(moved.length, word(kind)))} moved to this site from ${this._page.label}.`,
+      `${sentence(plural(moved.length, word(kind)))} moved to this site from ${shortPath(this._page.label)}.`,
       () => scopeStoreService.moveManyBack(kind, moved, originals),
       'Couldn\'t move them back.',
       'success',
@@ -118,7 +168,7 @@ export class SitePageRowComponent extends Component<HTMLElement, ISitePageRowVie
     const { kind } = this._options;
     const what = this.what();
     const confirmed = await confirmService.ask({
-      title: `Delete ${what} on ${this._page.label}?`,
+      title: `Delete ${what} on ${shortPath(this._page.label)}?`,
       message: kind === 'todos' ? `Every to-do on ${this._page.key}, done ones included.` : `Every note on ${this._page.key}.`,
       confirmLabel: 'Delete',
     });
@@ -129,7 +179,7 @@ export class SitePageRowComponent extends Component<HTMLElement, ISitePageRowVie
     });
     if (!removed || removed.length === 0) return;
     notifierService.undoable(
-      `${this._page.label}: ${plural(removed.length, word(kind))} deleted.`,
+      `${shortPath(this._page.label)}: ${plural(removed.length, word(kind))} deleted.`,
       () => scopeStoreService.restoreMany(kind, removed),
       'Couldn\'t restore them.',
     );

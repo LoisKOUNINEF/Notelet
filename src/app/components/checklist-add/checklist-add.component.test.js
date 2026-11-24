@@ -1,6 +1,7 @@
 import { SidebarComponent } from '#root/dist/src/app/components/sidebar/sidebar.component.js';
 import { scopeStoreService } from '#root/dist/src/app/services/scope-store/scope-store.service.js';
 import { KEYS, settle, startPanel } from '../../testing/panel.js';
+import { refusesBlank } from '../../testing/fields.js';
 
 describe('ChecklistAddComponent', () => {
   let panel;
@@ -38,6 +39,10 @@ describe('ChecklistAddComponent', () => {
     expect(items.map(({ text, done }) => [text, done])).toEqual([['Passport', false], ['Tickets', false]]);
     expect(document.activeElement).toBe(input());
     expect(input().value).toBe('');
+  });
+
+  it('highlights blank text instead of adding it, spaces only included', () => {
+    expect(refusesBlank(input())).toBe(true);
   });
 
   it('adds nothing for blank text', async () => {

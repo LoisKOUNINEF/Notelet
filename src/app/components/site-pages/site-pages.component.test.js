@@ -57,7 +57,7 @@ describe('SitePagesComponent', () => {
     mount({ pages, kind: 'notes' });
     expect($('#site-pages-list').getAttribute('aria-label')).toBe('Pages of this site with notes');
     expect(labels()).toEqual(['/blog', '/docs']);
-    expect(counts()).toEqual(['1 note', '2 notes, current page']);
+    expect(counts()).toEqual(['1 note', '2 notes']);
   });
 
   it('lists the pages with to-dos on the To-dos tab, with their open ones, or their done ones', () => {
@@ -92,7 +92,53 @@ describe('SitePagesComponent', () => {
     const current = $('.site-page-row__page--current');
     expect(current.tagName).toBe('SPAN');
     expect(current.getAttribute('aria-current')).toBe('page');
+    // Shown as "Manage by site" shows its site: after its path, not part of it.
+    expect($$('.site-page-row__current').map((el) => el.textContent)).toEqual(['(current)']);
+    expect(current.querySelector('.site-page-row__current')).toBeTruthy();
+    expect(current.querySelector('.site-page-row__label').textContent).toBe('/docs');
     expect($$('button.site-page-row__page').map((el) => el.dataset.url)).toEqual(['https://example.com/blog']);
+  });
+
+  it('cuts paths to one line, with an arrow only for those too long for it', () => {
+    mount({ pages });
+    expect($$('.site-page-row__label').every((el) => el.classList.contains('site-page-row__label--folded'))).toBe(true);
+    // jsdom lays nothing out: every path fits.
+    expect($$('.site-page-row__toggle').every((el) => el.hidden)).toBe(true);
+  });
+
+  it('unfolds a long path with its arrow and folds it back, the focus staying on it', () => {
+    // jsdom lays nothing out: every span overflows its width here.
+    Object.defineProperty(HTMLSpanElement.prototype, 'scrollWidth', { configurable: true, get: () => 500 });
+    Object.defineProperty(HTMLSpanElement.prototype, 'clientWidth', { configurable: true, get: () => 100 });
+    try {
+      mount({ pages });
+      $('.site-pages__toggle').click();
+      const blog = () => $$('.site-page-row')[0];
+      const toggle = () => blog().querySelector('.site-page-row__toggle');
+      const label = () => blog().querySelector('.site-page-row__label');
+      expect(toggle().hidden).toBe(false);
+      expect(toggle().getAttribute('aria-expanded')).toBe('false');
+      expect(toggle().getAttribute('aria-controls')).toBe(label().id);
+      expect(toggle().getAttribute('aria-label')).toBe('Full path: /blog');
+
+      toggle().click();
+      expect(toggle().getAttribute('aria-expanded')).toBe('true');
+      expect(label().classList.contains('site-page-row__label--folded')).toBe(false);
+      expect(document.activeElement).toBe(toggle());
+
+      // Recreated with new counts: still unfolded, and still focused.
+      list.update(pages.map((page) => (page.label === '/blog' ? { ...page, notes: 4 } : page)), KEYS, 'notes');
+      expect(counts()[0]).toBe('4 notes');
+      expect(label().classList.contains('site-page-row__label--folded')).toBe(false);
+      expect(document.activeElement).toBe(toggle());
+
+      toggle().click();
+      expect(label().classList.contains('site-page-row__label--folded')).toBe(true);
+      expect(document.activeElement).toBe(toggle());
+    } finally {
+      delete HTMLSpanElement.prototype.scrollWidth;
+      delete HTMLSpanElement.prototype.clientWidth;
+    }
   });
 
   it('opens a page in the active tab', async () => {
