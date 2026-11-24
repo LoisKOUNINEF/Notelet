@@ -88,6 +88,13 @@ export class ChromeApiService extends Service<ChromeApiService> {
     await chrome.tabs.create({ url });
   }
 
+  // Opens a web page in a new tab, behind the current one: the panel stays on the page it shows.
+  // Needs no permission (tabs.create never does).
+  public async openInBackgroundTab(url: string): Promise<void> {
+    if (!isWebPage(url)) throw new Error(`Can't open ${url}.`);
+    await chrome.tabs.create({ url, active: false });
+  }
+
   // Navigates the tab shown next to the panel.
   public async openInActiveTab(url: string): Promise<void> {
     if (!isWebPage(url)) throw new Error(`Can't open ${url}.`);

@@ -117,6 +117,8 @@
   --a11y-dropdown-color-background: var(--color-surface);
   --a11y-dropdown-color-text: var(--color-text);
   --a11y-dropdown-min-width: 10rem;
+  // Menus and tooltips fade in without growing: the scale made their text, and the row beside it, seem to jump.
+  --a11y-anchored-overlay-initial-scale: 1;
   --a11y-menu-item-color-background: var(--color-surface);
   --a11y-menu-item-color-text: var(--color-text);
   --a11y-menu-item-color-secondary-hover: var(--color-primary);
@@ -194,6 +196,19 @@ textarea,
 input:not([type='checkbox'], [type='radio'], [type='button'], [type='submit'], [type='reset'], [type='range'], [type='color'], [type='file']),
 [contenteditable]:not([contenteditable='false']) {
   cursor: text;
+}
+
+// A one-line field that wraps (a to-do's text, see lib/dom.ts lineField): a <textarea> sized to
+// its text, looking like an <a11y-input> while it holds one line.
+a11y-textarea.line-field {
+  --a11y-textarea-min-height: 0;
+  --a11y-textarea-resize: none;
+  --a11y-textarea-control-padding-y: var(--a11y-input-control-padding-y);
+
+  > textarea {
+    overflow: hidden;
+    overflow-wrap: anywhere;
+  }
 }
 
 h1,

@@ -357,6 +357,32 @@ describe('ScopeStoreService', () => {
     expect((await scopeStoreService.listSites()).map((s) => s.site).sort()).toEqual(['blog.example.com', 'example.com', 'example.org']);
   });
 
+  it('deletes a site\'s notes only, or its to-dos only, in one removal, and puts them back', async () => {
+    await scopeStoreService.addNote('site', 'example.com', 'Site note');
+    await scopeStoreService.addTodo('site', 'example.com', 'Site to-do');
+    await scopeStoreService.addNote('page', 'https://example.com/a', 'Page note');
+    await scopeStoreService.addTodo('page', 'https://example.com/a', 'Page to-do');
+    await scopeStoreService.addNote('page', 'https://example.org/a', 'Other site stays');
+    const remove = spyOn(fake.storage.local, 'remove');
+
+    const removed = await scopeStoreService.removeSiteKind('example.com', 'notes');
+    expect(remove.callCount).toBe(1);
+    remove.restore();
+    expect(Object.keys(removed).sort()).toEqual(['notes:page:https://example.com/a', 'notes:site:example.com']);
+    expect([...fake.storage.local.data.keys()].sort()).toEqual([
+      'notes:page:https://example.org/a', 'todos:page:https://example.com/a', 'todos:site:example.com',
+    ]);
+
+    await scopeStoreService.restoreRemoved(removed);
+    expect((await scopeStoreService.listSites()).find((s) => s.site === 'example.com')).toBeDefined();
+    const restored = (await scopeStoreService.listSites()).find((s) => s.site === 'example.com');
+    expect([restored.notes, restored.todos]).toEqual([2, 2]);
+
+    await scopeStoreService.removeSiteKind('example.com', 'todos');
+    const site = (await scopeStoreService.listSites()).find((s) => s.site === 'example.com');
+    expect([site.notes, site.todos]).toEqual([2, 0]);
+  });
+
   it('runs writes one at a time, so concurrent adds are all kept', async () => {
     await Promise.all(['a', 'b', 'c'].map((text) => scopeStoreService.addNote('page', keys.page, text)));
     expect((await scopeStoreService.load(keys)).page.notes.length).toBe(3);
@@ -502,10 +528,24 @@ describe('ScopeStoreService', () => {
     const unfolded = await scopeStoreService.setCollapsed('notes', folded, false);
     expect('collapsed' in unfolded).toBe(false);
 
+    // A note's name, apart from its text.
+    const cut = await scopeStoreService.setNameCollapsed(unfolded, true);
+    expect(cut.nameCollapsed).toBe(true);
+    expect('collapsed' in cut).toBe(false);
+    expect(cut.updatedAt).toBe(note.updatedAt);
+    expect('nameCollapsed' in (await scopeStoreService.setNameCollapsed(cut, false))).toBe(false);
+
     const todo = await scopeStoreService.addTodo('page', keys.page, 'Trip', [{ id: 'a', text: 'Passport', done: false }]);
     const foldedTodo = await scopeStoreService.setCollapsed('todos', todo, true);
     expect(foldedTodo.collapsed).toBe(true);
     expect(foldedTodo.updatedAt).toBe(todo.updatedAt);
+
+    // One item of a checklist.
+    const foldedItem = await scopeStoreService.setItemCollapsed(foldedTodo, 'a', true);
+    expect(foldedItem.items[0].collapsed).toBe(true);
+    expect(foldedItem.updatedAt).toBe(todo.updatedAt);
+    const unfoldedItem = await scopeStoreService.setItemCollapsed(foldedItem, 'a', false);
+    expect('collapsed' in unfoldedItem.items[0]).toBe(false);
   });
 });
 
@@ -1119,6 +1159,29 @@ describe('ScopeStoreService - moving several items', () => {
     expect(await texts('notes', 'page')).toEqual([]);
   });
 
+  it('moves all of another page\'s notes to the site in one write, and back', async () => {
+    const other = 'https://example.com/other';
+    await scopeStoreService.addNote('page', other, 'A');
+    await scopeStoreService.addNote('page', other, 'B');
+    await scopeStoreService.addNote('page', keys.page, 'Stays');
+    const set = spyOn(fake.storage.local, 'set');
+    const { originals, moved } = await scopeStoreService.moveAll('notes', other, keys);
+    expect(set.callCount).toBe(1);
+    set.restore();
+    expect(originals.map((n) => [n.text, n.key]).sort()).toEqual([['A', other], ['B', other]]);
+    expect(moved.map((n) => [n.text, n.scope, n.key]).sort()).toEqual([['A', 'site', 'example.com'], ['B', 'site', 'example.com']]);
+    expect((await texts('notes', 'site')).sort()).toEqual(['A', 'B']);
+    expect(await texts('notes', 'page')).toEqual(['Stays']);
+
+    await scopeStoreService.moveManyBack('notes', moved, originals);
+    expect(await texts('notes', 'site')).toEqual([]);
+    expect((await scopeStoreService.listSitePages('example.com')).find((p) => p.key === other).notes).toBe(2);
+  });
+
+  it('moves nothing from a page with nothing of the kind', async () => {
+    expect(await scopeStoreService.moveAll('todos', 'https://example.com/none', keys)).toEqual({ originals: [], moved: [] });
+  });
+
   it('moves nothing, and writes nothing, when they\'re all gone', async () => {
     const a = await scopeStoreService.addNote('page', keys.page, 'A');
     await scopeStoreService.remove('notes', a);
@@ -1209,9 +1272,10 @@ describe('ScopeStoreService - stale copies', () => {
   });
 
   it('removes the list a move empties, instead of leaving an empty item', async () => {
+    // The notes as added, not by their place in load(): that follows their creation time (newest
+    // first), so it would depend on whether the clock ticked between the two adds.
     const only = await scopeStoreService.addNote('page', keys.page, 'Only one');
-    await scopeStoreService.addNote('page', keys.page, 'Second');
-    const [, second] = (await scopeStoreService.load(keys)).page.notes;
+    const second = await scopeStoreService.addNote('page', keys.page, 'Second');
     await scopeStoreService.move('notes', only, keys);
     expect(fake.storage.local.data.has(`notes:page:${keys.page}`)).toBe(true);
 

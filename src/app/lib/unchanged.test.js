@@ -11,6 +11,23 @@ describe('keepUnchanged', () => {
     expect(kept[1]).toBe(next[1]);
     expect(kept[2]).toBe(next[2]);
   });
+
+  it('gives a new object to a note whose name was cut or shown whole', () => {
+    const previous = [item('a', 1), item('b', 1, { nameCollapsed: true })];
+    const next = [item('a', 1, { nameCollapsed: true }), item('b', 1, { nameCollapsed: true })];
+    const kept = keepUnchanged(previous, next);
+    expect(kept[0]).toBe(next[0]);
+    expect(kept[1]).toBe(previous[1]);
+  });
+
+  it('gives a new object to a checklist one of whose items was folded or unfolded', () => {
+    const items = (collapsed) => [{ id: 'x', text: 'Passport', done: false, ...(collapsed ? { collapsed } : {}) }];
+    const previous = [item('a', 1, { items: items(false) }), item('b', 1, { items: items(true) })];
+    const next = [item('a', 1, { items: items(true) }), item('b', 1, { items: items(true) })];
+    const kept = keepUnchanged(previous, next);
+    expect(kept[0]).toBe(next[0]);
+    expect(kept[1]).toBe(previous[1]);
+  });
 });
 
 describe('inOrder', () => {

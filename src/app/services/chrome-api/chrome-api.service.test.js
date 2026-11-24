@@ -84,6 +84,12 @@ describe('ChromeApiService', () => {
     expect(fake.tabs.updated).toEqual([]);
   });
 
+  it('opens a web page in a new tab behind the current one', async () => {
+    await chromeApiService.openInBackgroundTab('https://example.com/blog');
+    expect(fake.tabs.created).toEqual([{ url: 'https://example.com/blog', active: false }]);
+    expect(fake.tabs.updated).toEqual([]);
+  });
+
   it('opens only web pages and the browser settings the panel links to', async () => {
     for (const url of ['javascript:alert(1)', 'data:text/html,hi', 'chrome://settings/passwords', 'file:///etc/hosts', 'not a url']) {
       let error = null;
@@ -91,6 +97,9 @@ describe('ChromeApiService', () => {
       expect(error.message).toBe(`Can't open ${url}.`);
       error = null;
       await chromeApiService.openInActiveTab(url).catch((e) => { error = e; });
+      expect(error.message).toBe(`Can't open ${url}.`);
+      error = null;
+      await chromeApiService.openInBackgroundTab(url).catch((e) => { error = e; });
       expect(error.message).toBe(`Can't open ${url}.`);
     }
     await chromeApiService.openTab('https://example.com/');

@@ -16,6 +16,19 @@ describe('sortItems', () => {
     expect(sortItems('todos', items).map((t) => t.id)).toEqual(['a', 'b', 'done-early', 'done-late']);
   });
 
+  it('repairs a checklist item\'s fold of the wrong type, keeping a valid one', () => {
+    const todo = (collapsed) => ({ id: 't', text: 'Trip', createdAt: 1, done: false, items: [{ id: 'a', text: 'Passport', done: false, collapsed }] });
+    expect('collapsed' in sortItems('todos', [todo('yes')])[0].items[0]).toBe(false);
+    expect(sortItems('todos', [todo(true)])[0].items[0].collapsed).toBe(true);
+  });
+
+  it('repairs a note\'s folds of the wrong type, keeping valid ones', () => {
+    const [repaired] = sortItems('notes', [note('n', { collapsed: 'yes', nameCollapsed: 1 })]);
+    expect('collapsed' in repaired).toBe(false);
+    expect('nameCollapsed' in repaired).toBe(false);
+    expect(sortItems('notes', [note('n', { collapsed: true, nameCollapsed: true })])[0].nameCollapsed).toBe(true);
+  });
+
   it('returns no items for anything but an array', () => {
     expect(sortItems('notes', { id: 'x' })).toEqual([]);
     expect(sortItems('todos', undefined)).toEqual([]);

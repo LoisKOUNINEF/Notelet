@@ -63,11 +63,12 @@ function normalizeItem<K extends ScopeContentKind>(kind: K, value: unknown): ISc
     const note: INote = item;
     if (note.name !== undefined && typeof note.name !== 'string') delete note.name;
     if (note.collapsed !== undefined && typeof note.collapsed !== 'boolean') delete note.collapsed;
+    if (note.nameCollapsed !== undefined && typeof note.nameCollapsed !== 'boolean') delete note.nameCollapsed;
     return note as IScopeItemKinds[K];
   }
 
   const todo: ITodo = { ...item, done: stored.done === true, doneAt: isTime(stored.doneAt) ? stored.doneAt : null };
-  if (Array.isArray(stored.items)) todo.items = stored.items.filter(isChecklistItem);
+  if (Array.isArray(stored.items)) todo.items = stored.items.filter(isChecklistItem).map(repairChecklistItem);
   else delete todo.items;
   if (todo.collapsed !== undefined && typeof todo.collapsed !== 'boolean') delete todo.collapsed;
   return todo as IScopeItemKinds[K];
@@ -77,6 +78,12 @@ function isChecklistItem(value: unknown): value is IChecklistItem {
   if (!value || typeof value !== 'object') return false;
   const item = value as Partial<IChecklistItem>;
   return typeof item.id === 'string' && typeof item.text === 'string' && typeof item.done === 'boolean';
+}
+
+function repairChecklistItem(item: IChecklistItem): IChecklistItem {
+  if (item.collapsed === undefined || typeof item.collapsed === 'boolean') return item;
+  const { collapsed: _collapsed, ...repaired } = item;
+  return repaired;
 }
 
 // A timestamp a Date can represent: toISOString() throws on anything else.

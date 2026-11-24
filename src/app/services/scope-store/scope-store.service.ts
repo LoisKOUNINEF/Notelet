@@ -45,6 +45,12 @@ export interface IMovedIntoChecklist {
   itemId: string;
 }
 
+// What moveAll() did, for its Undo (moveManyBack).
+export interface IMovedAll<K extends ScopeContentKind> {
+  originals: IScopeItemKinds[K][];
+  moved: IScopeItemKinds[K][];
+}
+
 /**
  * The stored format's version, for later migrations.
  * Version 1 stores no marker
@@ -141,7 +147,7 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
     });
   }
 
-  // Folds or unfolds a note or a checklist.
+  // Folds or unfolds a note or a to-do.
   public setCollapsed<K extends ScopeContentKind>(kind: K, item: IScopeItemKinds[K], collapsed: boolean): Promise<IScopeItemKinds[K]> {
     return this.replaceItem(kind, item, (current) => {
       const folded = { ...current };
@@ -149,6 +155,30 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
       else delete folded.collapsed;
       return folded;
     });
+  }
+
+  // Cuts a note's name to one line, or shows it whole, apart from its text's fold. Not an edit either.
+  public setNameCollapsed(note: INote, collapsed: boolean): Promise<INote> {
+    return this.replaceItem('notes', note, (current) => {
+      const folded = { ...current };
+      if (collapsed) folded.nameCollapsed = true;
+      else delete folded.nameCollapsed;
+      return folded;
+    });
+  }
+
+  // Folds or unfolds one item of a checklist. Not an edit either.
+  public setItemCollapsed(todo: ITodo, itemId: string, collapsed: boolean): Promise<ITodo> {
+    return this.replaceItem('todos', todo, (current) => ({
+      ...current,
+      items: (current.items ?? []).map((item) => {
+        if (item.id !== itemId) return item;
+        const folded = { ...item };
+        if (collapsed) folded.collapsed = true;
+        else delete folded.collapsed;
+        return folded;
+      }),
+    }));
   }
 
   public remove<K extends ScopeContentKind>(kind: K, item: IScopeItemKinds[K]): Promise<void> {
@@ -221,6 +251,16 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
       await this.writeLists({ [to]: sortItems(kind, [...target, ...moved]), [from]: source.filter((i) => !ids.has(i.id)) });
       return moved;
     });
+  }
+
+  /**
+   * Moves every note or to-do of a page of the active tab's site to the site, in a single write
+   * ("Pages on this site"). Resolves to them as they were and as moved, for moveManyBack().
+   */
+  public async moveAll<K extends ScopeContentKind>(kind: K, pageKey: string, keys: IScopeKeys): Promise<IMovedAll<K>> {
+    const key = storageKey(kind, 'page', pageKey);
+    const originals = sortItems(kind, (await chromeApiService.storageGet(this.area, [key]))[key]);
+    return { originals, moved: await this.moveMany(kind, originals, keys) };
   }
 
   // Undoes moveMany(), in a single write. Edits made since stay.
@@ -378,6 +418,19 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
       const removed: RemovedItems = {};
       for (const { key, kind, value } of await this.readAll()) {
         if (siteOf(key) === site) removed[key] = sortItems(kind, value);
+      }
+      await chromeApiService.storageRemove(this.area, Object.keys(removed));
+      return removed;
+    });
+  }
+
+  // A site's notes, or its to-dos, its pages' included, in one write. Resolves to what was removed,
+  // for restoreRemoved().
+  public removeSiteKind(site: string, kind: ScopeContentKind): Promise<RemovedItems> {
+    return this.enqueue(async () => {
+      const removed: RemovedItems = {};
+      for (const { key, kind: itemKind, value } of await this.readAll()) {
+        if (itemKind === kind && siteOf(key) === site) removed[key] = sortItems(itemKind, value);
       }
       await chromeApiService.storageRemove(this.area, Object.keys(removed));
       return removed;
