@@ -36,6 +36,7 @@ describe('SiteManagerComponent', () => {
     $('.site-manager__select').dispatchEvent(new window.Event('change', { bubbles: true }));
   };
   const keys = () => [...panel.fake.storage.local.data.keys()].filter((key) => !key.startsWith('settings')).sort();
+  const menuItem = (site, action) => document.getElementById(`site-row-${site}-menu`).querySelector(`[data-action="${action}"]`);
 
   beforeEach(async () => {
     panel = await startPanel();
@@ -135,6 +136,78 @@ describe('SiteManagerComponent', () => {
     toast.onAction();
     await settle();
     expect(sites()).toEqual(['example.com (current)', 'alpha.net', 'beta.org']);
+  });
+
+  it('deletes all of a site\'s notes once confirmed, its pages\' included, keeping its to-dos, and can undo it', async () => {
+    await mount();
+    menuItem('example.com', 'delete-notes').click();
+    await settle();
+
+    expect(asked).toEqual([{ title: 'Delete all notes on example.com?', message: '1 note, on the site and its pages.', confirmLabel: 'Delete' }]);
+    expect(keys()).toEqual(['notes:page:https://beta.org/x', 'todos:page:https://alpha.net', 'todos:site:example.com']);
+    expect(row('example.com').querySelector('.site-row__meta').textContent).toBe('1 to-do · Edited 5 days ago');
+    // The row stays, with its new counts: back on its "⋯".
+    expect(document.activeElement).toBe(row('example.com').querySelector('.item-menu__trigger'));
+    expect(menuItem('example.com', 'delete-notes').getAttribute('aria-disabled')).toBe('true');
+
+    const toast = panel.toasts.at(-1);
+    expect(toast.message).toBe('example.com: 1 note deleted.');
+    toast.onAction();
+    await settle();
+    expect(keys()).toContain('notes:page:https://example.com/docs');
+  });
+
+  it('deletes all of a site\'s to-dos, the site leaving when that was all it had', async () => {
+    await mount();
+    menuItem('alpha.net', 'delete-todos').click();
+    await settle();
+
+    expect(asked[0].title).toBe('Delete all to-dos on alpha.net?');
+    expect(sites()).toEqual(['example.com (current)', 'beta.org']);
+    expect(document.activeElement).toBe(row('beta.org').querySelector('.site-row__delete'));
+    expect(panel.toasts.at(-1).message).toBe('alpha.net: 1 to-do deleted.');
+  });
+
+  it('deletes no notes or to-dos when cancelled, and reports a failed delete', async () => {
+    await mount();
+    answer = false;
+    menuItem('beta.org', 'delete-notes').click();
+    await settle();
+    expect(keys().length).toBe(4);
+
+    answer = true;
+    const remove = spyOn(panel.fake.storage.local, 'remove').andCallFake(async () => { throw new Error('Nope.'); });
+    menuItem('beta.org', 'delete-notes').click();
+    await settle();
+    remove.restore();
+    expect(panel.toasts.at(-1).message).toBe('Couldn\'t delete this site\'s notes. Nope.');
+  });
+
+  it('opens another site\'s home page in the active tab from its card, "(current)" following', async () => {
+    await mount();
+    expect(row('example.com').querySelector('.site-row__open')).toBeFalsy();
+
+    row('beta.org').querySelector('.site-row__open').click();
+    await settle();
+    expect(panel.fake.tabs.updated).toEqual([{ tabId: 1, url: 'https://beta.org/' }]);
+    expect(sites()).toEqual(['example.com', 'alpha.net', 'beta.org (current)']);
+
+    // Anywhere else on the card but its actions, too.
+    row('alpha.net').click();
+    await settle();
+    expect(panel.fake.tabs.updated.at(-1)).toEqual({ tabId: 1, url: 'https://alpha.net/' });
+  });
+
+  it('opens another site in a new tab behind the current one, not the current site', async () => {
+    await mount();
+    menuItem('beta.org', 'open-tab').click();
+    await settle();
+    expect(panel.fake.tabs.created).toEqual([{ url: 'https://beta.org/', active: false }]);
+    expect(panel.fake.tabs.updated).toEqual([]);
+
+    menuItem('example.com', 'open-tab').click();
+    await settle();
+    expect(panel.fake.tabs.created.length).toBe(1);
   });
 
   it('deletes nothing when cancelled, and reports a failed delete or listing', async () => {
