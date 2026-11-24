@@ -1,7 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import esbuild from 'esbuild';
-import { getFilesRecursive, print, pascalCased, capitalized } from '../../../utils/index.js';
+import { getFilesRecursive, print, pascalCased, capitalized, UserError } from '../../../utils/index.js';
 import { PATHS } from '../app/paths.js';
 import { findInlineTemplate, minifyTemplateBody } from './template-literal.js';
 
@@ -36,7 +36,8 @@ export async function mergeTemplates() {
   await fs.writeFile(TEMPLATE_MAP_FILE, JSON.stringify(templateMap));
 
   if (failures.length) {
-    throw new Error(`Failed to resolve ${failures.length} template(s).`);
+    // Each failure is listed above.
+    throw new UserError(`Failed to resolve ${failures.length} template(s): see above.`);
   }
 }
 
@@ -110,7 +111,7 @@ async function mergeExternalTemplate(htmlPath, resolvedPaths, failures, template
       continue;
     }
 
-    print.warn(describeConflict(codePath));
+    print.error(describeConflict(codePath));
     failures.push(path.basename(codePath));
     conflictCount++;
   }
@@ -118,7 +119,7 @@ async function mergeExternalTemplate(htmlPath, resolvedPaths, failures, template
   if (mergedCount > 0) {
     await fs.unlink(htmlPath);
   } else if (mergedCount + conflictCount === 0) {
-    print.warn(describeOrphanHtml(htmlPath));
+    print.error(describeOrphanHtml(htmlPath));
     failures.push(htmlFilename);
   }
 }
@@ -136,7 +137,7 @@ async function checkRemainingTemplates(resolvedPaths, failures) {
     warnIfUntagged(codePath, content, template.body);
 
     if (template.body === PLACEHOLDER) {
-      print.warn(describeMissingTemplate(codePath));
+      print.error(describeMissingTemplate(codePath));
       failures.push(path.basename(codePath));
     }
   }
@@ -235,6 +236,6 @@ function describeOrphanHtml(htmlPath) {
   const htmlFilename = path.basename(htmlPath);
   const basename = htmlFilename.replace(/\.html$/, '');
 
-  return `"${htmlFilename}" has no matching component or view (expected ${basename}.ts or ${basename}.js).
+  return `"${htmlFilename}" has no matching component or view (expected ${basename}.ts).
 Remove ${htmlFilename}, or add ${basename}.ts with a template placeholder to merge it into.`;
 }

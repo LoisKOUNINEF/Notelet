@@ -16,7 +16,7 @@ export function generateFile({
   const filePath = `${targetPath}/${name.kebab}.${suffix}.${extension}`;
 
   if (fs.existsSync(filePath)) {
-    print.boldError('A file with this name already exists');
+    print.boldError(`\nThe file already exists: ${filePath}.`);
     process.exit(1);
   }
 

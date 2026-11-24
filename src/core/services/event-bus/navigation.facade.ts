@@ -1,25 +1,25 @@
 import { AppEventBus } from "./event-bus.js";
 
+// Calls AppEventBus directly, so useEventBus() redirects it too. A class instance rather than
+// module functions (like Lifecycle): tests spy on its methods, e.g. spyOn(Navigation, 'navigateTo').
 class NavigationFacade {
-  constructor(private bus: Nutin.EventBus) {}
-
   navigateTo(path: string): void {
-    this.bus.emit('navigate', { path });
+    AppEventBus.emit('navigate', { path });
   }
 
   onNavigate(callback: (data: { path: string }) => void): () => void {
-    this.bus.subscribe('navigate', callback);
-    return () => this.bus.off('navigate', callback);
+    AppEventBus.subscribe('navigate', callback);
+    return () => AppEventBus.off('navigate', callback);
   }
 
   reload(): void {
-    this.bus.emit('reload');
+    AppEventBus.emit('reload');
   }
 
   onReload(callback: () => void): () => void {
-    this.bus.subscribe('reload', callback);
-    return () => this.bus.off('reload', callback);
+    AppEventBus.subscribe('reload', callback);
+    return () => AppEventBus.off('reload', callback);
   }
 }
 
-export const Navigation = /* @__PURE__ */ new NavigationFacade(AppEventBus);
+export const Navigation = /* @__PURE__ */ new NavigationFacade();

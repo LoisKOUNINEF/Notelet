@@ -9,9 +9,14 @@ export type HistoryMode = 'push' | 'replace' | 'none';
 // Long enough for screen readers to notice the live region's content change.
 const ANNOUNCE_DELAY = 100;
 
-// See recoverFromFailedViewLoad().
+// See reloadOnce().
 const RELOAD_KEY = 'nutin:failed-view-load';
 const RELOAD_WINDOW = 10_000;
+
+// How browsers reject an import() whose file is gone or unreachable (Chrome, Firefox, Safari).
+const MODULE_LOAD_ERROR = /Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed/;
+// Where esbuild writes the app's own lazy chunks (tools/builder: chunks/).
+const CHUNKS_PATH = '/chunks/';
 
 /**
  * Navigation - handles path normalization and history management
@@ -83,13 +88,19 @@ export function localizedUrl(normalizedPath: string, search: string = '', hash?:
   return addLocalePrefix(normalizedPath) + search + (hash ? `#${hash}` : '');
 }
 
-// A lazy route's view failed to load: usually a deploy replaced the chunks while this tab
-// was open, or the network dropped. A full page load of the target URL fetches the new
-// build. It happens once per URL within RELOAD_WINDOW (recorded in sessionStorage), so a
-// view that keeps failing (or a broken chunk) can't reload forever: the error is logged
-// and the current page stays. Without sessionStorage, it only logs.
+// A lazy route's view failed to load: see reloadOnce().
 export function recoverFromFailedViewLoad(url: string, error: unknown): void {
-  console.error(`[router] Failed to load the view for "${url}".`, error);
+  reloadOnce(url, error, 'the view');
+}
+
+// Code failed to load: usually a deploy replaced the chunks while this tab was open, or the
+// network dropped. A full page load of `url` fetches the new build. It happens once per URL
+// within RELOAD_WINDOW (recorded in sessionStorage), so code that keeps failing (or a broken
+// chunk) can't reload forever: the error is logged and the current page stays. Offline, or
+// without sessionStorage, it only logs: a reload would only trade the page for an error page.
+export function reloadOnce(url: string, error: unknown, what: string): void {
+  console.error(`[router] Failed to load ${what} for "${url}".`, error);
+  if (navigator.onLine === false) return;
   try {
     const last = JSON.parse(sessionStorage.getItem(RELOAD_KEY) ?? 'null') as { url?: string; at?: number } | null;
     const now = Date.now();
@@ -99,6 +110,17 @@ export function recoverFromFailedViewLoad(url: string, error: unknown): void {
     return;
   }
   loadPage(url);
+}
+
+// An import() of one of the app's own chunks that failed because its file couldn't be fetched,
+// as opposed to an error thrown by the module's own code. A third-party module (an ad blocker,
+// a CSP or a CDN outage) isn't the app's to recover by reloading: when the message names the
+// module, it must be a same-origin chunk. Safari's message names none: assumed to be one.
+export function isModuleLoadError(reason: unknown): boolean {
+  if (!(reason instanceof TypeError) || !MODULE_LOAD_ERROR.test(reason.message)) return false;
+  // Chrome and Firefox append the module's absolute URL to the message.
+  const { message } = reason;
+  return !message.includes('://') || message.includes(window.location.origin + CHUNKS_PATH);
 }
 
 // A full (non-SPA) page load.
@@ -170,9 +192,10 @@ function announce(message: string): void {
     region.setAttribute('role', 'status');
     region.setAttribute('aria-live', 'polite');
     region.setAttribute('data-nutin-announcer', '');
+    // Visually hidden. A new <div> has no padding or border, and clip-path covers every
+    // browser the build supports (the legacy `clip` isn't needed); margin keeps it off the layout.
     region.style.cssText =
-      'position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;' +
-      'overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;';
+      'position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap';
     document.body.appendChild(region);
     announcer = region;
   }
@@ -181,12 +204,30 @@ function announce(message: string): void {
   setTimeout(() => { region.textContent = message; }, ANNOUNCE_DELAY);
 }
 
+// While the /404 view is shown, a robots noindex tag: the server answers every app URL with the
+// SPA shell (HTTP 200), so without it a crawler would index the 404 page at the unknown URL.
+// Only the router's own tag is ever removed: one the app put in index.html stays.
+export function setNoIndex(on: boolean): void {
+  const tag = document.head.querySelector('meta[data-nutin-noindex]');
+  if (!on) {
+    tag?.remove();
+    return;
+  }
+  if (tag) return;
+  const meta = document.createElement('meta');
+  meta.setAttribute('name', 'robots');
+  meta.setAttribute('content', 'noindex');
+  meta.setAttribute('data-nutin-noindex', '');
+  document.head.appendChild(meta);
+}
+
 export function getCurrentPath(): string {
   return normalizePath(window.location.pathname);
 }
 
 export function updateDocumentTitle(view: View, pattern: string): void {
-  const route = CONFIG.generateSEOFiles
+  // Wrapped in the define like the i18n guards: prod bundles without generateSEOFiles drop the lookup.
+  const route = (globalThis.__NUTIN_SEO__ ?? CONFIG.generateSEOFiles)
     ? CONFIG.seo?.routes?.find((r) => r.path === pattern)
     : undefined;
   const seoTitle = route?.title ? resolveSeoTitle(route.title) : undefined;

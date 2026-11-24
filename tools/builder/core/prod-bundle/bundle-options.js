@@ -19,19 +19,61 @@ export const DEV_OVERRIDES = {
   drop: [],
 };
 
+// Class fields and #private members ship as written, whatever `builder.esbuild.target` says:
+// core is written with them (#private names minify, TypeScript `private` ones can't), and lowered
+// for es2020 every field becomes a helper call and every #member a WeakMap lookup.
+// Needs Safari 15, Chrome 84, Firefox 90 or later. To support older browsers, list the features to
+// lower for the target in `builder.esbuild.lowerClassFeatures` (validated in builder.config.js).
+export const NATIVE_CLASS_FEATURES = Object.freeze([
+  'class-field',
+  'class-static-field',
+  'class-private-field',
+  'class-private-method',
+  'class-private-accessor',
+  'class-private-static-field',
+  'class-private-static-method',
+  'class-private-static-accessor',
+  'class-private-brand-check',
+]);
+
+// esbuild's `supported` map: every native class feature but the lowered ones, which are left
+// out (not set to false) so that the target decides for them.
+export function classFeatureSupport(lowered = []) {
+  return Object.fromEntries(
+    NATIVE_CLASS_FEATURES.filter((feature) => !lowered.includes(feature)).map((feature) => [feature, true])
+  );
+}
+
 /**
  * esbuild `define`s shared by the client and SSR bundles. `globalThis.__NUTIN_I18N__`
- * lets esbuild fold core's i18n guards to a constant and drop the i18n code when it's off.
+ * lets esbuild fold core's i18n guards to a constant and drop the i18n code when it's off;
+ * `globalThis.__NUTIN_SEO__` does the same for the seo.json title lookup (`generateSEOFiles`).
  * `globalThis.__NUTIN_MARKDOWN_SOURCES__` (the markdown feature's source folders) is only
  * emitted where code reads it, so an app without that code ships none of it.
+ * `globalThis.__NUTIN_DATA_FILES__`: the runtime JSON files' content-hashed URLs (data-files.js),
+ * `{}` in dev builds, read by core's dataFileUrl().
  */
-export function sharedDefine({ isProd, i18n, markdownSources }) {
+export function sharedDefine({ isProd, i18n, generateSEO, markdownSources, dataFiles = {} }) {
   return {
     'process.env.NODE_ENV': isProd ? '"production"' : '"development"',
     'globalThis.__NUTIN_I18N__': JSON.stringify(Boolean(i18n)),
+    'globalThis.__NUTIN_SEO__': JSON.stringify(Boolean(generateSEO)),
     // A JSON *string* literal: esbuild inlines and folds it (`define ?? fallback`), while
     // an array define is hoisted into a variable and keeps the fallback code around.
     'globalThis.__NUTIN_MARKDOWN_SOURCES__': JSON.stringify(JSON.stringify(markdownSources?.sourceFolders ?? [])),
+    'globalThis.__NUTIN_DATA_FILES__': JSON.stringify(JSON.stringify(dataFiles)),
+  };
+}
+
+/**
+ * The browser bundle's `define`s: sharedDefine()'s, plus `globalThis.__NUTIN_PROD__`, which lets
+ * esbuild drop core's dev-only diagnostics from prod bundles. Not shared with the SSR bundle:
+ * prerendering keeps them (it keeps its console calls too).
+ */
+export function clientDefine(config) {
+  return {
+    ...sharedDefine(config),
+    'globalThis.__NUTIN_PROD__': JSON.stringify(Boolean(config.isProd)),
   };
 }
 

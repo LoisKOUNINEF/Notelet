@@ -1,5 +1,5 @@
 import nutinConfig from '../../nutin.config.js';
-import { errorExit } from './error-exit.js';
+import { errorExit, UserError } from './error-exit.js';
 
 // nutin.config.js "i18n": a list of language codes, the first being the default ([] turns i18n
 // off), or a boolean. `true` lists no language: English only (the build warns about it).
@@ -33,7 +33,7 @@ export function resolveI18n(option) {
 }
 
 const optionError = i18nOptionError(nutinConfig.i18n);
-if (optionError) errorExit(new Error(optionError), 'languages');
+if (optionError) errorExit(new UserError(optionError), 'languages');
 
 const resolved = resolveI18n(nutinConfig.i18n);
 

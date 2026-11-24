@@ -1,7 +1,7 @@
 import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import path from 'path';
-import { ensureDeps, errorExit } from '../../../utils/index.js';
+import { ensureDeps, errorExit, UserError } from '../../../utils/index.js';
 import { PATHS } from '../app/paths.js';
 import { builderConfig } from '../../builder.config.js';
 
@@ -33,7 +33,8 @@ if (builderConfig.isProd) args.push('--minify');
 try {
   execFileSync(process.execPath, args, { stdio: 'inherit' });
 } catch (err) {
-  errorExit(err, 'tailwind');
+  // Tailwind's own error is above (stdio inherited): the summary only.
+  errorExit(err.status !== undefined ? new UserError(`Tailwind CSS failed (exit code ${err.status}): see its output above.`) : err, 'tailwind');
 }
 
 // Tailwind's @layer blocks always lose to unlayered SCSS in the cascade regardless

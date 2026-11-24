@@ -1,12 +1,6 @@
 import * as SecurityHelper from "./security.helper.js";
 import * as SafeDom from "./safe-dom.helper.js";
 
-interface DomElementConfig {
-  target: Element | null;
-  mountTarget: string | HTMLElement; 
-  element: HTMLElement
-}
-
 // Element.moveBefore() isn't in TypeScript's DOM lib yet.
 type MovableParent = ParentNode & { moveBefore?: (node: Node, child: Node | null) => void };
 
@@ -69,12 +63,21 @@ export function mountElement(element: HTMLElement, mountTarget: string | HTMLEle
     : mountTarget;
 
   // Nothing would show up, and nothing else says why (e.g. a misspelled selector, or no #app).
-  if (!(target instanceof HTMLElement)) {
+  // Not in prod bundles: they drop the console call, but not the work that builds its message.
+  if (!globalThis.__NUTIN_PROD__ && !(target instanceof HTMLElement)) {
     const where = typeof mountTarget === 'string' ? `"${mountTarget}" isn't in the page` : `its mount target is ${mountTarget}`;
     console.error(`Nothing to mount <${element.tagName.toLowerCase()}> into: ${where}.`);
   }
 
-  appendOrReplace({ target, element, mountTarget });
+  if (!(target instanceof HTMLElement)) return;
+  if (typeof mountTarget === 'string') {
+    // A selector: the element is appended to it.
+    target.appendChild(element);
+  } else {
+    // A placeholder element: the mounted element takes its place, with its attributes.
+    copyAttributes(target, element);
+    target.replaceWith(element);
+  }
 }
 
 export function createElement<T extends HTMLElement>(
@@ -127,21 +130,6 @@ export function cleanupOptionalContent(root: ParentNode = document): void {
     if (isValueUndefined(el) || isEmpty(el)) SafeDom.removeNode(el);
     SafeDom.removeAttr(el, "data-optional");
   });
-}
-
-function appendOrReplace(config: DomElementConfig) {
-  if (config.target instanceof HTMLElement) {
-    if (typeof config.mountTarget === 'string') {
-      // Append mode
-      config.target.appendChild(config.element);
-    } else {
-      // Replace placeholder mode
-      copyAttributes(config.target, config.element);
-      config.target.replaceWith(config.element);
-    }
-  } else {
-    return;
-  }
 }
 
 // Carries placeholder attributes (class, id, aria-*, data-*...) onto the mounted

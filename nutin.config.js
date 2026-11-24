@@ -29,6 +29,7 @@ export default {
     includeFramework: false,  // Test Nutin source - src/core
     includeTools: false,     // Test tools/ (builder, testin-nutin, etc.)
     includeApp: true,        // Include application tests
+    isolate: ['src/app/lib/require-text.test.js'],           // Test files (path substrings) that each run in their own worker and jsdom window, e.g. for custom elements
 
     coverage: {
       enabled: false,        // Include coverage in the normal test command

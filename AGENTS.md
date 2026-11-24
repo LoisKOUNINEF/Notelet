@@ -1,6 +1,6 @@
 # Working on this project
 
-This project was generated with Nutin 3.1.3.
+This project was generated with Nutin 3.1.4.
 
 ## Architecture
 
@@ -134,7 +134,7 @@ Only defaults that leave the page are cancelled: link clicks (`<a href>`, unless
 
 ## Pipes
 
-Built-in pipes, registered by `registerPipes()` in `main.ts` (args in `data-pipe="name:arg1,arg2"`):
+Built-in pipes (args in `data-pipe="name:arg1,arg2"`). A new app registers none: call `registerPipes()` in `main.ts` for all of them, or register only the ones used, e.g. `AppPipeRegistry.register('date', datePipe)`. Each one is exported from core as `<name>Pipe` (`datePipe`, `capitalizeAllPipe`…), and the bundle leaves out the ones never registered:
 
 - `currency:currency,locale` (defaults `USD`, the page's language), `date:locale,format,time,pattern` (defaults the page's language, `long`), `number:decimals` (`toFixed`, default `0`). The page's language is `<html lang>` (set by i18n), else `en`; leave the locale empty to keep it (`date:,short`). `date` formats: `long`, `short`, `numeric`, `time`. `numeric` follows the locale's order (`10/28/2026` in `en-US`) unless a pattern gives it, with `YYYY`/`YY`/`MM`/`DD` and any separator (`date:,numeric,false,DD/MM/YYYY`).
 - `uppercase`, `lowercase`, `capitalize`, `capitalizeAll`, `truncate:length,suffix` (defaults `50`, `...`)
@@ -151,7 +151,7 @@ Central options/tools config (see the inline comments for details):
 - `tailwind`, `generateSEOFiles` — top-level feature toggles.
 - `dockerPorts`, `markdownSources` — options of the `docker`/`markdown` features, only present once added with `nutin-add <feature>`.
 - `builder.{sass.paths, esbuild}` — build pipeline behavior.
-- `testinNutin.{includeFramework, includeTools, includeApp, jsdomOptions}` — test discovery/environment.
+- `testinNutin.{includeFramework, includeTools, includeApp, isolate, jsdomOptions}` — test discovery/environment (`isolate`: test files run each in their own worker and jsdom window, e.g. for custom elements).
 
 ## Security
 
@@ -161,7 +161,7 @@ Every `render()` also sanitizes the template (`SecurityHelper.sanitizeToFragment
 
 ## Testing (testin-nutin)
 
-Nutin's own hand-built test runner + jsdom - not Jest. Tests are plain JavaScript (`*.test.js` importing the compiled `#root/dist/...` output), so they aren't type-checked. `describe`/`it` only (**no `test()` alias**), `beforeAll`/`beforeEach`/`afterEach`/`afterAll` (one of each per suite, no stacking - anywhere inside the `describe` statement, not top-level). `it.todo(name)` lists a pending test. All globals — no imports needed in test files.
+Nutin's own hand-built test runner + jsdom - not Jest. Tests are plain JavaScript (`*.test.js` importing the compiled `#root/dist/...` output), so they aren't type-checked. `describe`/`it` (`test` is an alias of `it`), `beforeAll`/`beforeEach`/`afterEach`/`afterAll` (one of each per suite, no stacking - anywhere inside the `describe` statement, not top-level). `it.todo(name)` lists a pending test; `it.skip`/`describe.skip` skip, `it.only`/`describe.only` run only those tests (any `.only` skips the rest of the run, don't leave one in). All globals — no imports needed in test files.
 
 - Matchers: `toBe`, `toEqual`, `toContain`, `toBeTruthy`/`toBeFalsy`, `toBeDefined`/`toBeUndefined`, `toBeInstanceOf`, `toHaveBeenCalled`/`toHaveBeenCalledWith`, `toBeLessThan`/`toBeGreaterThan`, `toThrow` — each has a `.not` counterpart.
 - `spyOn(obj, 'method')` returns `.calls`/`.callCount`/`.lastCall`, `.andCallFake(fn)`/`.andReturn(v)`, `.restore()` — unlike mocks, calls pass through by default. Core helpers exported as namespaces (`NavigationManager`, `SecurityHelper`, `TokenHelper`) are read-only modules and can't be spied on: spy on what they call (e.g. `window.history.replaceState`) or check the effect.

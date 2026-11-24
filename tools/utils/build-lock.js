@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import path from 'path';
 import { print } from './print.js';
+import { errorExit } from './error-exit.js';
 
 // Guards the whole build pipeline against concurrent invocations — e.g. a manual
 // `npm run build` running alongside the dev watcher's auto-rebuild, or (as actually
@@ -79,7 +80,12 @@ export async function acquireBuildLock() {
     }
 
     if (Date.now() - start > MAX_WAIT_MS) {
-      throw new Error(`Timed out waiting for the build lock (${LOCK_DIR}) held by another process.`);
+      // Reported like any other build error, not as an unhandled rejection.
+      errorExit(
+        `Timed out waiting for another build to finish (lock: ${LOCK_DIR}). ` +
+        `If no other build is running, delete the "${path.basename(LOCK_DIR)}" folder and build again.`,
+        'build-lock'
+      );
     }
 
     await sleep(POLL_MS);

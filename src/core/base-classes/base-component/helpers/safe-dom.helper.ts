@@ -10,28 +10,14 @@
 // nodes can come from another realm (a test's jsdom window, linkedom during SSR), whose
 // getters refuse a foreign node.
 
-const descriptors = new WeakMap<object, Map<PropertyKey, PropertyDescriptor | null>>();
-
+// Not cached: only forms, documents and <template>s get here (see templateContentOf()), and a
+// prototype chain is a few objects long.
 function lookup(target: object, key: PropertyKey): PropertyDescriptor | null {
-  const proto = Object.getPrototypeOf(target) as object | null;
-  if (!proto) return null;
-  let cached = descriptors.get(proto);
-  if (!cached) {
-    cached = new Map();
-    descriptors.set(proto, cached);
+  for (let proto = Object.getPrototypeOf(target) as object | null; proto; proto = Object.getPrototypeOf(proto)) {
+    const descriptor = Object.getOwnPropertyDescriptor(proto, key);
+    if (descriptor) return descriptor;
   }
-  if (cached.has(key)) return cached.get(key)!;
-
-  let found: PropertyDescriptor | null = null;
-  for (let current: object | null = proto; current; current = Object.getPrototypeOf(current)) {
-    const descriptor = Object.getOwnPropertyDescriptor(current, key);
-    if (descriptor) {
-      found = descriptor;
-      break;
-    }
-  }
-  cached.set(key, found);
-  return found;
+  return null;
 }
 
 // Only these let named properties override built-ins ([LegacyOverrideBuiltIns]); on any other
@@ -58,7 +44,8 @@ export function assign(target: object, key: PropertyKey, value: unknown): void {
     return;
   }
   const setter = lookup(target, key)?.set;
-  if (!setter) throw new TypeError(`No built-in setter for "${String(key)}".`);
+  // Prod bundles: only the property name (see Service for the same trade-off).
+  if (!setter) throw new TypeError(globalThis.__NUTIN_PROD__ ? String(key) : `No built-in setter for "${String(key)}".`);
   setter.call(target, value);
 }
 
@@ -66,7 +53,7 @@ export function invoke<T = unknown>(target: object, key: PropertyKey, ...args: u
   const method = isOverriding(target)
     ? lookup(target, key)?.value
     : (target as Record<PropertyKey, unknown>)[key];
-  if (typeof method !== 'function') throw new TypeError(`No built-in method "${String(key)}".`);
+  if (typeof method !== 'function') throw new TypeError(globalThis.__NUTIN_PROD__ ? String(key) : `No built-in method "${String(key)}".`);
   return method.apply(target, args) as T;
 }
 
@@ -129,6 +116,8 @@ export function querySelectorAllOf<E extends Element = Element>(root: ParentNode
 // Only an HTML <template> has a content getter: a <form> whose control is named
 // "content", or an <svg><template>, gets null.
 export function templateContentOf(el: Element): DocumentFragment | null {
+  // The sanitizer asks this of every element: skip the prototype walk for anything else.
+  if (localNameOf(el) !== 'template') return null;
   const getter = lookup(el, 'content')?.get;
   return getter ? (getter.call(el) as DocumentFragment | null) : null;
 }

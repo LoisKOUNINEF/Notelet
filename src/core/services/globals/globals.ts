@@ -1,8 +1,8 @@
 import { Service } from '../../base-classes/service/service.js';
 
 export class Globals extends Service<Globals> {
-  private _mounted: Record<string, Nutin.GlobalMountable> = {};
-  private _originalDisplay: Record<string, string> = {};
+  #mounted: Record<string, Nutin.GlobalMountable> = {};
+  #originalDisplay: Record<string, string> = {};
 
   constructor() { super(); }
 
@@ -12,14 +12,14 @@ export class Globals extends Service<Globals> {
     const isElement = (el: HTMLElement | null): el is HTMLElement => el !== null;
 
     const mount = ({ component: Component, id }: Nutin.GlobalConfig): HTMLElement | null => {
-      if (this._mounted[id]) {
+      if (this.#mounted[id]) {
         console.warn(`Global "${id}" is already registered - skipping.`);
         return null;
       }
       const instance = new Component(mountTarget);
       const element = instance.render();
       element.id = id;
-      this._mounted[id] = instance;
+      this.#mounted[id] = instance;
       return element;
     };
 
@@ -31,8 +31,8 @@ export class Globals extends Service<Globals> {
     globalIds.forEach((id) => {
       const el = document.getElementById(id) as HTMLElement | null;
       if (!el) return;
-      if (!(id in this._originalDisplay)) {
-        this._originalDisplay[id] = el.style.display || getComputedStyle(el).display;
+      if (!(id in this.#originalDisplay)) {
+        this.#originalDisplay[id] = el.style.display || getComputedStyle(el).display;
       }
       el.style.display = 'none';
     });
@@ -42,14 +42,14 @@ export class Globals extends Service<Globals> {
     globalIds.forEach((id) => {
       const el = document.getElementById(id) as HTMLElement | null;
       if (!el) return;
-      el.style.display = display ?? this._originalDisplay[id] ?? 'block';
+      el.style.display = display ?? this.#originalDisplay[id] ?? 'block';
     });
   }
 
   protected override onDestroy(): void {
-    Object.values(this._mounted).forEach((instance) => instance.destroy?.());
-    this._mounted = {};
-    this._originalDisplay = {};
+    Object.values(this.#mounted).forEach((instance) => instance.destroy?.());
+    this.#mounted = {};
+    this.#originalDisplay = {};
   }
 }
 
