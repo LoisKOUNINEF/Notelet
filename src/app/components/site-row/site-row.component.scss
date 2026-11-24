@@ -12,7 +12,35 @@
 
 .site-row__info {
   display: grid;
+  flex: 1;
   min-width: 0;
+}
+
+// Another site: its name and counts open its home page in the active tab (like "Pages on this
+// site"), and so does a click anywhere else on the card but its actions.
+.site-row__open {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover .site-row__name {
+    text-decoration: underline;
+  }
+}
+
+.site-row:has(.site-row__open) {
+  cursor: pointer;
+}
+
+.site-row__actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
 }
 
 .site-row__name {

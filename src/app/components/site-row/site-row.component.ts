@@ -1,14 +1,18 @@
 import { Component, html } from '../../../core/index.js';
 import { runAction } from '../../lib/actions.js';
-import { countList } from '../../lib/plural.js';
+import { announce } from '../../lib/announce.js';
+import { editOnClick } from '../../lib/card-click.js';
+import { countList, plural } from '../../lib/plural.js';
 import {
   // @ts-ignore : function used in HTML template
   formatDateTime,
   formatTimeAgo,
 } from '../../lib/pipes.js';
+import { chromeApiService } from '../../services/chrome-api/chrome-api.service.js';
 import { confirmService } from '../../services/confirm/confirm.service.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
-import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
+import { scopeStoreService, type RemovedItems } from '../../services/scope-store/scope-store.service.js';
+import { ItemMenuComponent, type IMenuAction } from '../item-menu/item-menu.component.js';
 
 // What the site manager passes to each row, besides the site (see createCatalogComponents).
 export interface ISiteRowOptions {
@@ -22,14 +26,21 @@ interface ISiteRowView {
   site: ISiteSummary;
   counts: string;
   current: boolean;
+  // Its home page, opened by a click on it or "Open in a new tab".
+  url: string;
 }
 
+type SiteMenuAction = 'open-tab' | 'delete-notes' | 'delete-todos';
+
 // @ts-ignore : variable(s) used in HTML template
-const templateFn = ({ site, counts, current }: ISiteRowView) => html`__TEMPLATE_PLACEHOLDER__`;
+const templateFn = ({ site, counts, current, url }: ISiteRowView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 /**
  * One site in "Manage by site": its domain, how many notes and to-dos it holds (its pages'
- * included), when they were last edited, and a "Delete" for all of them (asked first, undoable).
+ * included), when they were last edited, a "⋯" menu ("Open in a new tab", "Delete all notes (n)",
+ * "Delete all to-dos (n)", each disabled when there's nothing to do) and a "Delete all" for
+ * everything. Deletes are asked first and undoable. Another site's card opens its home page in
+ * the active tab, like a page in "Pages on this site".
  */
 export class SiteRowComponent extends Component<HTMLElement, ISiteRowView> {
   private _site: ISiteSummary;
@@ -37,11 +48,12 @@ export class SiteRowComponent extends Component<HTMLElement, ISiteRowView> {
 
   constructor(mountTarget: HTMLElement, config: ISiteSummary & { index: number }, options: ISiteRowOptions) {
     const { index: _index, ...site } = config;
+    const current = site.site === options.currentSite;
     super({
       templateFn,
       mountTarget,
       props: { className: 'site-row' },
-      config: { site, counts: countText(site), current: site.site === options.currentSite },
+      config: { site, counts: countText(site), current, url: homeOf(site.site) },
     });
     this._site = site;
     this._lastFocus = options.lastFocus;
@@ -50,6 +62,55 @@ export class SiteRowComponent extends Component<HTMLElement, ISiteRowView> {
       const time = this.element.querySelector('.site-row__meta time');
       if (time) time.textContent = formatTimeAgo(this._site.lastEdited);
     });
+  }
+
+  public override registerChildren(): Nutin.ComponentConfig[] {
+    return [{
+      selector: 'item-menu',
+      factory: (el) => new ItemMenuComponent<SiteMenuAction>(el, {
+        id: `site-row-${this._site.site}`,
+        name: this._site.site,
+        actions: this.menuActions(),
+        onAction: (action) => this.onMenuAction(action),
+      }),
+    }];
+  }
+
+  protected override onAfterRender(): void {
+    super.onAfterRender();
+    if (!this.config.current) this.eventListeners.push(editOnClick(this.element, () => void this._open()));
+  }
+
+  // The current site is already open; there's nothing to delete of a kind it has none of.
+  private menuActions(): IMenuAction<SiteMenuAction>[] {
+    const { notes, todos } = this._site;
+    return [
+      { value: 'open-tab', label: 'Open in a new tab', disabled: this.config.current },
+      { value: 'delete-notes', label: `Delete all notes (${notes})`, disabled: notes === 0 },
+      { value: 'delete-todos', label: `Delete all to-dos (${todos})`, disabled: todos === 0 },
+    ];
+  }
+
+  private onMenuAction(action: SiteMenuAction): void {
+    switch (action) {
+      case 'open-tab': void this.openInNewTab(); break;
+      case 'delete-notes': void this.deleteKind('notes'); break;
+      case 'delete-todos': void this.deleteKind('todos'); break;
+    }
+  }
+
+  // @ts-ignore : function used in HTML template
+  private async _open(): Promise<void> {
+    await runAction('Couldn\'t open the site.', () => chromeApiService.openInActiveTab(this.config.url));
+  }
+
+  // Behind the current tab: nothing else shows it opened, so screen readers are told.
+  private async openInNewTab(): Promise<void> {
+    const opened = await runAction('Couldn\'t open the site.', async () => {
+      await chromeApiService.openInBackgroundTab(this.config.url);
+      return true;
+    });
+    if (opened) announce(`${this._site.site} opened in a new tab.`);
   }
 
   // @ts-ignore : function used in HTML template
@@ -63,15 +124,50 @@ export class SiteRowComponent extends Component<HTMLElement, ISiteRowView> {
     });
     if (!confirmed) return;
 
-    // Once this row is gone, the next one takes its place (else the previous one, else the order).
-    const index = Number(this.element.closest<HTMLElement>('[data-index]')?.dataset.index ?? 0);
     const removed = await runAction('Couldn\'t delete this site\'s notes.', () => scopeStoreService.removeSite(site), {
-      focus: [`[data-index="${index}"] .site-row__delete`, `[data-index="${index - 1}"] .site-row__delete`, this._lastFocus],
+      focus: this.focusAfterLeaving(),
     });
     if (removed) notifierService.undoable(`${site}: ${counts} deleted.`, () => scopeStoreService.restoreRemoved(removed), 'Couldn\'t restore them.');
+  }
+
+  // "Delete all notes (n)" / "Delete all to-dos (n)": that kind only, the site's and its pages'.
+  private async deleteKind(kind: ScopeContentKind): Promise<void> {
+    const { site } = this._site;
+    const word = kind === 'notes' ? 'note' : 'to-do';
+    const what = plural(this._site[kind], word);
+    const confirmed = await confirmService.ask({
+      title: `Delete all ${word}s on ${site}?`,
+      message: `${what}, on the site and its pages.`,
+      confirmLabel: 'Delete',
+    });
+    if (!confirmed) return;
+
+    // The other kind left, the row stays (rebuilt with its new counts): back on its "⋯".
+    const others = this._site[kind === 'notes' ? 'todos' : 'notes'] > 0;
+    const removed = await runAction(`Couldn't delete this site's ${word}s.`, () => scopeStoreService.removeSiteKind(site, kind), {
+      focus: others ? [`[id="site-row-${site}-more"]`, ...this.focusAfterLeaving()] : this.focusAfterLeaving(),
+    });
+    if (removed) {
+      notifierService.undoable(`${site}: ${plural(removedCount(removed), word)} deleted.`, () => scopeStoreService.restoreRemoved(removed), 'Couldn\'t restore them.');
+    }
+  }
+
+  // Once this row is gone, the next one takes its place (else the previous one, else the order).
+  private focusAfterLeaving(): string[] {
+    const index = Number(this.element.closest<HTMLElement>('[data-index]')?.dataset.index ?? 0);
+    return [`[data-index="${index}"] .site-row__delete`, `[data-index="${index - 1}"] .site-row__delete`, this._lastFocus];
   }
 }
 
 function countText({ notes, todos }: ISiteSummary): string {
   return countList([[notes, 'note'], [todos, 'to-do']]);
+}
+
+// A site key is a host without "www." or port: its home page, over https (sites redirect from there).
+function homeOf(site: string): string {
+  return `https://${site}/`;
+}
+
+function removedCount(removed: RemovedItems): number {
+  return Object.values(removed).reduce((total, items) => total + items.length, 0);
 }
