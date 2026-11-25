@@ -40,6 +40,8 @@ describe('SiteRowComponent', () => {
     expect($('.item-menu__trigger').getAttribute('aria-label')).toBe('More actions for: example.com');
     expect(items().map((el) => [el.textContent, el.getAttribute('aria-disabled')])).toEqual([
       ['Open in a new tab', null],
+      ['Move all to this site', 'true'],
+      ['Move all to this page', 'true'],
       ['Delete all notes (2)', null],
       ['Delete all to-dos (1)', null],
     ]);
@@ -55,8 +57,18 @@ describe('SiteRowComponent', () => {
     expect($('.site-row__open')).toBeFalsy();
     expect(items().map((el) => [el.textContent, el.getAttribute('aria-disabled')])).toEqual([
       ['Open in a new tab', 'true'],
+      ['Move all to this site', 'true'],
+      ['Move all to this page', 'true'],
       ['Delete all notes (2)', null],
       ['Delete all to-dos (0)', 'true'],
+    ]);
+  });
+
+  it('offers to move it all to the active tab\'s site or page, when that\'s another site', () => {
+    mount('other.org');
+    expect(items().slice(1, 3).map((el) => [el.textContent, el.getAttribute('aria-disabled')])).toEqual([
+      ['Move all to this site', null],
+      ['Move all to this page', null],
     ]);
   });
 

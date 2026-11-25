@@ -50,7 +50,8 @@ const FOCUSABLE = [ORDER_SELECT, '.site-manager__back'];
 
 /**
  * Settings' "Manage by site" page: every site with notes or to-dos (its pages' included), in the
- * order picked (a setting), each opening its home page, with a "⋯" menu and a "Delete all" (see
+ * order picked (a setting), each opening its home page, with a "⋯" menu (opening it in a new tab,
+ * moving it all to the active tab's site or page, deleting a kind) and a "Delete all" (see
  * SiteRowComponent). Follows every change, here or in
  * another window; the rows are kept across those reloads.
  */

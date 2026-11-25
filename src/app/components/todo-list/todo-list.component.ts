@@ -40,12 +40,15 @@ const templateFn = ({ open, done, expanded, selecting, label, emptyText }: ITodo
  * "Done (n)" group collapsed or not as last left (a setting shared by every page).
  * Unchanged items and the quick add's text are kept as new to-dos come in.
  * Open to-dos are reordered by their handles (see ReorderableList).
+ * The quick add is disabled while selecting.
  */
 export class TodoListComponent extends ReorderableList<ITodo, ITodoListView> {
   private readonly _scope: NoteScope;
   private readonly _key: string;
   private readonly _keys: IScopeKeys;
   private readonly _itemOptions = new ItemOptionsCache<ITodoItemOptions>();
+  // Its quick add, kept across renders: disabled while selecting (see onSelectingChange).
+  private _composer: TodoComposerComponent | null = null;
 
   constructor(mountTarget: HTMLElement, { scope, keys, todos }: ITodoListConfig) {
     super({ templateFn, mountTarget, config: TodoListComponent.viewOf(scope, todos, null, false) }, todos, {
@@ -101,9 +104,17 @@ export class TodoListComponent extends ReorderableList<ITodo, ITodoListView> {
     return [
       ...catalog('open', open, this.itemOptions('open', open.length > 1 && !selecting, selecting, this.reorder.grabbedId)),
       ...catalog('done', done, this.itemOptions('done', false, selecting, null)),
-      { selector: 'todo-composer', factory: (el) => new TodoComposerComponent(el, { scope: this._scope, key: this._key }), keep: 'composer' },
+      {
+        selector: 'todo-composer',
+        factory: (el) => (this._composer = new TodoComposerComponent(el, { scope: this._scope, key: this._key })),
+        keep: 'composer',
+      },
       this.selectionBarChild(),
     ];
+  }
+
+  protected override onSelectingChange(selecting: boolean): void {
+    this._composer?.setSelecting(selecting);
   }
 
   protected view(): ITodoListView {

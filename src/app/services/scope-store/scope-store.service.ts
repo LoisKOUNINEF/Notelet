@@ -51,6 +51,9 @@ export interface IMovedAll<K extends ScopeContentKind> {
   moved: IScopeItemKinds[K][];
 }
 
+// What moveSite() did, for its Undo (moveSiteBack): each kind's items as they were and as moved.
+export type IMovedSite = { [K in ScopeContentKind]: IMovedAll<K> };
+
 /**
  * The stored format's version, for later migrations.
  * Version 1 stores no marker
@@ -292,28 +295,49 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
 
   // Undoes moveMany(), in a single write. Edits made since stay.
   public moveManyBack<K extends ScopeContentKind>(kind: K, moved: IScopeItemKinds[K][], originals: IScopeItemKinds[K][]): Promise<void> {
-    const [first] = moved;
-    const [original] = originals;
-    if (!first || !original) return Promise.resolve();
-    const from = storageKey(kind, first.scope, first.key);
-    const to = storageKey(kind, original.scope, original.key);
-    const ids = new Set(moved.map((item) => item.id));
-
+    if (moved.length === 0 || originals.length === 0) return Promise.resolve();
     return this.enqueue(async () => {
-      const stored = await chromeApiService.storageGet(this.area, [from, to]);
-      const source = sortItems(kind, stored[from]);
-      const back = source.flatMap((current) => {
-        const before = originals.find((item) => item.id === current.id);
-        if (!before || !ids.has(current.id)) return [];
-        const item = { ...current, scope: before.scope, key: before.key, position: before.position };
-        if (before.position === undefined) delete item.position;
-        return [item];
-      });
-      if (back.length === 0) return;
-      const backIds = new Set(back.map((item) => item.id));
-      const target = sortItems(kind, stored[to]).filter((i) => !backIds.has(i.id));
+      const stored = await chromeApiService.storageGet(this.area, movedBackKeys(kind, moved, originals));
+      await this.writeLists(movedBack(kind, moved, originals, stored));
+    });
+  }
 
-      await this.writeLists({ [to]: sortItems(kind, [...target, ...back]), [from]: source.filter((i) => !backIds.has(i.id)) });
+  /**
+   * Moves every note and to-do of a site, its pages' included, to one list of the active tab
+   * (its site, or its page), in a single write ("Manage by site"). To-dos land on top of the
+   * target's, the site's first, then its pages' by key. Resolves to them as they were and as
+   * moved, for moveSiteBack().
+   */
+  public moveSite(site: string, scope: NoteScope, key: string): Promise<IMovedSite> {
+    return this.enqueue(async () => {
+      const all = await this.readAll();
+      const stored = Object.fromEntries(all.map((list) => [list.key, list.value]));
+      const sources = all.filter((list) => siteOf(list.key) === site).sort(bySiteThenPage);
+      const lists: Record<string, unknown[]> = {};
+      const result: IMovedSite = {
+        notes: moveListsTo('notes', sources, scope, key, stored, lists),
+        todos: moveListsTo('todos', sources, scope, key, stored, lists),
+      };
+      if (Object.keys(lists).length > 0) await this.writeLists(lists);
+      return result;
+    });
+  }
+
+  // Undoes moveSite(), in a single write: each item back on its own list. Edits made since stay.
+  public moveSiteBack(moved: IMovedSite): Promise<void> {
+    const kinds = KINDS.filter((kind) => moved[kind].moved.length > 0 && moved[kind].originals.length > 0);
+    if (kinds.length === 0) return Promise.resolve();
+    const { notes, todos } = moved;
+    return this.enqueue(async () => {
+      const keys = [
+        ...(kinds.includes('notes') ? movedBackKeys('notes', notes.moved, notes.originals) : []),
+        ...(kinds.includes('todos') ? movedBackKeys('todos', todos.moved, todos.originals) : []),
+      ];
+      const stored = await chromeApiService.storageGet(this.area, keys);
+      await this.writeLists({
+        ...(kinds.includes('notes') ? movedBack('notes', notes.moved, notes.originals, stored) : {}),
+        ...(kinds.includes('todos') ? movedBack('todos', todos.moved, todos.originals, stored) : {}),
+      });
     });
   }
 
@@ -584,3 +608,80 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
 }
 
 export const scopeStoreService = ScopeStoreService.getInstance();
+
+// A site's own list first, then its pages' by key.
+function bySiteThenPage(a: IStoredList, b: IStoredList): number {
+  const rank = (list: IStoredList) => (list.key.split(':')[1] === 'site' ? 0 : 1);
+  return rank(a) - rank(b) || a.key.localeCompare(b.key);
+}
+
+/**
+ * Re-scopes the items of `sources` of that kind (but the target's own) to `scope`/`key`, adding
+ * the lists to write to `lists`: the target with them (to-dos on top, in order; notes without
+ * their position), and each source emptied.
+ */
+function moveListsTo<K extends ScopeContentKind>(
+  kind: K,
+  sources: IStoredList[],
+  scope: NoteScope,
+  key: string,
+  stored: Record<string, unknown>,
+  lists: Record<string, unknown[]>
+): IMovedAll<K> {
+  const to = storageKey(kind, scope, key);
+  const from = sources.filter((list) => list.kind === kind && list.key !== to);
+  const originals = from.flatMap((list) => sortItems(kind, list.value));
+  if (originals.length === 0) return { originals: [], moved: [] };
+  const target = sortItems(kind, stored[to]);
+  const top = kind === 'todos' ? topPosition(target as ITodo[]) : 0;
+  const moved = originals.map((current, index) => {
+    const item = { ...current, scope, key };
+    if (kind === 'todos') item.position = top - (originals.length - 1) + index;
+    else delete item.position;
+    return item;
+  });
+  for (const list of from) lists[list.key] = [];
+  lists[to] = sortItems(kind, [...target, ...moved]);
+  return { originals, moved };
+}
+
+// The lists an Undo of a move reads: where they were moved to, and where they came from.
+function movedBackKeys<K extends ScopeContentKind>(kind: K, moved: IScopeItemKinds[K][], originals: IScopeItemKinds[K][]): string[] {
+  const [first] = moved;
+  const from = first ? [storageKey(kind, first.scope, first.key)] : [];
+  return [...new Set([...from, ...originals.map((item) => storageKey(kind, item.scope, item.key))])];
+}
+
+/**
+ * The lists to write to send the moved items still where they were moved (one list) back to
+ * their originals' lists and places. Edits made since stay; one already back there isn't
+ * duplicated; one moved away or deleted since is left so.
+ */
+function movedBack<K extends ScopeContentKind>(
+  kind: K,
+  moved: IScopeItemKinds[K][],
+  originals: IScopeItemKinds[K][],
+  stored: Record<string, unknown>
+): Record<string, unknown[]> {
+  const [first] = moved;
+  if (!first) return {};
+  const from = storageKey(kind, first.scope, first.key);
+  const ids = new Set(moved.map((item) => item.id));
+  const before = new Map(originals.map((item) => [item.id, item]));
+  const source = sortItems(kind, stored[from]);
+  const back = new Map<string, IScopeItemKinds[K][]>();
+  for (const current of source) {
+    const original = before.get(current.id);
+    if (!original || !ids.has(current.id)) continue;
+    const item = { ...current, scope: original.scope, key: original.key, position: original.position };
+    if (original.position === undefined) delete item.position;
+    const to = storageKey(kind, original.scope, original.key);
+    back.set(to, [...(back.get(to) ?? []), item]);
+  }
+  if (back.size === 0) return {};
+  const backIds = new Set([...back.values()].flat().map((item) => item.id));
+  const lists: Record<string, unknown[]> = {};
+  for (const [to, items] of back) lists[to] = sortItems(kind, [...sortItems(kind, stored[to]).filter((i) => !backIds.has(i.id)), ...items]);
+  lists[from] = source.filter((i) => !backIds.has(i.id));
+  return lists;
+}

@@ -8,10 +8,11 @@ import {
   formatDateTime,
   formatTimeAgo,
 } from '../../lib/pipes.js';
+import { activeTabService } from '../../services/active-tab/active-tab.service.js';
 import { chromeApiService } from '../../services/chrome-api/chrome-api.service.js';
 import { confirmService } from '../../services/confirm/confirm.service.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
-import { scopeStoreService, type RemovedItems } from '../../services/scope-store/scope-store.service.js';
+import { scopeStoreService, type IMovedSite, type RemovedItems } from '../../services/scope-store/scope-store.service.js';
 import { ItemMenuComponent, type IMenuAction } from '../item-menu/item-menu.component.js';
 
 // What the site manager passes to each row, besides the site (see createCatalogComponents).
@@ -30,21 +31,24 @@ interface ISiteRowView {
   url: string;
 }
 
-type SiteMenuAction = 'open-tab' | 'delete-notes' | 'delete-todos';
+type SiteMenuAction = 'open-tab' | 'move-site' | 'move-page' | 'delete-notes' | 'delete-todos';
 
 // @ts-ignore : variable(s) used in HTML template
 const templateFn = ({ site, counts, current, url }: ISiteRowView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 /**
  * One site in "Manage by site": its domain, how many notes and to-dos it holds (its pages'
- * included), when they were last edited, a "⋯" menu ("Open in a new tab", "Delete all notes (n)",
- * "Delete all to-dos (n)", each disabled when there's nothing to do) and a "Delete all" for
- * everything. Deletes are asked first and undoable. Another site's card opens its home page in
+ * included), when they were last edited, a "⋯" menu ("Open in a new tab", "Move all to this
+ * site", "Move all to this page", "Delete all notes (n)", "Delete all to-dos (n)", each disabled
+ * when there's nothing to do) and a "Delete all" for everything. Moves go to the active tab's
+ * site or page, and are undoable; deletes are asked first and undoable. Another site's card opens its home page in
  * the active tab, like a page in "Pages on this site".
  */
 export class SiteRowComponent extends Component<HTMLElement, ISiteRowView> {
   private _site: ISiteSummary;
   private readonly _lastFocus: string;
+  // Another site than the active tab's, while that tab can have notes: it can be moved there.
+  private readonly _canMove: boolean;
 
   constructor(mountTarget: HTMLElement, config: ISiteSummary & { index: number }, options: ISiteRowOptions) {
     const { index: _index, ...site } = config;
@@ -57,6 +61,7 @@ export class SiteRowComponent extends Component<HTMLElement, ISiteRowView> {
     });
     this._site = site;
     this._lastFocus = options.lastFocus;
+    this._canMove = !current && options.currentSite !== null;
     // Only its own <time> changes as minutes pass.
     this.listen('minute-tick', () => {
       const time = this.element.querySelector('.site-row__meta time');
@@ -81,11 +86,14 @@ export class SiteRowComponent extends Component<HTMLElement, ISiteRowView> {
     if (!this.config.current) this.eventListeners.push(editOnClick(this.element, () => void this._open()));
   }
 
-  // The current site is already open; there's nothing to delete of a kind it has none of.
+  // The current site is already open, and is where the others move to (none when the tab can't
+  // have notes); there's nothing to delete of a kind it has none of.
   private menuActions(): IMenuAction<SiteMenuAction>[] {
     const { notes, todos } = this._site;
     return [
       { value: 'open-tab', label: 'Open in a new tab', disabled: this.config.current },
+      { value: 'move-site', label: 'Move all to this site', disabled: !this._canMove },
+      { value: 'move-page', label: 'Move all to this page', disabled: !this._canMove },
       { value: 'delete-notes', label: `Delete all notes (${notes})`, disabled: notes === 0 },
       { value: 'delete-todos', label: `Delete all to-dos (${todos})`, disabled: todos === 0 },
     ];
@@ -94,6 +102,8 @@ export class SiteRowComponent extends Component<HTMLElement, ISiteRowView> {
   private onMenuAction(action: SiteMenuAction): void {
     switch (action) {
       case 'open-tab': void this.openInNewTab(); break;
+      case 'move-site': void this.moveTo('site'); break;
+      case 'move-page': void this.moveTo('page'); break;
       case 'delete-notes': void this.deleteKind('notes'); break;
       case 'delete-todos': void this.deleteKind('todos'); break;
     }
@@ -111,6 +121,26 @@ export class SiteRowComponent extends Component<HTMLElement, ISiteRowView> {
       return true;
     });
     if (opened) announce(`${this._site.site} opened in a new tab.`);
+  }
+
+  // Everything on the site, its pages' included, to the active tab's site or page. Read when picked:
+  // the rows aren't rebuilt as the tab moves between pages of its site.
+  private async moveTo(scope: NoteScope): Promise<void> {
+    const keys = activeTabService.keys;
+    if (!keys || keys.site === this._site.site) return;
+    const { site } = this._site;
+    const moved = await runAction('Couldn\'t move this site\'s notes.', () => scopeStoreService.moveSite(site, scope, keys[scope]), {
+      focus: this.focusAfterLeaving(),
+    });
+    if (!moved) return;
+    const counts = movedCount(moved);
+    if (!counts) return;
+    notifierService.undoable(
+      `${site}: ${counts} moved to this ${scope}.`,
+      () => scopeStoreService.moveSiteBack(moved),
+      'Couldn\'t move them back.',
+      'success',
+    );
   }
 
   // @ts-ignore : function used in HTML template
@@ -166,6 +196,11 @@ function countText({ notes, todos }: ISiteSummary): string {
 // A site key is a host without "www." or port: its home page, over https (sites redirect from there).
 function homeOf(site: string): string {
   return `https://${site}/`;
+}
+
+// "2 notes and 1 to-do"; '' when nothing moved.
+function movedCount({ notes, todos }: IMovedSite): string {
+  return countList([[notes.moved.length, 'note'], [todos.moved.length, 'to-do']]);
 }
 
 function removedCount(removed: RemovedItems): number {

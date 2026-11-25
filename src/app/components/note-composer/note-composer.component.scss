@@ -1,6 +1,12 @@
-.note-composer {
+// Its fields and buttons in a fieldset: disabled at once while the list is selecting (each with
+// its own disabled look; the hint saying why stays readable).
+.note-composer__fieldset {
   display: grid;
   gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
 .note-composer__input {

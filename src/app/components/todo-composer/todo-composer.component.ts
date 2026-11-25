@@ -1,6 +1,11 @@
-import { Component, html } from '../../../core/index.js';
+import {
+  Component,
+  html,
+  // @ts-ignore : function used in HTML template
+  raw,
+} from '../../../core/index.js';
 import { runAction } from '../../lib/actions.js';
-import { fitHeight, formKeys, lineField, requireElement, requireText } from '../../lib/dom.js';
+import { blockForm, fitHeight, formKeys, lineField, requireElement, requireText } from '../../lib/dom.js';
 import { getDraft, getJsonDraft, keepDraftsOf, setDraft, setJsonDraft } from '../../lib/drafts.js';
 import { todoRef } from '../../lib/labels.js';
 import { submitShortcut } from '../../lib/platform.js';
@@ -17,19 +22,25 @@ interface ITodoComposerView {
   draft: string;
   // A checklist being written: the field is its name, its items are fields below.
   checklistMode: boolean;
+  // The to-do list is selecting to-dos: nothing can be added meanwhile (see setSelecting).
+  blocked: boolean;
 }
 
 // @ts-ignore : variable(s) used in HTML template
-const templateFn = ({ scope, draft, checklistMode }: ITodoComposerView) => html`__TEMPLATE_PLACEHOLDER__`;
+const templateFn = ({ scope, draft, checklistMode, blocked }: ITodoComposerView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 // Where the focus goes once a to-do leaves the list.
 export const TODO_COMPOSER_INPUT = '.todo-composer__input';
+
+// What the hint says while the list is selecting.
+const BLOCKED_HINT = 'Finish or cancel the selection to add a to-do';
 
 /**
  * The quick add, on top of the to-dos. A single to-do: one line, Enter adds it.
  * "Checklist" turns it into a checklist: the line becomes its name, with one field per item below
  * Removing every item makes it single again.
  * What's typed is kept as drafts.
+ * Disabled while the list is selecting to-dos, the hint saying why (see setSelecting).
  */
 export class TodoComposerComponent extends Component<HTMLElement, ITodoComposerView> {
   private _scope: NoteScope;
@@ -42,7 +53,7 @@ export class TodoComposerComponent extends Component<HTMLElement, ITodoComposerV
   constructor(mountTarget: HTMLElement, { scope, key }: ITodoComposerConfig) {
     const draftItems = getJsonDraft<IChecklistItem[]>(itemsDraftId(scope, key));
     const items = Array.isArray(draftItems) ? draftItems : [];
-    super({ templateFn, mountTarget, config: { scope, draft: getDraft(draftId(scope, key)), checklistMode: items.length > 0 } });
+    super({ templateFn, mountTarget, config: { scope, draft: getDraft(draftId(scope, key)), checklistMode: items.length > 0, blocked: false } });
     this._scope = scope;
     this._key = key;
     this._items = items;
@@ -88,8 +99,17 @@ export class TodoComposerComponent extends Component<HTMLElement, ITodoComposerV
     super.onBeforeDestroy();
   }
 
+  // Disabled (its checklist's fields too, its drafts kept) while the list is selecting, and back
+  // once it's done: patched in place, what's typed stays as it is.
+  public setSelecting(selecting: boolean): void {
+    if (this.isDestroyed || selecting === this.config.blocked) return;
+    this.config = { ...this.config, blocked: selecting };
+    blockForm(this.element, '.todo-composer__fieldset', '.todo-composer__hint', selecting ? BLOCKED_HINT : addHint(this.config.checklistMode), selecting);
+  }
+
   // @ts-ignore : function used in HTML template
   private _addChecklistItem(): void {
+    if (this.config.blocked) return;
     if (!this.config.checklistMode) this.setChecklistMode(true);
     const named = this.input.value.trim() !== '';
     this.checklist.add(undefined, named);
@@ -98,6 +118,7 @@ export class TodoComposerComponent extends Component<HTMLElement, ITodoComposerV
 
   // @ts-ignore : function used in HTML template
   private async _add(): Promise<void> {
+    if (this.config.blocked) return;
     const input = this.input;
     const text = input.value.trim();
     if (!text) return;
@@ -141,6 +162,11 @@ export class TodoComposerComponent extends Component<HTMLElement, ITodoComposerV
     const items = this._checklist?.values() ?? [];
     setJsonDraft(itemsDraftId(this._scope, this._key), items.length > 0 ? items : null);
   }
+}
+
+// "Enter to add", or Ctrl/Cmd+Enter for a checklist (Enter adds the next item there).
+function addHint(checklistMode: boolean): string {
+  return `${checklistMode ? submitShortcut() : 'Enter'} to add`;
 }
 
 function draftId(scope: NoteScope, key: string): string {

@@ -172,11 +172,15 @@ export abstract class ReorderableList<T extends IScopeItem, V> extends AppCompon
     };
   }
 
+  // Selecting started or stopped: lists with a composer disable it meanwhile.
+  protected onSelectingChange(_selecting: boolean): void {}
+
   // The footer's "Select" button: each item gets a checkbox, the first one focused.
   protected _select(): void {
     this.selection = new Set();
     this._selectionRound++;
     requestFocus(SELECT_BOX);
+    this.onSelectingChange(true);
     this.refresh();
   }
 
@@ -184,6 +188,7 @@ export abstract class ReorderableList<T extends IScopeItem, V> extends AppCompon
     this.selection = null;
     this._selectionBar = null;
     if (focus.length > 0) requestFocus(...focus);
+    this.onSelectingChange(false);
     this.refresh();
   }
 
@@ -193,6 +198,7 @@ export abstract class ReorderableList<T extends IScopeItem, V> extends AppCompon
     this.selection = new Set(this.items.filter((item) => ids.has(item.id)).map((item) => item.id));
     this._selectionRound++;
     requestFocus(focus, SELECT_BOX);
+    this.onSelectingChange(true);
     this.refresh();
   }
 

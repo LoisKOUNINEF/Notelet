@@ -67,6 +67,10 @@
   --transition: 150ms ease;
 
   // a11y-elements live partly on <body> (the snackbar): their tokens are set at :root.
+  // Disabled controls (fields, checkboxes...): the theme's, not the library's light grey, which
+  // stood out in the dark theme.
+  --a11y-color-surface-disabled: var(--color-surface-muted);
+  --a11y-color-text-disabled: var(--color-text-disabled);
   --a11y-textarea-color-background: var(--color-surface);
   --a11y-textarea-color-border: var(--color-border);
   --a11y-textarea-color-border-strong: var(--color-border-strong);

@@ -662,6 +662,28 @@ describe('TodoListComponent - selecting', () => {
     expect($('#todo-done-items').hidden).toBe(true);
   });
 
+  it('disables the quick add while selecting, back once cancelled or done, not after a failed delete', async () => {
+    const fieldset = () => $('.todo-composer__fieldset');
+    $('.todo-list__select').click();
+    expect(fieldset().disabled).toBe(true);
+    $('.selection-bar__cancel').click();
+    expect(fieldset().disabled).toBe(false);
+
+    $('.todo-list__select').click();
+    box(byText('Open A')).click();
+    panel.fake.storage.local.failNextSet = new Error('Nope.');
+    $('.selection-bar__delete').click();
+    await settle();
+    // Back to what was selected: still selecting.
+    expect($('.selection-bar__count')).toBeTruthy();
+    expect(fieldset().disabled).toBe(true);
+
+    $('.selection-bar__delete').click();
+    await settle();
+    expect(await storedTexts()).toEqual(['Open B', 'Done C']);
+    expect(fieldset().disabled).toBe(false);
+  });
+
   it('disables Move while a done to-do is selected, and says why', () => {
     $('.todo-list__select').click();
     box(byText('Done C')).click();

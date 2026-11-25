@@ -86,4 +86,27 @@ describe('NoteComposerComponent', () => {
     expect($('.checklist-field__input')).toBeFalsy();
     expect($$('.note-composer button').map((b) => b.textContent)).toEqual(['Add note']);
   });
+
+  it('is disabled while the list is selecting, its text kept, the hint saying why', async () => {
+    mount('page');
+    typeInto(input(), 'Half written');
+    composer.setSelecting(true);
+    expect($('.note-composer__fieldset').disabled).toBe(true);
+    expect(input().value).toBe('Half written');
+    expect($('.note-composer__hint').textContent).toBe('Finish or cancel the selection to add a note');
+    expect($('.note-composer__hint').getAttribute('aria-hidden')).toBe(null);
+
+    // Nothing is added meanwhile, from the keyboard either.
+    keydown(input(), 'Enter', { ctrlKey: true });
+    $('.note-composer').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+    await settle();
+    expect((await scopeStoreService.load(KEYS)).page.notes).toEqual([]);
+
+    composer.setSelecting(false);
+    expect($('.note-composer__fieldset').disabled).toBe(false);
+    expect($('.note-composer__hint').textContent.endsWith(' to add')).toBe(true);
+    expect($('.note-composer__hint').getAttribute('aria-hidden')).toBe('true');
+    expect(input().value).toBe('Half written');
+    typeInto(input(), '');
+  });
 });

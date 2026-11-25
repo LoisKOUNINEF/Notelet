@@ -66,4 +66,18 @@ describe('ScopePanelComponent', () => {
     $('#kind-tab-todos').click();
     expect(picked).toEqual(['site', 'todos']);
   });
+
+  it('disables the note composer while the notes are being selected', () => {
+    mount(state({ content: { ...EMPTY, page: { notes: [note('1', 'A')], todos: [] } } }));
+    $('.note-list__select').click();
+    expect($('.note-composer__fieldset').disabled).toBe(true);
+    $('.selection-bar__cancel').click();
+    expect($('.note-composer__fieldset').disabled).toBe(false);
+
+    // The notes left while selecting (the To-dos tab picked): nothing stays disabled.
+    $('.note-list__select').click();
+    component.update(state({ kind: 'todos', content: { ...EMPTY, page: { notes: [note('1', 'A')], todos: [] } } }));
+    component.update(state({ content: { ...EMPTY, page: { notes: [note('1', 'A')], todos: [] } } }));
+    expect($('.note-composer__fieldset').disabled).toBe(false);
+  });
 });

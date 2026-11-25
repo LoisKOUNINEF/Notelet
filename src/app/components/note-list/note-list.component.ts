@@ -13,6 +13,8 @@ export interface INoteListConfig {
   scope: NoteScope;
   keys: IScopeKeys;
   notes: INote[];
+  // Selecting started or stopped: the panel disables the note composer meanwhile.
+  onSelectingChange?: (selecting: boolean) => void;
 }
 
 interface INoteListView {
@@ -40,8 +42,9 @@ export class NoteListComponent extends ReorderableList<INote, INoteListView> {
   private readonly _key: string;
   private readonly _keys: IScopeKeys;
   private readonly _itemOptions = new ItemOptionsCache<INoteItemOptions>();
+  private readonly _onSelectingChange: ((selecting: boolean) => void) | undefined;
 
-  constructor(mountTarget: HTMLElement, { scope, keys, notes }: INoteListConfig) {
+  constructor(mountTarget: HTMLElement, { scope, keys, notes, onSelectingChange }: INoteListConfig) {
     super({ templateFn, mountTarget, config: NoteListComponent.viewOf(scope, notes, null, false) }, notes, {
       kind: 'notes',
       scope,
@@ -58,6 +61,17 @@ export class NoteListComponent extends ReorderableList<INote, INoteListView> {
     this._scope = scope;
     this._key = keys[scope];
     this._keys = keys;
+    this._onSelectingChange = onSelectingChange;
+  }
+
+  protected override onSelectingChange(selecting: boolean): void {
+    this._onSelectingChange?.(selecting);
+  }
+
+  // Gone while selecting (should the composer outlive it): the composer isn't left disabled.
+  protected override onBeforeDestroy(): void {
+    if (this.selecting) this._onSelectingChange?.(false);
+    super.onBeforeDestroy();
   }
 
   private static viewOf(scope: NoteScope, notes: INote[], order: string[] | null, selecting: boolean): INoteListView {

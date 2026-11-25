@@ -1,4 +1,5 @@
 <form class="todo-composer" data-event="submit:_add">
+<fieldset class="todo-composer__fieldset" ${blocked ? raw('disabled') : ''}>
   <div class="todo-composer__row">
     <a11y-textarea class="todo-composer__field line-field">
       <a11y-label>${checklistMode ? `New checklist for this ${scope}` : `New to-do for this ${scope}`}</a11y-label>
@@ -8,7 +9,8 @@
   <div data-component="checklist-fields"></div>
   <div class="todo-composer__actions">
     <button class="button button--small todo-composer__checklist" type="button" tabindex="0" data-event="click:_addChecklistItem">${checklistMode ? 'Add item' : 'Checklist'}</button>
-    <span class="todo-composer__hint" aria-hidden="true">${checklistMode ? submitShortcut() : 'Enter'} to add</span>
+    <span class="todo-composer__hint" ${blocked ? '' : raw('aria-hidden="true"')}>${blocked ? BLOCKED_HINT : addHint(checklistMode)}</span>
     <button class="button button--primary todo-composer__submit" type="submit" tabindex="0">Add<span class="a11y-visually-hidden">${checklistMode ? ' checklist' : ' to-do'}</span></button>
   </div>
+</fieldset>
 </form>

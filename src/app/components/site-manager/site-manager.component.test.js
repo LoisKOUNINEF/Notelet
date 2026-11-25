@@ -183,6 +183,50 @@ describe('SiteManagerComponent', () => {
     expect(panel.toasts.at(-1).message).toBe('Couldn\'t delete this site\'s notes. Nope.');
   });
 
+  it('moves everything on another site to this site, its pages\' included, without asking, and can undo it', async () => {
+    await scopeStoreService.addNote('site', 'beta.org', 'Beta site');
+    await mount();
+    menuItem('beta.org', 'move-site').click();
+    await settle();
+
+    expect(asked).toEqual([]);
+    expect(keys()).toEqual(['notes:page:https://example.com/docs', 'notes:site:example.com', 'todos:page:https://alpha.net', 'todos:site:example.com']);
+    expect(sites()).toEqual(['example.com (current)', 'alpha.net']);
+    expect(row('example.com').querySelector('.site-row__meta').textContent.startsWith('3 notes and 1 to-do')).toBe(true);
+    // beta.org was edited last (listed first): the next site takes its place, and the focus.
+    expect(document.activeElement).toBe(row('example.com').querySelector('.site-row__delete'));
+
+    const toast = panel.toasts.at(-1);
+    expect(toast.message).toBe('beta.org: 2 notes moved to this site.');
+    expect(toast.type).toBe('success');
+    toast.onAction();
+    await settle();
+    expect(keys()).toEqual(['notes:page:https://beta.org/x', 'notes:page:https://example.com/docs', 'notes:site:beta.org', 'todos:page:https://alpha.net', 'todos:site:example.com']);
+  });
+
+  it('moves everything on another site to this page, and reports a failed move', async () => {
+    await mount();
+    menuItem('alpha.net', 'move-page').click();
+    await settle();
+    expect(keys()).toEqual(['notes:page:https://beta.org/x', 'notes:page:https://example.com/docs', 'todos:page:https://example.com/docs', 'todos:site:example.com']);
+    expect(panel.toasts.at(-1).message).toBe('alpha.net: 1 to-do moved to this page.');
+
+    const set = spyOn(panel.fake.storage.local, 'set').andCallFake(async () => { throw new Error('Nope.'); });
+    menuItem('beta.org', 'move-page').click();
+    await settle();
+    set.restore();
+    expect(panel.toasts.at(-1).message).toBe('Couldn\'t move this site\'s notes. Nope.');
+    expect(sites()).toEqual(['example.com (current)', 'beta.org']);
+  });
+
+  it('moves nothing from the current site', async () => {
+    await mount();
+    expect(menuItem('example.com', 'move-site').getAttribute('aria-disabled')).toBe('true');
+    menuItem('example.com', 'move-site').click();
+    await settle();
+    expect(keys().length).toBe(4);
+  });
+
   it('opens another site\'s home page in the active tab from its card, "(current)" following', async () => {
     await mount();
     expect(row('example.com').querySelector('.site-row__open')).toBeFalsy();

@@ -251,4 +251,36 @@ describe('TodoComposerComponent - checklists', () => {
     expect($('.checklist-field__take-out')).toBeFalsy();
     expect($('.checklist-field__remove')).toBeTruthy();
   });
+
+  it('is disabled while the list is selecting, its checklist\'s fields too, through a checklist toggle', async () => {
+    mount('page');
+    typeInto(input(), 'Groceries');
+    $('.todo-composer__checklist').click();
+    composer.setSelecting(true);
+    expect($('.todo-composer__fieldset').disabled).toBe(true);
+    expect($('.todo-composer__hint').textContent).toBe('Finish or cancel the selection to add a to-do');
+    expect($('.todo-composer__hint').getAttribute('aria-hidden')).toBe(null);
+    expect(input().value).toBe('Groceries');
+    expect(fields()[0].matches(':disabled')).toBe(true);
+    expect(checklistButton().matches(':disabled')).toBe(true);
+
+    await submit();
+    expect(await todos()).toEqual([]);
+
+    composer.setSelecting(false);
+    expect($('.todo-composer__fieldset').disabled).toBe(false);
+    expect($('.todo-composer__hint').getAttribute('aria-hidden')).toBe('true');
+    expect(fields()[0].matches(':disabled')).toBe(false);
+    await submit();
+    expect((await todos()).map((t) => t.text)).toEqual(['Groceries']);
+  });
+
+  it('stays disabled when re-rendered meanwhile, and says Enter adds once back', () => {
+    mount('page');
+    composer.setSelecting(true);
+    composer.render();
+    expect($('.todo-composer__fieldset').disabled).toBe(true);
+    composer.setSelecting(false);
+    expect($('.todo-composer__hint').textContent).toBe('Enter to add');
+  });
 });

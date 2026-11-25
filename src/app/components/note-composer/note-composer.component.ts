@@ -1,6 +1,11 @@
-import { Component, html } from '../../../core/index.js';
+import {
+  Component,
+  html,
+  // @ts-ignore : function used in HTML template
+  raw,
+} from '../../../core/index.js';
 import { runAction } from '../../lib/actions.js';
-import { formKeys, requireElement, requireText } from '../../lib/dom.js';
+import { blockForm, formKeys, requireElement, requireText } from '../../lib/dom.js';
 import { getDraft, setDraft } from '../../lib/drafts.js';
 import { noteRef } from '../../lib/labels.js';
 import { submitShortcut } from '../../lib/platform.js';
@@ -14,15 +19,23 @@ export interface INoteComposerConfig {
 interface INoteComposerView {
   label: string;
   draft: string;
+  // The note list is selecting notes: nothing can be added meanwhile (see setSelecting).
+  blocked: boolean;
 }
 
 // @ts-ignore : variable(s) used in HTML template
-const templateFn = ({ label, draft }: INoteComposerView) => html`__TEMPLATE_PLACEHOLDER__`;
+const templateFn = ({ label, draft, blocked }: INoteComposerView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 // Its text field: where the focus goes once a note leaves the list.
 export const NOTE_COMPOSER_INPUT = '.note-composer__input';
 
-// A new note: its text, kept as a draft. Ctrl/Cmd+Enter (or "Add note") adds it.
+// What the hint says while the list is selecting.
+const BLOCKED_HINT = 'Finish or cancel the selection to add a note';
+
+/**
+ * A new note: its text, kept as a draft. Ctrl/Cmd+Enter (or "Add note") adds it.
+ * Disabled while the note list is selecting notes, the hint saying why (see setSelecting).
+ */
 export class NoteComposerComponent extends Component<HTMLElement, INoteComposerView> {
   private _scope: NoteScope;
   private _key: string;
@@ -34,6 +47,7 @@ export class NoteComposerComponent extends Component<HTMLElement, INoteComposerV
       config: {
         label: scope === 'page' ? 'New note for this page' : 'New note for this site',
         draft: getDraft(draftId(scope, key)),
+        blocked: false,
       },
     });
     this._scope = scope;
@@ -54,8 +68,17 @@ export class NoteComposerComponent extends Component<HTMLElement, INoteComposerV
     this.eventListeners.push([input, 'input', onInput], ...formKeys(requireElement<HTMLFormElement>(this.element, 'form')));
   }
 
+  // Disabled (its draft kept) while the note list is selecting, and back once it's done: patched in
+  // place, what's typed stays as it is.
+  public setSelecting(selecting: boolean): void {
+    if (this.isDestroyed || selecting === this.config.blocked) return;
+    this.config = { ...this.config, blocked: selecting };
+    blockForm(this.element, '.note-composer__fieldset', '.note-composer__hint', selecting ? BLOCKED_HINT : `${submitShortcut()} to add`, selecting);
+  }
+
   // @ts-ignore : function used in HTML template
   private async _add(): Promise<void> {
+    if (this.config.blocked) return;
     const input = this.input;
     const typed = input.value;
     const text = typed.trim();

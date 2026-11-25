@@ -146,3 +146,16 @@ export function requireText(textarea: HTMLTextAreaElement): void {
   customElements.upgrade(host);
   host.validators = [(value) => (value.trim() ? null : BLANK_MESSAGE)];
 }
+
+/**
+ * Disables (or enables back) a composer's fieldset, every field and button in it at once, in
+ * place: what's typed stays as it is. Its hint says `hint`, read out only while blocked (the
+ * keyboard shortcut it shows otherwise is already in the buttons' and fields' own behaviour).
+ */
+export function blockForm(root: ParentNode, fieldsetSelector: string, hintSelector: string, hint: string, blocked: boolean): void {
+  requireElement<HTMLFieldSetElement>(root, fieldsetSelector).disabled = blocked;
+  const hintElement = requireElement(root, hintSelector);
+  hintElement.textContent = hint;
+  if (blocked) hintElement.removeAttribute('aria-hidden');
+  else hintElement.setAttribute('aria-hidden', 'true');
+}

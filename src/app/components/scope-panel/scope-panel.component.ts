@@ -47,6 +47,8 @@ export class ScopePanelComponent extends Component<HTMLElement, IScopePanelView>
   private _state: IScopePanelState;
   private readonly _options: IScopePanelOptions;
   private _noteList: NoteListComponent | null = null;
+  // Disabled by the note list while it's selecting.
+  private _noteComposer: NoteComposerComponent | null = null;
   private _todoList: TodoListComponent | null = null;
   private _sitePages: SitePagesComponent | null = null;
 
@@ -127,10 +129,15 @@ export class ScopePanelComponent extends Component<HTMLElement, IScopePanelView>
         factory: (el) => (this._todoList = new TodoListComponent(el, { scope, keys, todos: content[scope].todos })),
         keep: scopeKey,
       },
-      { selector: 'note-composer', factory: (el) => new NoteComposerComponent(el, { scope, key: keys[scope] }), keep: scopeKey },
+      { selector: 'note-composer', factory: (el) => (this._noteComposer = new NoteComposerComponent(el, { scope, key: keys[scope] })), keep: scopeKey },
       {
         selector: 'note-list',
-        factory: (el) => (this._noteList = new NoteListComponent(el, { scope, keys, notes: content[scope].notes })),
+        factory: (el) => (this._noteList = new NoteListComponent(el, {
+          scope,
+          keys,
+          notes: content[scope].notes,
+          onSelectingChange: (selecting) => this._noteComposer?.setSelecting(selecting),
+        })),
         keep: scopeKey,
       },
     ];
