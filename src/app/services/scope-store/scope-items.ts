@@ -125,6 +125,11 @@ export function checklistDone(items: IChecklistItem[]): boolean {
   return items.length > 0 && items.every((item) => item.done);
 }
 
+// The change that sets each item's `done`, applied to the checklist as stored.
+export function settingItems(done: (item: IChecklistItem) => boolean): (current: ITodo) => Pick<ITodo, 'items'> {
+  return (current) => ({ items: (current.items ?? []).map((item) => ({ ...item, done: done(item) })) });
+}
+
 export function applyTodoEdit(current: ITodo, changes: Partial<ITodo>, now: Timestamp): ITodo {
   const todo: ITodo = { ...current, ...changes, updatedAt: now };
   if (isChecklist(todo)) todo.done = checklistDone(todo.items);

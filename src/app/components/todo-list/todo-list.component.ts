@@ -4,14 +4,15 @@ import {
   raw,
 } from '../../../core/index.js';
 import { runAction } from '../../lib/actions.js';
+import { revealDoneGroup } from '../../lib/done-group.js';
 import { plural } from '../../lib/plural.js';
 import { inOrder } from '../../lib/unchanged.js';
 import { confirmService } from '../../services/confirm/confirm.service.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
-import { isChecklist } from '../../services/scope-store/scope-items.js';
+import { isChecklist, settingItems } from '../../services/scope-store/scope-items.js';
 import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
 import { settingsService } from '../../services/settings/settings.service.js';
-import { ItemOptionsCache, ReorderableList } from '../base/reorderable-list.js';
+import { ItemOptionsCache, ReorderableList, SELECT_BUTTON } from '../base/reorderable-list.js';
 import { TODO_COMPOSER_INPUT, TodoComposerComponent } from '../todo-composer/todo-composer.component.js';
 import { TodoItemComponent, type ITodoItemOptions } from '../todo-item/todo-item.component.js';
 import { DONE_TOGGLE, todoCatalog } from './todo-list.selectors.js';
@@ -129,6 +130,40 @@ export class TodoListComponent extends ReorderableList<ITodo, ITodoListView> {
   protected override selectionMovable(todos: ITodo[]): boolean {
     return todos.every((todo) => !todo.done);
   }
+
+  // Some are still open: those get marked (done ones selected with them are left as they are).
+  protected override selectionMarkable(todos: ITodo[]): boolean {
+    return todos.some((todo) => !todo.done);
+  }
+
+  // The selection bar's "Mark as done": single to-dos checked, checklists with all their items
+  // checked, in one write. Undo unchecks only what wasn't checked yet.
+  protected override markSelectedDone = async (): Promise<void> => {
+    const open = this.selectedItems().filter((todo) => !todo.done);
+    if (open.length === 0) return;
+    const ids = new Set(this.selectedItems().map((todo) => todo.id));
+    const unchecked = new Set(open.flatMap((todo) => (todo.items ?? []).filter((item) => !item.done).map((item) => item.id)));
+    // "Done" unfolds to show them there, as for a single one.
+    await revealDoneGroup();
+    if (this.isDestroyed) return;
+    this.stopSelecting();
+    const updated = await runAction('Couldn\'t mark the to-dos as done.', () => scopeStoreService.updateManyWith(
+      'todos', open, (current) => (isChecklist(current) ? settingItems(() => true)(current) : { done: true })
+    ), {
+      focus: [SELECT_BUTTON, TODO_COMPOSER_INPUT],
+      onError: () => this.resumeSelecting(ids, '[data-focus="selection-done"]'),
+    });
+    if (updated && updated.length > 0) {
+      notifierService.undoable(
+        `${plural(updated.length, 'to-do')} marked as done.`,
+        () => scopeStoreService.updateManyWith('todos', updated, (current) => (isChecklist(current)
+          ? settingItems((item) => (unchecked.has(item.id) ? false : item.done))(current)
+          : { done: false })),
+        'Couldn\'t update the to-dos.',
+        'success'
+      );
+    }
+  };
 
   private itemOptions(group: ITodoItemOptions['group'], reorderable: boolean, selecting: boolean, grabbedId: string | null): ITodoItemOptions {
     // Whether there are checklists to move a to-do into: items are rebuilt only when that flips.

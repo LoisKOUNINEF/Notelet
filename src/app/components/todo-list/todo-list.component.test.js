@@ -710,6 +710,94 @@ describe('TodoListComponent - selecting', () => {
     expect(await storedTexts('site')).toEqual(['On the site']);
   });
 
+  it('offers "Mark as done", only while an open to-do is selected', () => {
+    $('.todo-list__select').click();
+    expect($('.selection-bar__done').textContent).toBe('Mark as done');
+    expect($('.selection-bar__done').disabled).toBe(true);
+    box(byText('Done C')).click();
+    expect($('.selection-bar__done').disabled).toBe(true);
+    box(byText('Open A')).click();
+    expect($('.selection-bar__done').disabled).toBe(false);
+  });
+
+  it('marks the open selected ones as done, skipping done ones, with an undo', async () => {
+    $('.todo-list__select').click();
+    box(byText('Open A')).click();
+    box(byText('Done C')).click();
+    $('.selection-bar__done').click();
+    await settle();
+
+    const done = async () => (await stored()).filter((t) => t.done).map((t) => t.text).sort();
+    expect(await done()).toEqual(['Done C', 'Open A']);
+    expect($('.selection-bar')).toBeFalsy();
+    expect(settingsService.doneExpanded).toBe(true);
+    const toast = panel.toasts.at(-1);
+    expect(toast.message).toBe('1 to-do marked as done.');
+    toast.onAction();
+    await settle();
+    expect(await done()).toEqual(['Done C']);
+  });
+
+  it('marks a checklist as done with all its items, and Undo unchecks only the ones that were open', async () => {
+    await scopeStoreService.addTodo('page', KEYS.page, 'Trip', [
+      { id: 'a', text: 'Passport', done: true },
+      { id: 'b', text: 'Tickets', done: false },
+    ]);
+    list.destroy();
+    todos = await stored();
+    mount(todos);
+    $('.todo-list__select').click();
+    box(byText('Trip')).click();
+    $('.selection-bar__done').click();
+    await settle();
+
+    const trip = async () => (await stored()).find((t) => t.text === 'Trip');
+    expect((await trip()).done).toBe(true);
+    expect((await trip()).items.map((item) => item.done)).toEqual([true, true]);
+    panel.toasts.at(-1).onAction();
+    await settle();
+    expect((await trip()).done).toBe(false);
+    expect((await trip()).items.map((item) => item.done)).toEqual([true, false]);
+  });
+
+  it('disables a checklist\'s item checkboxes while selecting, a click on an item\'s text selecting the checklist', async () => {
+    await scopeStoreService.addTodo('page', KEYS.page, 'Trip', [
+      { id: 'a', text: 'Passport', done: false },
+      { id: 'b', text: 'Tickets', done: true },
+    ]);
+    list.destroy();
+    todos = await stored();
+    mount(todos);
+    const itemBoxes = () => $$(`[data-todo-id="${byText('Trip')}"] .checklist-item__checkbox`);
+    expect(itemBoxes().map((el) => el.disabled)).toEqual([false, false]);
+
+    $('.todo-list__select').click();
+    expect(itemBoxes().map((el) => el.disabled)).toEqual([true, true]);
+    $(`[data-todo-id="${byText('Trip')}"] [data-item-id="a"] .checklist-item__text`).click();
+    expect(box(byText('Trip')).checked).toBe(true);
+    await settle();
+    expect((await stored()).find((t) => t.text === 'Trip').items.map((item) => item.done)).toEqual([false, true]);
+
+    $('.selection-bar__cancel').click();
+    expect(itemBoxes().map((el) => el.disabled)).toEqual([false, false]);
+  });
+
+  it('reports a failed "Mark as done" and goes back to the selection', async () => {
+    $('.todo-list__select').click();
+    box(byText('Open A')).click();
+    const set = spyOn(panel.fake.storage.local, 'set').andCallFake(async (items) => {
+      if (Object.keys(items).some((key) => key.includes('todos'))) throw new Error('Nope.');
+    });
+    $('.selection-bar__done').click();
+    await settle();
+    set.restore();
+
+    expect(panel.toasts.at(-1).message).toBe('Couldn\'t mark the to-dos as done. Nope.');
+    expect(box(byText('Open A')).checked).toBe(true);
+    expect($('.selection-bar__count').textContent).toBe('1 to-do selected');
+    expect((await stored()).filter((t) => t.done).map((t) => t.text)).toEqual(['Done C']);
+  });
+
   it('selects a done to-do with a click on its text', () => {
     $('.todo-list__select').click();
     $(`[data-todo-id="${byText('Done C')}"] .todo-item__text`).click();

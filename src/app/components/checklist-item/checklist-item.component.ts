@@ -16,20 +16,24 @@ import { DONE_TOGGLE } from '../todo-list/todo-list.selectors.js';
 
 export interface IChecklistItemOptions {
   todo: ITodo;
+  // The list is selecting to-dos: the checkbox is disabled meanwhile.
+  selecting: boolean;
 }
 
 interface IChecklistItemView {
   item: IChecklistItem;
   // Folded down to its first line (see _toggleCollapsed).
   collapsed: boolean;
+  selecting: boolean;
 }
 
 // @ts-ignore : variable(s) used in HTML template
-const templateFn = ({ item, collapsed }: IChecklistItemView) => html`__TEMPLATE_PLACEHOLDER__`;
+const templateFn = ({ item, collapsed, selecting }: IChecklistItemView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 /**
  * One item of a checklist, checked right from the checklist.
  * Checked items stay in place; checking the last one moves the whole checklist to "Done".
+ * While the list is selecting to-dos, the checkbox is disabled (a click on the text selects the checklist).
  * A text too long for one line gets an arrow beside its checkbox, folding it down to its first
  * line (saved on the item).
  */
@@ -44,7 +48,7 @@ export class ChecklistItemComponent extends Component<HTMLElement, IChecklistIte
       templateFn,
       mountTarget,
       props: { className: item.done ? 'checklist-item checklist-item--done' : 'checklist-item' },
-      config: { item, collapsed: !!item.collapsed },
+      config: { item, collapsed: !!item.collapsed, selecting: options.selecting },
     });
     // Lets the checklist find this item's checkbox again after it re-renders (see requestFocus).
     this.element.dataset.itemId = item.id;
@@ -99,6 +103,7 @@ export class ChecklistItemComponent extends Component<HTMLElement, IChecklistIte
 
   // @ts-ignore : function used in HTML template
   private async _toggle(done: boolean): Promise<void> {
+    if (this.config.selecting) return;
     const id = this._item.id;
     // Checking the last open item moves the checklist to "Done": it unfolds first, to show it there.
     if (done && (this._todo.items ?? []).every((item) => item.done || item.id === id)) await revealDoneGroup();

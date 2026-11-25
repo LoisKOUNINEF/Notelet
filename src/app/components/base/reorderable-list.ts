@@ -66,7 +66,7 @@ export class ItemOptionsCache<O> {
  * update(): the items that didn't change are kept (and an edit in progress with them).
  * Its items are reordered by their handles (see ListReorder).
  * Updates arriving during a gesture are helduntil it ends.
- * Its "Select" button lets several items be picked, then deleted or moved to the tab's other scope at once (see SelectionBarComponent).
+ * Its "Select" button lets several items be picked, then deleted, marked as done (to-dos) or moved to the tab's other scope at once (see SelectionBarComponent).
  */
 export abstract class ReorderableList<T extends IScopeItem, V> extends AppComponent<HTMLElement, V> {
   protected items: T[];
@@ -145,9 +145,18 @@ export abstract class ReorderableList<T extends IScopeItem, V> extends AppCompon
     return true;
   }
 
+  // Whether "Mark as done" can apply to the selected items (disabled otherwise).
+  protected selectionMarkable(_items: T[]): boolean {
+    return true;
+  }
+
+  // "Mark as done" for the selected items: lists that offer it (to-dos) set it.
+  protected markSelectedDone: (() => Promise<void>) | null = null;
+
   // The bar shown in the footer while selecting.
   protected selectionBarChild(): Nutin.ComponentConfig {
     const { noun, moveBlockedHint, scope } = this._settings;
+    const markDone = this.markSelectedDone;
     return {
       selector: 'selection-bar',
       factory: (el) => (this._selectionBar = new SelectionBarComponent(el, {
@@ -155,6 +164,7 @@ export abstract class ReorderableList<T extends IScopeItem, V> extends AppCompon
         target: scope === 'page' ? 'site' : 'page',
         moveBlockedHint: moveBlockedHint ?? '',
         onDelete: () => void this.deleteSelected(),
+        ...(markDone ? { onDone: () => void markDone() } : {}),
         onMove: () => void this.moveSelected(),
         onCancel: () => this.stopSelecting([SELECT_BUTTON]),
       })),
@@ -170,7 +180,7 @@ export abstract class ReorderableList<T extends IScopeItem, V> extends AppCompon
     this.refresh();
   }
 
-  private stopSelecting(focus: string[] = []): void {
+  protected stopSelecting(focus: string[] = []): void {
     this.selection = null;
     this._selectionBar = null;
     if (focus.length > 0) requestFocus(...focus);
@@ -178,7 +188,7 @@ export abstract class ReorderableList<T extends IScopeItem, V> extends AppCompon
   }
 
   // Back to what was selected, after a delete or a move that failed.
-  private resumeSelecting(ids: Set<string>, focus: string): void {
+  protected resumeSelecting(ids: Set<string>, focus: string): void {
     if (this.isDestroyed) return;
     this.selection = new Set(this.items.filter((item) => ids.has(item.id)).map((item) => item.id));
     this._selectionRound++;
@@ -186,7 +196,7 @@ export abstract class ReorderableList<T extends IScopeItem, V> extends AppCompon
     this.refresh();
   }
 
-  private selectedItems(): T[] {
+  protected selectedItems(): T[] {
     const selection = this.selection;
     return selection ? this.items.filter((item) => selection.has(item.id)) : [];
   }
@@ -233,7 +243,11 @@ export abstract class ReorderableList<T extends IScopeItem, V> extends AppCompon
   private syncSelectionBar(): void {
     if (!this.selection || !this._selectionBar) return;
     const picked = this.selectedItems();
-    this._selectionBar.update(picked.length, picked.length > 0 && !this.selectionMovable(picked));
+    this._selectionBar.update(
+      picked.length,
+      picked.length > 0 && !this.selectionMovable(picked),
+      picked.length > 0 && !this.selectionMarkable(picked)
+    );
   }
 
   protected override onAfterRender(): void {

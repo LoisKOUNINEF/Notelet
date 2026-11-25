@@ -13,7 +13,7 @@ import { byData, clearRequestedFocus } from '../../lib/focus.js';
 import { quoted, sentence, todoRef } from '../../lib/labels.js';
 import { confirmService } from '../../services/confirm/confirm.service.js';
 import { notifierService } from '../../services/notifier/notifier.service.js';
-import { isChecklist } from '../../services/scope-store/scope-items.js';
+import { isChecklist, settingItems } from '../../services/scope-store/scope-items.js';
 import { scopeStoreService } from '../../services/scope-store/scope-store.service.js';
 import { settingsService } from '../../services/settings/settings.service.js';
 import { ChecklistAddComponent } from '../checklist-add/checklist-add.component.js';
@@ -132,7 +132,7 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
         elementName: 'checklist-item',
         elementTag: 'li',
         component: ChecklistItemComponent,
-        props: { todo: this._todo },
+        props: { todo: this._todo, selecting: this.config.selecting },
       }),
       // Only in the template for a checklist.
       { selector: 'checklist-add', factory: (el) => new ChecklistAddComponent(el, this._todo as IChecklist) },
@@ -383,11 +383,6 @@ export class TodoItemComponent extends Component<HTMLElement, ITodoItemView> {
     this.config = { ...this.config, editing };
     this.render();
   }
-}
-
-// The change that sets each item's `done`, applied to the checklist as stored.
-function settingItems(done: (item: IChecklistItem) => boolean): (current: ITodo) => Pick<ITodo, 'items'> {
-  return (current) => ({ items: (current.items ?? []).map((item) => ({ ...item, done: done(item) })) });
 }
 
 function sameItems(a: IChecklistItem[], b: IChecklistItem[]): boolean {

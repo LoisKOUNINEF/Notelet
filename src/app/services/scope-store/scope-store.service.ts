@@ -147,6 +147,33 @@ export class ScopeStoreService extends Service<ScopeStoreService> {
     });
   }
 
+  /**
+   * updateWith() for several items of one list (one scope key), in a single write.
+   * Items gone meanwhile are left gone. Resolves to the updated items.
+   */
+  public updateManyWith<K extends ScopeContentKind>(
+    kind: K,
+    items: IScopeItemKinds[K][],
+    change: (current: IScopeItemKinds[K]) => ScopeItemChanges<K>
+  ): Promise<IScopeItemKinds[K][]> {
+    const [first] = items;
+    if (!first) return Promise.resolve([]);
+    const ids = new Set(items.map((item) => item.id));
+    return this.enqueue(() => this.writeList(kind, first.scope, first.key, (list) => {
+      const now = Date.now();
+      const updated: IScopeItemKinds[K][] = [];
+      const next = list.map((current) => {
+        if (!ids.has(current.id)) return current;
+        const replaced = kind === 'todos'
+          ? applyTodoEdit(current as ITodo, change(current), now) as IScopeItemKinds[K]
+          : { ...current, ...change(current), updatedAt: now };
+        updated.push(replaced);
+        return replaced;
+      });
+      return { items: next, result: updated };
+    }));
+  }
+
   // Folds or unfolds a note or a to-do.
   public setCollapsed<K extends ScopeContentKind>(kind: K, item: IScopeItemKinds[K], collapsed: boolean): Promise<IScopeItemKinds[K]> {
     return this.replaceItem(kind, item, (current) => {

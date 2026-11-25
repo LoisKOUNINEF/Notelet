@@ -279,6 +279,8 @@ describe('NoteListComponent - selecting', () => {
     expect($('.selection-bar__delete').disabled).toBe(true);
     expect($('.selection-bar__move').disabled).toBe(true);
     expect($('.selection-bar__move').textContent).toBe('Move to this site');
+    // Notes can't be done.
+    expect($('.selection-bar__done')).toBeFalsy();
   });
 
   it('counts the selected notes in place, without re-rendering them', async () => {

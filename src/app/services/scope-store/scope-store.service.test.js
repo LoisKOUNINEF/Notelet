@@ -689,8 +689,27 @@ describe('ScopeStoreService - to-dos', () => {
     expect(await texts()).toEqual(['One', 'Two', 'Three']);
   });
 
+  it('updates several to-dos of one list in one write, leaving the deleted ones gone', async () => {
+    const one = await scopeStoreService.addTodo('page', keys.page, 'One');
+    const two = await scopeStoreService.addTodo('page', keys.page, 'Two');
+    const three = await scopeStoreService.addTodo('page', keys.page, 'Three');
+    await scopeStoreService.remove('todos', three);
+    const set = spyOn(fake.storage.local, 'set');
+
+    const updated = await scopeStoreService.updateManyWith('todos', [one, three], () => ({ done: true }));
+    expect(set.callCount).toBe(1);
+    set.restore();
+    expect(updated.map((t) => t.text)).toEqual(['One']);
+    expect(updated[0].done).toBe(true);
+    expect(updated[0].doneAt).toBeTruthy();
+    const stored = (await scopeStoreService.load(keys)).page.todos;
+    expect(stored.map((t) => [t.text, t.done])).toEqual([['Two', false], ['One', true]]);
+    expect(stored.find((t) => t.id === two.id).updatedAt).toBe(two.updatedAt);
+  });
+
   it('does nothing for an empty list of to-dos', async () => {
     const set = spyOn(fake.storage.local, 'set');
+    await scopeStoreService.updateManyWith('todos', [], () => ({ done: true }));
     await scopeStoreService.removeMany('todos', []);
     await scopeStoreService.restoreMany('todos', []);
     expect(set.callCount).toBe(0);

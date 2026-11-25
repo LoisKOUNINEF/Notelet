@@ -1,5 +1,5 @@
 <a11y-checkbox class="checklist-item__check">
-  <input class="checklist-item__checkbox" type="checkbox" tabindex="0" aria-labelledby="item-${item.id}-text" ${item.done ? raw('checked') : ''} data-event="change:_toggle:@checked">
+  <input class="checklist-item__checkbox" type="checkbox" tabindex="0" aria-labelledby="item-${item.id}-text" ${item.done ? raw('checked') : ''} ${selecting ? raw('disabled') : ''} data-event="change:_toggle:@checked">
 </a11y-checkbox>
 <button class="checklist-item__toggle" type="button" tabindex="0" aria-expanded="${collapsed ? 'false' : 'true'}" aria-controls="item-${item.id}-text" aria-label="Details: ${item.text}" data-event="click:_toggleCollapsed" hidden>
   <span class="checklist-item__chevron" aria-hidden="true"></span>
