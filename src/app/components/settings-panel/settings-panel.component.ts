@@ -28,7 +28,12 @@ interface IThemeOption {
   checked: boolean;
 }
 
+// The sections that fold behind their name, all folded when Settings opens. "Support Notelet" always shows.
+const SECTIONS = ['storage', 'manage', 'backup', 'appearance', 'panel', 'help'] as const;
+export type SettingsSection = (typeof SECTIONS)[number];
+
 interface ISettingsPanelView {
+  open: Record<SettingsSection, boolean>;
   areas: IAreaOption[];
   themes: IThemeOption[];
   busy: boolean;
@@ -39,7 +44,7 @@ interface ISettingsPanelView {
 }
 
 // @ts-ignore : variable(s) used in HTML template
-const templateFn = ({ areas, themes, busy, pending, browser, syncedWith }: ISettingsPanelView) => html`__TEMPLATE_PLACEHOLDER__`;
+const templateFn = ({ open, areas, themes, busy, pending, browser, syncedWith }: ISettingsPanelView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 // Where the focus goes when the settings open, and back from "Manage by site".
 export const SETTINGS_TITLE = '#settings-title';
@@ -82,16 +87,23 @@ function success(area: StorageAreaName): string {
 export interface ISettingsPanelOptions {
   // "Manage by site": the sidebar shows that page instead.
   onManageSites?: () => void;
+  // The unfolded sections, updated as they're toggled: the caller keeps them across a recreate.
+  openSections?: Set<SettingsSection>;
 }
 
 export class SettingsPanelComponent extends AppComponent<HTMLElement, ISettingsPanelView> {
   private _deleteData: DeleteDataComponent | null = null;
   private _backupData: BackupDataComponent | null = null;
   private _onManageSites: () => void;
+  private _open: Set<SettingsSection>;
 
-  constructor(mountTarget: HTMLElement, { onManageSites = () => {} }: ISettingsPanelOptions = {}) {
-    super({ templateFn, mountTarget, config: SettingsPanelComponent.viewOf(false, null) });
+  constructor(
+    mountTarget: HTMLElement,
+    { onManageSites = () => {}, openSections = new Set<SettingsSection>() }: ISettingsPanelOptions = {},
+  ) {
+    super({ templateFn, mountTarget, config: SettingsPanelComponent.viewOf(false, null, openSections) });
     this._onManageSites = onManageSites;
+    this._open = openSections;
     // Also follows a change made in another window.
     this.listen('storage-area-changed', () => this.setBusy(false));
     // A theme picked in another window (or a failed save): checked in place, so focus and open help stay.
@@ -111,11 +123,12 @@ export class SettingsPanelComponent extends AppComponent<HTMLElement, ISettingsP
     this._backupData?.update({ busy: this.config.busy });
   }
 
-  private static viewOf(busy: boolean, pending: StorageAreaName | null): ISettingsPanelView {
+  private static viewOf(busy: boolean, pending: StorageAreaName | null, open: Set<SettingsSection>): ISettingsPanelView {
     // While asking, the choice just made stays shown.
     const selected = pending ?? settingsService.storageArea;
     const browser = chromeApiService.browser();
     return {
+      open: Object.fromEntries(SECTIONS.map((section) => [section, open.has(section)])) as Record<SettingsSection, boolean>,
       busy,
       pending,
       browser,
@@ -126,10 +139,22 @@ export class SettingsPanelComponent extends AppComponent<HTMLElement, ISettingsP
   }
 
   // @ts-ignore : function used in HTML template
+  // Patched in place: the focus stays on the toggle, and the help questions opened stay open.
+  private _toggleSection(value: string): void {
+    const section = SECTIONS.find((option) => option === value);
+    if (!section) return;
+    const open = !this._open.has(section);
+    if (open) this._open.add(section);
+    else this._open.delete(section);
+    requireElement(this.element, `.settings-panel__toggle[data-section="${section}"]`).setAttribute('aria-expanded', String(open));
+    requireElement(this.element, `#settings-section-${section}`).hidden = !open;
+  }
+
+  // @ts-ignore : function used in HTML template
   private _setArea(value: string): void {
     const area = AREA_VALUES.find((option) => option === value);
     if (!area) return;
-    this.rerender(SettingsPanelComponent.viewOf(false, area === settingsService.storageArea ? null : area));
+    this.rerender(SettingsPanelComponent.viewOf(false, area === settingsService.storageArea ? null : area, this._open));
     this.areaRadio(area).focus();
   }
 
@@ -189,7 +214,7 @@ export class SettingsPanelComponent extends AppComponent<HTMLElement, ISettingsP
   }
 
   private setBusy(busy: boolean): void {
-    this.rerender(SettingsPanelComponent.viewOf(busy, null));
+    this.rerender(SettingsPanelComponent.viewOf(busy, null, this._open));
   }
 
   private areaRadio(area: StorageAreaName): HTMLInputElement {

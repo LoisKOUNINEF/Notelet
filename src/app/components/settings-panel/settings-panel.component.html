@@ -2,131 +2,179 @@
   <h2 class="settings-panel__title" id="settings-title" tabindex="-1">Settings</h2>
 
   <div class="settings-panel__section">
-    <h3 class="settings-panel__subtitle" id="settings-storage-title">Where to keep your notes</h3>
-    <a11y-radio-group class="settings-panel__group" aria-label="Where to keep your notes" ${busy ? raw('disabled') : ''}>
-      ${areas.map((area) => html`
-      <label class="settings-panel__option">
-        <input type="radio" tabindex="0" name="storage-area" value="${area.value}" ${area.checked ? raw('checked') : ''} data-event="change:_setArea:@value">
-        <span class="settings-panel__option-text">
-          <span class="settings-panel__option-label">${area.label}</span>
-          <span class="settings-panel__option-hint">${area.hint}</span>
-        </span>
-      </label>`)}
-    </a11y-radio-group>
-    ${pending ? html`
-    <div class="settings-panel__confirm" role="group" aria-labelledby="settings-confirm-text">
-      ${pending === 'local'
-        ? html`<p class="settings-panel__confirm-text" id="settings-confirm-text">Remove your synced notes from all your devices? They'll be kept on this device only, and your other computers will lose them.</p>`
-        : html`<p class="settings-panel__confirm-text" id="settings-confirm-text">Your notes will sync with ${syncedWith}: on every computer you sign in to, up to about 100 KB.</p>`}
-      <div class="settings-panel__confirm-actions">
+    <h3 class="settings-panel__subtitle">
+      <button class="settings-panel__toggle" type="button" tabindex="0" aria-expanded="${open.storage ? 'true' : 'false'}" aria-controls="settings-section-storage" data-section="storage" data-event="click:_toggleSection:@dataset:section">
+        <span class="settings-panel__subtitle-text">Where to keep your notes</span>
+        <span class="settings-panel__chevron" aria-hidden="true"></span>
+      </button>
+    </h3>
+    <div class="settings-panel__section-body" id="settings-section-storage" ${open.storage ? '' : raw('hidden')}>
+      <a11y-radio-group class="settings-panel__group" aria-label="Where to keep your notes" ${busy ? raw('disabled') : ''}>
+        ${areas.map((area) => html`
+        <label class="settings-panel__option">
+          <input type="radio" tabindex="0" name="storage-area" value="${area.value}" ${area.checked ? raw('checked') : ''} data-event="change:_setArea:@value">
+          <span class="settings-panel__option-text">
+            <span class="settings-panel__option-label">${area.label}</span>
+            <span class="settings-panel__option-hint">${area.hint}</span>
+          </span>
+        </label>`)}
+      </a11y-radio-group>
+      ${pending ? html`
+      <div class="settings-panel__confirm" role="group" aria-labelledby="settings-confirm-text">
         ${pending === 'local'
-          ? html`<button class="button button--danger settings-panel__confirm-remove" type="button" tabindex="0" data-event="click:_apply">Remove synced copy</button>`
-          : html`<button class="button button--primary settings-panel__confirm-apply" type="button" tabindex="0" data-event="click:_apply">Apply</button>`}
-        <button class="button settings-panel__confirm-cancel" type="button" tabindex="0" data-event="click:_cancel">Cancel</button>
-      </div>
-    </div>` : ''}
-  </div>
-
-  <div class="settings-panel__section">
-    <h3 class="settings-panel__subtitle">Manage notes and to-dos</h3>
-    <div class="settings-panel__rows">
-      <div class="settings-panel__row" role="group" aria-labelledby="manage-sites-label">
-        <p class="settings-panel__label" id="manage-sites-label">Notes by site</p>
-        <button class="button settings-panel__manage-sites" type="button" tabindex="0" data-event="click:_manageSites">Manage by site</button>
-      </div>
-      <div data-component="delete-data"></div>
+          ? html`<p class="settings-panel__confirm-text" id="settings-confirm-text">Remove your synced notes from all your devices? They'll be kept on this device only, and your other computers will lose them.</p>`
+          : html`<p class="settings-panel__confirm-text" id="settings-confirm-text">Your notes will sync with ${syncedWith}: on every computer you sign in to, up to about 100 KB.</p>`}
+        <div class="settings-panel__confirm-actions">
+          ${pending === 'local'
+            ? html`<button class="button button--danger settings-panel__confirm-remove" type="button" tabindex="0" data-event="click:_apply">Remove synced copy</button>`
+            : html`<button class="button button--primary settings-panel__confirm-apply" type="button" tabindex="0" data-event="click:_apply">Apply</button>`}
+          <button class="button settings-panel__confirm-cancel" type="button" tabindex="0" data-event="click:_cancel">Cancel</button>
+        </div>
+      </div>` : ''}
     </div>
   </div>
 
   <div class="settings-panel__section">
-    <h3 class="settings-panel__subtitle">Backup</h3>
-    <div data-component="backup-data"></div>
-  </div>
-
-  <div class="settings-panel__section">
-    <h3 class="settings-panel__subtitle">Appearance</h3>
-    <a11y-radio-group class="settings-panel__group" aria-label="Appearance">
-      ${themes.map((theme) => html`
-      <label class="settings-panel__option">
-        <input type="radio" tabindex="0" name="theme" value="${theme.value}" ${theme.checked ? raw('checked') : ''} data-event="change:_setTheme:@value">
-        <span class="settings-panel__option-label">${theme.label}</span>
-      </label>`)}
-    </a11y-radio-group>
-  </div>
-
-  <div class="settings-panel__section">
-    <h3 class="settings-panel__subtitle">Panel side</h3>
-    ${browser === 'firefox' ? html`
-    <p class="settings-panel__text">Firefox decides whether the sidebar is on the left or the right. To switch, pick "Move sidebar to the right" (or left) in the sidebar's menu or in Firefox settings.</p>` : html`
-    <p class="settings-panel__text">Chrome decides whether the side panel opens on the left or the right.</p>
-    <button class="button" type="button" tabindex="0" data-event="click:_openChromeSettings:'chrome://settings/appearance'">Change it in Chrome settings</button>`}
-  </div>
-
-  <div class="settings-panel__section">
-    <h3 class="settings-panel__subtitle">Keyboard shortcut</h3>
-    <p class="settings-panel__text"><kbd>${altModifierKey()}</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd> opens and closes the panel, as does the toolbar button.</p>
-    ${browser === 'firefox' ? html`
-    <p class="settings-panel__text settings-panel__shortcut-help">To change it, open Add-ons and themes (<code>about:addons</code>), then ⚙ → Manage Extension Shortcuts.</p>` : html`
-    <button class="button" type="button" tabindex="0" data-event="click:_openChromeSettings:'chrome://extensions/shortcuts'">Change the shortcut</button>`}
-  </div>
-
-  <div class="settings-panel__section">
-    <h3 class="settings-panel__subtitle">Help</h3>
-    <div class="settings-panel__help">
-      <details class="settings-panel__help-item">
-        <summary>Page or site? Notes or to-dos?</summary>
-        <p>The tabs on top pick the page or the whole site; the ones below pick its to-dos or its notes. The panel opens on the last tab you picked.</p>
-        <p>Click a note or a to-do to edit it (or use its "Edit"). Click a to-do's checkbox to mark it done. In its editor, a note can also get a name, shown above its text.</p>
-        <p>The arrow beside a note folds it down to its name, or its first line; a checklist's folds it down to its name and progress. It stays folded until you unfold it.</p>
-        <p>Page notes and to-dos show on that page only. Site notes show on every page of the site (note: a subdomain is a site of its own). "Move to this site" or "Move to this page", in a note's or to-do's "⋯" menu, switches it between the two.</p>
-      </details>
-      <details class="settings-panel__help-item">
-        <summary>Checklists</summary>
-        <p>A to-do can be a checklist: several things to check off under one name. In the to-dos' field, write the name, press "Checklist", then one item per line (Enter adds the next one); Ctrl+Enter or "Add" adds the checklist.</p>
-        <p>Check its items right in the checklist: it moves to "Done" once they all are.</p>
-        <p>To put a to-do into a checklist, pick "Move into a checklist…" in its "⋯" menu. To get an item out, edit the checklist and press "Take out" next to it: once saved, it's a to-do of its own, right after the checklist.</p>
-        <p>To turn a single to-do into a checklist, press its "Edit" and add items; remove them all and it's single again.</p>
-        <p>If a checklist is added with only a name and no item, it'll be added as a to-do.</p>
-      </details>
-      <details class="settings-panel__help-item">
-        <summary>Reordering notes and to-dos</summary>
-        <p>Drag a note or a to-do by its handle. With the keyboard: Space on the handle picks it up, the arrow keys move it, Space drops it and Escape cancels.</p>
-        <p>New notes appear on top, and new to-dos at the bottom. Checked to-dos move to "Done", which "Delete all done" empties.</p>
-      </details>
-      <details class="settings-panel__help-item">
-        <summary>Finding notes on other pages</summary>
-        <p>On the "This site" tab, "Pages on this site" lists the site's pages that have notes or to-dos. Pick one to open it in the current tab. The page you're on is marked "(current)"; a path too long for one line is cut with "…", and its arrow shows all of it.</p>
-        <p>For every site at once, "Manage by site" here in Settings lists each site with notes or to-dos, by last edit or by name.</p>
-      </details>
-      <details class="settings-panel__help-item">
-        <summary>Deleted something by mistake?</summary>
-        <p>Use "Undo" in the message shown right after deleting a note, a to-do, or all of a list's done to-dos, to-dos or notes. Once that message is gone, there's no trash to restore from.</p>
-        <p>"Delete all older than" and the deletes in "Manage by site", here in Settings, can be undone the same way.</p>
-        <p>"Delete all notes and to-dos" can't be undone: export a backup first (Settings, "Backup") to keep a copy.</p>
-      </details>
-      <details class="settings-panel__help-item">
-        <summary>Text you haven't saved yet</summary>
-        <p>Notes being written and unsaved edits are kept when you switch tabs or close the panel, and come back when you return to that page. Quitting the browser discards them.</p>
-      </details>
-      <details class="settings-panel__help-item">
-        <summary>Syncing between computers</summary>
-        <p>${browser === 'firefox' ? 'Firefox' : 'Chrome'} sync holds about 100 KB in total, and a few hundred pages and sites. Switching moves all your notes, and stopping sync removes the synced copy from every computer.</p>
-        <p>By default, notes are kept on this device only, which holds about 10 MB in total.</p>
-      </details>
-      <details class="settings-panel__help-item">
-        <summary>Why are notes unavailable on some pages?</summary>
-        <p>Only websites can have notes: the browser's own pages (settings, new tab), files opened from your computer and other browser pages can't.</p>
-      </details>
-      <details class="settings-panel__help-item">
-        <summary>Keyboard shortcuts</summary>
-        <p><kbd>${modifierKey()}</kbd>+<kbd>Enter</kbd> adds or saves, <kbd>Esc</kbd> cancels an edit, and <kbd>${altModifierKey()}</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd> opens the panel.</p>
-      </details>
+    <h3 class="settings-panel__subtitle">
+      <button class="settings-panel__toggle" type="button" tabindex="0" aria-expanded="${open.manage ? 'true' : 'false'}" aria-controls="settings-section-manage" data-section="manage" data-event="click:_toggleSection:@dataset:section">
+        <span class="settings-panel__subtitle-text">Manage notes and to-dos</span>
+        <span class="settings-panel__chevron" aria-hidden="true"></span>
+      </button>
+    </h3>
+    <div class="settings-panel__section-body" id="settings-section-manage" ${open.manage ? '' : raw('hidden')}>
+      <div class="settings-panel__rows">
+        <div class="settings-panel__row" role="group" aria-labelledby="manage-sites-label">
+          <p class="settings-panel__label" id="manage-sites-label">Notes by site</p>
+          <button class="button settings-panel__manage-sites" type="button" tabindex="0" data-event="click:_manageSites">Manage by site</button>
+        </div>
+        <div data-component="delete-data"></div>
+      </div>
     </div>
   </div>
 
   <div class="settings-panel__section">
-    <h3 class="settings-panel__subtitle">Support Notelet</h3>
-    <p class="settings-panel__text">Notelet is free, with no ads and no tracking. If it helps you, you can leave a tip.</p>
-    <button class="button settings-panel__tip" type="button" tabindex="0" data-event="click:_openTip">Tip on Ko-fi</button>
+    <h3 class="settings-panel__subtitle">
+      <button class="settings-panel__toggle" type="button" tabindex="0" aria-expanded="${open.backup ? 'true' : 'false'}" aria-controls="settings-section-backup" data-section="backup" data-event="click:_toggleSection:@dataset:section">
+        <span class="settings-panel__subtitle-text">Backup</span>
+        <span class="settings-panel__chevron" aria-hidden="true"></span>
+      </button>
+    </h3>
+    <div class="settings-panel__section-body" id="settings-section-backup" ${open.backup ? '' : raw('hidden')}>
+      <div data-component="backup-data"></div>
+    </div>
+  </div>
+
+  <div class="settings-panel__section">
+    <h3 class="settings-panel__subtitle">
+      <button class="settings-panel__toggle" type="button" tabindex="0" aria-expanded="${open.appearance ? 'true' : 'false'}" aria-controls="settings-section-appearance" data-section="appearance" data-event="click:_toggleSection:@dataset:section">
+        <span class="settings-panel__subtitle-text">Appearance</span>
+        <span class="settings-panel__chevron" aria-hidden="true"></span>
+      </button>
+    </h3>
+    <div class="settings-panel__section-body" id="settings-section-appearance" ${open.appearance ? '' : raw('hidden')}>
+      <a11y-radio-group class="settings-panel__group" aria-label="Appearance">
+        ${themes.map((theme) => html`
+        <label class="settings-panel__option">
+          <input type="radio" tabindex="0" name="theme" value="${theme.value}" ${theme.checked ? raw('checked') : ''} data-event="change:_setTheme:@value">
+          <span class="settings-panel__option-label">${theme.label}</span>
+        </label>`)}
+      </a11y-radio-group>
+    </div>
+  </div>
+
+  <div class="settings-panel__section">
+    <h3 class="settings-panel__subtitle">
+      <button class="settings-panel__toggle" type="button" tabindex="0" aria-expanded="${open.panel ? 'true' : 'false'}" aria-controls="settings-section-panel" data-section="panel" data-event="click:_toggleSection:@dataset:section">
+        <span class="settings-panel__subtitle-text">Panel options</span>
+        <span class="settings-panel__chevron" aria-hidden="true"></span>
+      </button>
+    </h3>
+    <div class="settings-panel__section-body" id="settings-section-panel" ${open.panel ? '' : raw('hidden')}>
+      <div class="settings-panel__subsections">
+        <details class="settings-panel__subsection">
+          <summary>Panel side</summary>
+          ${browser === 'firefox' ? html`
+          <p>Firefox decides whether the sidebar is on the left or the right. To switch, pick "Move sidebar to the right" (or left) in the sidebar's menu or in Firefox settings.</p>` : html`
+          <p>Chrome decides whether the side panel opens on the left or the right.</p>
+          <button class="button" type="button" tabindex="0" data-event="click:_openChromeSettings:'chrome://settings/appearance'">Change it in Chrome settings</button>`}
+        </details>
+        <details class="settings-panel__subsection">
+          <summary>Keyboard shortcut</summary>
+          <p><kbd>${altModifierKey()}</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd> opens and closes the panel, as does the toolbar button.</p>
+          ${browser === 'firefox' ? html`
+          <p class="settings-panel__shortcut-help">To change it, open Add-ons and themes (<code>about:addons</code>), then ⚙ → Manage Extension Shortcuts.</p>` : html`
+          <button class="button" type="button" tabindex="0" data-event="click:_openChromeSettings:'chrome://extensions/shortcuts'">Change the shortcut</button>`}
+        </details>
+      </div>
+    </div>
+  </div>
+
+  <div class="settings-panel__section">
+    <h3 class="settings-panel__subtitle">
+      <button class="settings-panel__toggle" type="button" tabindex="0" aria-expanded="${open.help ? 'true' : 'false'}" aria-controls="settings-section-help" data-section="help" data-event="click:_toggleSection:@dataset:section">
+        <span class="settings-panel__subtitle-text">Help</span>
+        <span class="settings-panel__chevron" aria-hidden="true"></span>
+      </button>
+    </h3>
+    <div class="settings-panel__section-body" id="settings-section-help" ${open.help ? '' : raw('hidden')}>
+      <div class="settings-panel__subsections">
+        <details class="settings-panel__subsection">
+          <summary>Page or site? Notes or to-dos?</summary>
+          <p>The tabs on top pick the page or the whole site; the ones below pick its to-dos or its notes. The panel opens on the last tab you picked.</p>
+          <p>Click a note or a to-do to edit it (or use its "Edit"). Click a to-do's checkbox to mark it done. In its editor, a note can also get a name, shown above its text.</p>
+          <p>The arrow beside a note folds it down to its name, or its first line; a checklist's folds it down to its name and progress. It stays folded until you unfold it.</p>
+          <p>Page notes and to-dos show on that page only. Site notes show on every page of the site (note: a subdomain is a site of its own). "Move to this site" or "Move to this page", in a note's or to-do's "⋯" menu, switches it between the two.</p>
+        </details>
+        <details class="settings-panel__subsection">
+          <summary>Checklists</summary>
+          <p>A to-do can be a checklist: several things to check off under one name. In the to-dos' field, write the name, press "Checklist", then one item per line (Enter adds the next one); Ctrl+Enter or "Add" adds the checklist.</p>
+          <p>Check its items right in the checklist: it moves to "Done" once they all are.</p>
+          <p>To put a to-do into a checklist, pick "Move into a checklist…" in its "⋯" menu. To get an item out, edit the checklist and press "Take out" next to it: once saved, it's a to-do of its own, right after the checklist.</p>
+          <p>To turn a single to-do into a checklist, press its "Edit" and add items; remove them all and it's single again.</p>
+          <p>If a checklist is added with only a name and no item, it'll be added as a to-do.</p>
+        </details>
+        <details class="settings-panel__subsection">
+          <summary>Reordering notes and to-dos</summary>
+          <p>Drag a note or a to-do by its handle. With the keyboard: Space on the handle picks it up, the arrow keys move it, Space drops it and Escape cancels.</p>
+          <p>New notes appear on top, and new to-dos at the bottom. Checked to-dos move to "Done", which "Delete all done" empties.</p>
+        </details>
+        <details class="settings-panel__subsection">
+          <summary>Finding notes on other pages</summary>
+          <p>On the "This site" tab, "Pages on this site" lists the site's pages that have notes or to-dos. Pick one to open it in the current tab. The page you're on is marked "(current)"; a path too long for one line is cut with "…", and its arrow shows all of it.</p>
+          <p>For every site at once, "Manage by site" here in Settings lists each site with notes or to-dos, by last edit or by name.</p>
+        </details>
+        <details class="settings-panel__subsection">
+          <summary>Deleted something by mistake?</summary>
+          <p>Use "Undo" in the message shown right after deleting a note, a to-do, or all of a list's done to-dos, to-dos or notes. Once that message is gone, there's no trash to restore from.</p>
+          <p>"Delete all older than" and the deletes in "Manage by site", here in Settings, can be undone the same way.</p>
+          <p>"Delete all notes and to-dos" can't be undone: export a backup first (Settings, "Backup") to keep a copy.</p>
+        </details>
+        <details class="settings-panel__subsection">
+          <summary>Text you haven't saved yet</summary>
+          <p>Notes being written and unsaved edits are kept when you switch tabs or close the panel, and come back when you return to that page. Quitting the browser discards them.</p>
+        </details>
+        <details class="settings-panel__subsection">
+          <summary>Syncing between computers</summary>
+          <p>${browser === 'firefox' ? 'Firefox' : 'Chrome'} sync holds about 100 KB in total, and a few hundred pages and sites. Switching moves all your notes, and stopping sync removes the synced copy from every computer.</p>
+          <p>By default, notes are kept on this device only, which holds about 10 MB in total.</p>
+        </details>
+        <details class="settings-panel__subsection">
+          <summary>Why are notes unavailable on some pages?</summary>
+          <p>Only websites can have notes: the browser's own pages (settings, new tab), files opened from your computer and other browser pages can't.</p>
+        </details>
+        <details class="settings-panel__subsection">
+          <summary>Keyboard shortcuts</summary>
+          <p><kbd>${modifierKey()}</kbd>+<kbd>Enter</kbd> adds or saves, <kbd>Esc</kbd> cancels an edit, and <kbd>${altModifierKey()}</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd> opens the panel.</p>
+        </details>
+      </div>
+    </div>
+  </div>
+
+  <div class="settings-panel__section">
+    <h3 class="settings-panel__subtitle"><span class="settings-panel__subtitle-text">Support Notelet</span></h3>
+    <div class="settings-panel__section-body">
+      <p class="settings-panel__text">Notelet is free, with no ads and no tracking. If it helps you, you can leave a tip.</p>
+      <button class="button settings-panel__tip" type="button" tabindex="0" data-event="click:_openTip">Tip on Ko-fi</button>
+    </div>
   </div>
 </section>

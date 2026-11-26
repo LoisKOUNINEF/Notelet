@@ -479,6 +479,7 @@ describe('SidebarComponent', () => {
     await scopeStoreService.addNote('page', KEYS.page, 'A note');
     await mount();
     $('.sidebar__settings-toggle').click();
+    $('.settings-panel__toggle[data-section="manage"]').click();
     $('.settings-panel__manage-sites').click();
     expect(document.activeElement).toBe($('#site-manager-title'));
     expect($('.settings-panel')).toBeFalsy();
@@ -488,6 +489,7 @@ describe('SidebarComponent', () => {
 
     $('.site-manager__back').click();
     expect($('.site-manager')).toBeFalsy();
+    expect($('#settings-section-manage').hidden).toBe(false);
     expect(document.activeElement).toBe($('.settings-panel__manage-sites'));
 
     $('.settings-panel__manage-sites').click();
@@ -495,6 +497,21 @@ describe('SidebarComponent', () => {
     expect($('.site-manager')).toBeFalsy();
     expect(texts('.note-item__text')).toEqual(['A note']);
     expect(document.activeElement).toBe($('.sidebar__settings-toggle'));
+  });
+
+  it('folds the settings\' sections again once Settings closes', async () => {
+    await mount();
+    const settingsToggle = () => $('.sidebar__settings-toggle');
+    const openSections = () => $$('.settings-panel__toggle[aria-expanded="true"]').map((button) => button.dataset.section);
+    settingsToggle().click();
+    expect(openSections()).toEqual([]);
+    $('.settings-panel__toggle[data-section="backup"]').click();
+    $('.settings-panel__toggle[data-section="help"]').click();
+    expect(openSections()).toEqual(['backup', 'help']);
+
+    settingsToggle().click();
+    settingsToggle().click();
+    expect(openSections()).toEqual([]);
   });
 
   it('reloads the notes from the new storage area once switched', async () => {

@@ -11,7 +11,12 @@ import { settingsService } from '../../services/settings/settings.service.js';
 import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.component.js';
 import { PageUnavailableComponent } from '../page-unavailable/page-unavailable.component.js';
 import { ScopePanelComponent, type IScopePanelState } from '../scope-panel/scope-panel.component.js';
-import { MANAGE_SITES_BUTTON, SETTINGS_TITLE, SettingsPanelComponent } from '../settings-panel/settings-panel.component.js';
+import {
+  MANAGE_SITES_BUTTON,
+  SETTINGS_TITLE,
+  SettingsPanelComponent,
+  type SettingsSection,
+} from '../settings-panel/settings-panel.component.js';
 import { SITE_MANAGER_TITLE, SiteManagerComponent } from '../site-manager/site-manager.component.js';
 
 // What replaces the notes when Settings is open: the settings, or their "Manage by site" page.
@@ -47,6 +52,8 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
   // Listing them reads the whole storage area, so only while that tab shows.
   private _sitePages: ISitePage[] | null = null;
   private _settingsPage: SettingsPage | null = null;
+  // The settings' unfolded sections: kept through "Manage by site", all folded again once Settings closes.
+  private _settingsSections = new Set<SettingsSection>();
   private _panel: ScopePanelComponent | null = null;
   // Only the latest load's result is shown, however the requests resolve.
   private _loadId = 0;
@@ -87,7 +94,10 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
     return [
       {
         selector: 'settings-panel',
-        factory: (el) => new SettingsPanelComponent(el, { onManageSites: () => this.openSettings('sites', SITE_MANAGER_TITLE) }),
+        factory: (el) => new SettingsPanelComponent(el, {
+          onManageSites: () => this.openSettings('sites', SITE_MANAGER_TITLE),
+          openSections: this._settingsSections,
+        }),
         keep: 'settings',
       },
       {
@@ -160,8 +170,12 @@ export class SidebarComponent extends Component<HTMLElement, ISidebarView> {
   // @ts-ignore : function used in HTML template
   // From any settings page back to the notes, or from the notes to the settings.
   private _toggleSettings(): void {
-    if (this._settingsPage) this.openSettings(null, SETTINGS_TOGGLE);
-    else this.openSettings('settings', SETTINGS_TITLE);
+    if (this._settingsPage) {
+      this.openSettings(null, SETTINGS_TOGGLE);
+      return;
+    }
+    this._settingsSections = new Set();
+    this.openSettings('settings', SETTINGS_TITLE);
   }
 
   private openSettings(page: SettingsPage | null, focus: string): void {

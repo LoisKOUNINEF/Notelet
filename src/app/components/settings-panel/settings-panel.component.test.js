@@ -19,8 +19,10 @@ describe('SettingsPanelComponent', () => {
     await settle();
   };
 
-  const sectionButton = (title) => $$('.settings-panel__subtitle')
-    .find((h) => h.textContent === title).parentElement.querySelector('button');
+  const section = (title) => $$('.settings-panel__subtitle-text')
+    .find((h) => h.textContent === title).closest('.settings-panel__section');
+  const sectionButton = (title) => section(title).querySelector('.settings-panel__section-body button');
+  const toggle = (title) => section(title).querySelector('.settings-panel__toggle');
 
   const themeRadio = (value) => $(`input[name="theme"][value="${value}"]`);
   const pickTheme = async (value) => {
@@ -42,8 +44,69 @@ describe('SettingsPanelComponent', () => {
     await panel.stop();
   });
 
+  it('folds every section behind its name, all but "Support Notelet"', () => {
+    const titles = $$('.settings-panel__subtitle-text').map((title) => title.textContent);
+    expect(titles.length).toBe(7);
+    titles.filter((title) => title !== 'Support Notelet').forEach((title) => {
+      const button = toggle(title);
+      expect(button.closest('h3')).toBeTruthy();
+      expect(button.querySelector('.settings-panel__chevron').getAttribute('aria-hidden')).toBe('true');
+      const body = document.getElementById(button.getAttribute('aria-controls'));
+      expect(section(title).contains(body)).toBe(true);
+      expect(button.getAttribute('aria-expanded')).toBe('false');
+      expect(body.hidden).toBe(true);
+    });
+  });
+
+  it('always shows "Support Notelet", with no way to fold it', () => {
+    expect(toggle('Support Notelet')).toBe(null);
+    expect(section('Support Notelet').querySelector('[hidden]')).toBe(null);
+    expect(section('Support Notelet').querySelector('.settings-panel__tip').textContent).toBe('Tip on Ko-fi');
+  });
+
+  it('unfolds and folds a section from its name, in place, keeping the focus on it', () => {
+    const body = () => document.getElementById(toggle('Help').getAttribute('aria-controls'));
+    const question = section('Help').querySelector('details');
+    toggle('Help').focus();
+    section('Help').querySelector('.settings-panel__subtitle-text').click();
+    expect(toggle('Help').getAttribute('aria-expanded')).toBe('true');
+    expect(body().hidden).toBe(false);
+    expect(document.activeElement).toBe(toggle('Help'));
+
+    question.open = true;
+    toggle('Help').click();
+    expect(toggle('Help').getAttribute('aria-expanded')).toBe('false');
+    expect(body().hidden).toBe(true);
+    toggle('Help').click();
+    expect(section('Help').querySelector('details')).toBe(question);
+    expect(question.open).toBe(true);
+  });
+
+  it('keeps the sections unfolded when it renders again', async () => {
+    toggle('Backup').click();
+    toggle('Where to keep your notes').click();
+    await choose('sync');
+    expect($('.settings-panel__confirm')).toBeTruthy();
+    expect(toggle('Backup').getAttribute('aria-expanded')).toBe('true');
+    expect(toggle('Where to keep your notes').getAttribute('aria-expanded')).toBe('true');
+    expect(toggle('Help').getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('starts from the sections it\'s given unfolded, and updates them as they\'re toggled', () => {
+    settings.destroy();
+    const openSections = new Set(['help']);
+    settings = new SettingsPanelComponent(document.getElementById('app').appendChild(document.createElement('div')), { openSections });
+    settings.render();
+    expect(toggle('Help').getAttribute('aria-expanded')).toBe('true');
+    expect(toggle('Backup').getAttribute('aria-expanded')).toBe('false');
+
+    toggle('Help').click();
+    toggle('Appearance').click();
+    expect([...openSections]).toEqual(['appearance']);
+  });
+
   it('shows where notes are kept, in a labelled group', () => {
-    expect($('.settings-panel__subtitle').textContent).toBe('Where to keep your notes');
+    expect($('.settings-panel__subtitle-text').textContent).toBe('Where to keep your notes');
     expect($('a11y-radio-group').getAttribute('aria-label')).toBe('Where to keep your notes');
     expect($('a11y-radio-group').hasAttribute('legend')).toBe(false);
     expect(radio('local').checked).toBe(true);
@@ -51,6 +114,7 @@ describe('SettingsPanelComponent', () => {
   });
 
   it('moves the notes to sync, confirms it, and keeps the choice focused', async () => {
+    toggle('Where to keep your notes').click();
     await scopeStoreService.addNote('page', KEYS.page, 'A');
     await switchTo('sync');
 
@@ -84,9 +148,18 @@ describe('SettingsPanelComponent', () => {
     expect(radio('sync').checked).toBe(true);
   });
 
+  it('folds the panel side and the keyboard shortcut under "Panel options", like the help questions', () => {
+    toggle('Panel options').click();
+    const entries = [...section('Panel options').querySelectorAll('details.settings-panel__subsection')];
+    expect(entries.map((entry) => entry.querySelector('summary').textContent)).toEqual(['Panel side', 'Keyboard shortcut']);
+    expect(entries.every((entry) => !entry.open)).toBe(true);
+    expect(section('Help').querySelector('details').classList.contains('settings-panel__subsection')).toBe(true);
+  });
+
   it('opens Chrome\'s side panel and shortcut settings', async () => {
-    sectionButton('Panel side').click();
-    sectionButton('Keyboard shortcut').click();
+    const button = (text) => [...section('Panel options').querySelectorAll('button')].find((b) => b.textContent === text);
+    button('Change it in Chrome settings').click();
+    button('Change the shortcut').click();
     await settle();
 
     expect(panel.fake.tabs.created).toEqual([
@@ -104,6 +177,7 @@ describe('SettingsPanelComponent', () => {
   });
 
   it('asks before leaving sync, since that removes the synced notes on every device', async () => {
+    toggle('Where to keep your notes').click();
     await switchTo('sync');
     await scopeStoreService.addNote('page', KEYS.page, 'Synced note');
     const set = spyOn(panel.fake.storage.local, 'set');
@@ -122,6 +196,7 @@ describe('SettingsPanelComponent', () => {
   });
 
   it('only previews an option picked (with the arrows too) until it\'s applied', async () => {
+    toggle('Where to keep your notes').click();
     await scopeStoreService.addNote('page', KEYS.page, 'A');
     await choose('sync');
     expect(settingsService.storageArea).toBe('local');
@@ -138,6 +213,7 @@ describe('SettingsPanelComponent', () => {
   });
 
   it('cancels an option picked, back to the area in use', async () => {
+    toggle('Where to keep your notes').click();
     await choose('sync');
     $('.settings-panel__confirm-cancel').click();
     expect(settingsService.storageArea).toBe('local');
@@ -160,6 +236,7 @@ describe('SettingsPanelComponent', () => {
   });
 
   it('stays on sync when cancelled, with focus back on its choice', async () => {
+    toggle('Where to keep your notes').click();
     await switchTo('sync');
     await choose('local');
     $('.settings-panel__confirm-cancel').click();
@@ -193,7 +270,7 @@ describe('SettingsPanelComponent', () => {
 
   it('explains when Chrome\'s settings can\'t be opened', async () => {
     panel.fake.tabs.create = async () => { throw new Error('No tab for you.'); };
-    sectionButton('Panel side').click();
+    sectionButton('Panel options').click();
     await settle();
     expect(panel.toasts.at(-1)).toEqual({ message: 'Couldn\'t open Chrome\'s settings. No tab for you.', type: 'error', duration: 6000 });
   });
@@ -231,8 +308,7 @@ describe('SettingsPanelComponent', () => {
   });
 
   it('offers help as collapsed questions under a "Help" heading', () => {
-    const section = $$('.settings-panel__subtitle').find((h) => h.textContent === 'Help').parentElement;
-    const entries = [...section.querySelectorAll('details')];
+    const entries = [...section('Help').querySelectorAll('details')];
     expect(entries.length).toBeGreaterThan(5);
     entries.forEach((entry) => {
       expect(entry.open).toBe(false);
@@ -249,6 +325,7 @@ describe('SettingsPanelComponent', () => {
   });
 
   it('appearance: saves the theme picked right away, keeping the focus on it', async () => {
+    toggle('Appearance').click();
     themeRadio('dark').focus();
     await pickTheme('dark');
 
@@ -293,7 +370,7 @@ describe('SettingsPanelComponent - notes by site', () => {
   });
 
   it('leads to "Manage by site", first in "Manage notes and to-dos", labelled "Notes by site"', () => {
-    const titles = $$('.settings-panel__subtitle').map((h) => h.textContent);
+    const titles = $$('.settings-panel__subtitle-text').map((h) => h.textContent);
     expect(titles).toContain('Manage notes and to-dos');
     expect(titles).not.toContain('Notes by site');
     expect(titles).not.toContain('Delete everything');
@@ -324,7 +401,7 @@ describe('SettingsPanelComponent - delete everything', () => {
   });
 
   it('comes right before the backup, with both ways to delete, the help and the tip coming last', () => {
-    const titles = $$('.settings-panel__subtitle').map((h) => h.textContent);
+    const titles = $$('.settings-panel__subtitle-text').map((h) => h.textContent);
     expect(titles.indexOf('Manage notes and to-dos')).toBe(titles.indexOf('Backup') - 1);
     expect(titles.slice(-2)).toEqual(['Help', 'Support Notelet']);
     expect($('.backup-data__export')).toBeTruthy();
