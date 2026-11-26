@@ -39,7 +39,7 @@ const templateFn = ({ site, counts, current, url }: ISiteRowView) => html`__TEMP
 /**
  * One site in "Manage by site": its domain, how many notes and to-dos it holds (its pages'
  * included), when they were last edited, a "⋯" menu ("Open in a new tab", "Move all to this
- * site", "Move all to this page", "Delete all notes (n)", "Delete all to-dos (n)", each disabled
+ * site (n)", "Move all to this page (n)", "Delete all notes (n)", "Delete all to-dos (n)", each disabled
  * when there's nothing to do) and a "Delete all" for everything. Moves go to the active tab's
  * site or page, and are undoable; deletes are asked first and undoable. Another site's card opens its home page in
  * the active tab, like a page in "Pages on this site".
@@ -90,10 +90,11 @@ export class SiteRowComponent extends Component<HTMLElement, ISiteRowView> {
   // have notes); there's nothing to delete of a kind it has none of.
   private menuActions(): IMenuAction<SiteMenuAction>[] {
     const { notes, todos } = this._site;
+    const all = notes + todos;
     return [
       { value: 'open-tab', label: 'Open in a new tab', disabled: this.config.current },
-      { value: 'move-site', label: 'Move all to this site', disabled: !this._canMove },
-      { value: 'move-page', label: 'Move all to this page', disabled: !this._canMove },
+      { value: 'move-site', label: `Move all to this site (${all})`, disabled: !this._canMove },
+      { value: 'move-page', label: `Move all to this page (${all})`, disabled: !this._canMove },
       { value: 'delete-notes', label: `Delete all notes (${notes})`, disabled: notes === 0 },
       { value: 'delete-todos', label: `Delete all to-dos (${todos})`, disabled: todos === 0 },
     ];

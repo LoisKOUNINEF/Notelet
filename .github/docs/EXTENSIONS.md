@@ -2,6 +2,13 @@
 
 `ci.yml` checks and packages the extension on pushes to `main` and on pull requests (a branch gets CI once it has a pull request). `release.yml` publishes it when a `vX.Y.Z` tag is pushed: a GitHub Release with the store ZIPs, then the Chrome Web Store and Firefox Add-ons submissions (those that were generated).
 
+### General infos
+
+- `.github/workflows/ci.yml` (pushes to `main` and pull requests): build with type-checking, unit tests, then for Chrome and Firefox: package, validate, addons-linter (Firefox), and a second build that must give the same ZIP. The ZIPs are kept as workflow artifacts.
+- `.github/workflows/release.yml` (tags `vX.Y.Z`): runs CI, checking that the tag matches the version, then creates the GitHub Release with both ZIPs and their checksums. The Chrome Web Store and addons.mozilla.org submissions then wait for approval in the `store` environment.
+- To release, bump `version` in `package.json` (the build writes it into the manifests), commit, then `git tag vX.Y.Z && git push origin vX.Y.Z`.
+- Third-party actions are pinned to commit SHAs; Dependabot (`.github/dependabot.yml`) opens weekly PRs to bump them.
+
 ## CI (`ci.yml`)
 
 * `check` job: `npm ci`, then the checks (build/type-check, tests…), in order.

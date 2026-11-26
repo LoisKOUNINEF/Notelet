@@ -34,16 +34,10 @@ The sources are `src/extension/` (Chrome's manifest and the background script) a
 
 ## Release
 
-- `npm run package:extension`: production build, then `dist/notelet-chrome-<version>.zip` for the Chrome Web Store and `dist/notelet-firefox-<version>.zip` for addons.mozilla.org, each with a `.sha256` (needs the `zip` command). `package:extension:chrome` / `package:extension:firefox` make only one. The ZIPs are reproducible: with the same `SOURCE_DATE_EPOCH` (CI uses the commit's time), the same sources give the same bytes.
-- `npm run validate:extension` checks both packages (manifest, contents, versions; `-- --tag vX.Y.Z` also checks a release tag); `npm run lint:extension` runs Mozilla's `web-ext lint` on `dist/firefox`.
+- `npm run package:extension`: production build, output in `dist/notelet-chrome-<version>.zip` and `dist/notelet-firefox-<version>.zip`.
+- `npm run validate:extension` checks both packages (`-- --tag vX.Y.Z` also checks a release tag).
+- `npm run lint:extension` runs Mozilla's `web-ext lint` on `dist/firefox`.
 - Store listing drafts, permission justifications and image requirements are kept outside this repository. Privacy policy: [PRIVACY.md](PRIVACY.md).
-
-### CI/CD
-
-- `.github/workflows/ci.yml` (pushes to `main` and pull requests): build with type-checking, unit tests, then for Chrome and Firefox: package, validate, addons-linter (Firefox), and a second build that must give the same ZIP. The ZIPs are kept as workflow artifacts.
-- `.github/workflows/release.yml` (tags `vX.Y.Z`): runs CI, checking that the tag matches the version, then creates the GitHub Release with both ZIPs and their checksums. The Chrome Web Store and addons.mozilla.org submissions then wait for approval in the `store` environment.
-- To release, bump `version` in `package.json` (the build writes it into the manifests), commit, then `git tag vX.Y.Z && git push origin vX.Y.Z`.
-- Third-party actions are pinned to commit SHAs; Dependabot (`.github/dependabot.yml`) opens weekly PRs to bump them.
 
 ## Known limitations
 
