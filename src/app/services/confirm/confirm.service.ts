@@ -3,6 +3,8 @@ import { Service } from '../../../core/index.js';
 export interface IConfirmOptions {
   title: string;
   message: string;
+  // Shown after the message, highlighted, e.g. "This can't be undone."
+  warning?: string;
   // The confirm button's text, e.g. "Delete all".
   confirmLabel: string;
 }

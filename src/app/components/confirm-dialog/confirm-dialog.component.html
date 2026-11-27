@@ -1,7 +1,7 @@
 <div class="confirm-dialog__overlays">
   <a11y-modal id="confirm-dialog" class="confirm-dialog">
     <h2 class="confirm-dialog__title">${title}</h2>
-    <p class="confirm-dialog__message">${message}</p>
+    <p class="confirm-dialog__message">${message}${warning ? ' ' : ''}${warning ? html`<strong class="confirm-dialog__warning">${warning}</strong>` : ''}</p>
     ${choices.length > 0 ? html`
     <ul class="confirm-dialog__choices" aria-label="${title}">
       ${choices.map((choice) => html`<li><button class="button confirm-dialog__choice" type="button" tabindex="0" data-action="choice:${choice.value}">${choice.label}</button></li>`)}

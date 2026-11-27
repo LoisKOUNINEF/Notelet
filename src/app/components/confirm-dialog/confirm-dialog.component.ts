@@ -8,12 +8,13 @@ import { confirmService, type IChoice, type IChooseOptions, type IConfirmDialog,
 interface IConfirmDialogView {
   title: string;
   message: string;
+  warning: string;
   confirmLabel: string;
   choices: IChoice[];
 }
 
 // @ts-ignore : variable(s) used in HTML template
-const templateFn = ({ title, message, confirmLabel, choices }: IConfirmDialogView) => html`__TEMPLATE_PLACEHOLDER__`;
+const templateFn = ({ title, message, warning, confirmLabel, choices }: IConfirmDialogView) => html`__TEMPLATE_PLACEHOLDER__`;
 
 const MODAL_ID = 'confirm-dialog';
 
@@ -31,16 +32,16 @@ export class ConfirmDialogComponent extends Component<HTMLElement, IConfirmDialo
   private readonly _detach: () => void;
 
   constructor(mountTarget: HTMLElement) {
-    super({ templateFn, mountTarget, config: { title: '', message: '', confirmLabel: '', choices: [] } });
+    super({ templateFn, mountTarget, config: { title: '', message: '', warning: '', confirmLabel: '', choices: [] } });
     this._detach = confirmService.attach(this);
   }
 
   public async ask(options: IConfirmOptions): Promise<boolean> {
-    return (await this.open({ ...options, choices: [] }, '.confirm-dialog__cancel')) === 'confirm';
+    return (await this.open({ ...options, warning: options.warning ?? '', choices: [] }, '.confirm-dialog__cancel')) === 'confirm';
   }
 
   public choose(options: IChooseOptions): Promise<string | null> {
-    return this.open({ ...options, confirmLabel: '' }, '.confirm-dialog__choice');
+    return this.open({ ...options, warning: '', confirmLabel: '' }, '.confirm-dialog__choice');
   }
 
   private open(view: IConfirmDialogView, focused: string): Promise<string | null> {

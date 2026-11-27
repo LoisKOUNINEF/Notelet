@@ -141,7 +141,8 @@ describe('DeleteDataComponent', () => {
     await settle();
     expect(asked[0]).toEqual({
       title: 'Delete all your notes and to-dos?',
-      message: '1 note and 2 to-dos, on every page and site. This can\'t be undone.',
+      message: '1 note and 2 to-dos, on every page and site.',
+      warning: 'This can\'t be undone.',
       confirmLabel: 'Delete everything',
     });
     expect(await texts()).toEqual([]);
@@ -156,7 +157,7 @@ describe('DeleteDataComponent', () => {
     await mount();
     allButton().click();
     await settle();
-    expect(asked[0].message).toBe('1 note, on every page and site. This can\'t be undone. They\'ll also be removed from your other computers.');
+    expect(asked[0].message).toBe('1 note, on every page and site. They\'ll also be removed from your other computers.');
   });
 
   it('follows changes made elsewhere', async () => {
@@ -212,7 +213,7 @@ describe('DeleteDataComponent', () => {
     allButton().click();
     await settle();
     expect(asked[0].message).toBe('Every note and to-do not edited in the last month, on every page and site.');
-    expect(asked[1].message).toBe('Every note and to-do, on every page and site. This can\'t be undone.');
+    expect(asked[1].message).toBe('Every note and to-do, on every page and site.');
   });
 
   it('reports failed deletes and a failed undo', async () => {

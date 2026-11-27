@@ -40,6 +40,14 @@ describe('ConfirmDialogComponent', () => {
     expect(document.activeElement).toBe(button('cancel'));
   });
 
+  it('highlights the warning after the message, and only when given', () => {
+    void dialog.ask({ ...options, message: 'Every note.', warning: 'This can\'t be undone.' });
+    expect(modal().querySelector('.confirm-dialog__message').textContent).toBe('Every note. This can\'t be undone.');
+    expect(modal().querySelector('.confirm-dialog__message strong.confirm-dialog__warning').textContent).toBe('This can\'t be undone.');
+    void dialog.ask(options);
+    expect(modal().querySelector('.confirm-dialog__warning')).toBeFalsy();
+  });
+
   it('answers yes on confirm, and closes', async () => {
     const answer = dialog.ask(options);
     button('confirm').click();

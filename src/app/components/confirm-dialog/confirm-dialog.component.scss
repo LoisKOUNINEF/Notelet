@@ -13,6 +13,12 @@
   font-size: var(--font-small);
 }
 
+// What can't be taken back ("This can't be undone."), after the message.
+.confirm-dialog__warning {
+  color: var(--color-danger);
+  font-weight: 700;
+}
+
 // Not a11y-elements' .a11y-modal-buttons: its button rules (padding, font size, a grey hover)
 // would override the app's .button and .button--danger.
 .confirm-dialog__buttons {

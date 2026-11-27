@@ -135,7 +135,8 @@ export class DeleteDataComponent extends AppComponent<HTMLElement, IDeleteDataVi
     const synced = settingsService.storageArea === 'sync';
     const confirmed = await confirmService.ask({
       title: 'Delete all your notes and to-dos?',
-      message: `${all ? countText(all) : 'Every note and to-do'}, on every page and site. This can't be undone.${synced ? ' They\'ll also be removed from your other computers.' : ''}`,
+      message: `${all ? countText(all) : 'Every note and to-do'}, on every page and site.${synced ? ' They\'ll also be removed from your other computers.' : ''}`,
+      warning: 'This can\'t be undone.',
       confirmLabel: 'Delete everything',
     });
     if (!confirmed) return;
